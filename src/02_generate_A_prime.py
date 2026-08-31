@@ -110,19 +110,26 @@ def main():
     with open(mpnn_bias_path, "w") as f:
         json.dump(new_bias, f)
 
-    import shutil
+    from Bio.PDB import PDBParser
 
     for idx, rfd_pdb_out in enumerate(sorted(rfd_pdbs)):
         print(f"\n--- Processing Candidate {idx+1}/{len(rfd_pdbs)}: {os.path.basename(rfd_pdb_out)} ---")
         curr_mpnn_out_dir = os.path.join(args.out_dir, f"mpnn_out_cand_{idx}").replace('\\', '/')
         os.makedirs(curr_mpnn_out_dir, exist_ok=True)
 
+        # Filter fixed residues to only those actually present in this PDB
+        parser_chk = PDBParser(QUIET=True)
+        st_chk = parser_chk.get_structure("chk", rfd_pdb_out)
+        existing_res = set(f"{ch.id}{r.id[1]}" for m in st_chk for ch in m for r in ch if r.id[0] == ' ')
+        curr_fixed_list = [f for f in fixed_list if f in existing_res]
+        curr_fixed_str = ",".join(curr_fixed_list)
+
         if execution_mode == 'mock':
             mpnn_cmd = [
                 sys.executable, "data/mock_tools/mock_ligandmpnn.py",
                 "--pdb_path", rfd_pdb_out.replace('\\', '/'),
                 "--out_folder", curr_mpnn_out_dir,
-                "--fixed_residues", fixed_str.strip(),
+                "--fixed_residues", curr_fixed_str,
                 "--bias_AA_per_residue", str(mpnn_bias_path)
             ]
         elif execution_mode in ['colab', 'local']:
@@ -144,7 +151,7 @@ def main():
                 "--batch_size", "1",
                 "--number_of_batches", "1",
                 "--temperature", temp_rupture,
-                "--fixed_residues", fixed_str,
+                "--fixed_residues", curr_fixed_str,
                 "--bias_per_residue", json.dumps(new_bias),
                 "--write_structures", "True"
             ]
@@ -154,7 +161,7 @@ def main():
                 "python", "/app/run.py",
                 "--pdb_path", rfd_pdb_out.replace('\\', '/'),
                 "--out_folder", curr_mpnn_out_dir,
-                "--fixed_residues", fixed_str.strip(),
+                "--fixed_residues", curr_fixed_str.strip(),
                 "--bias_AA_per_residue", str(mpnn_bias_path)
             ]
 

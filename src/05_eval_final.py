@@ -59,7 +59,9 @@ def main():
             fixed_b = set(fixed_data.get(chain_B_id, []))
             modified_indices_B = [i for i in range(1, len(seq_B_wt) + 1) if i not in fixed_b]
 
-    b_prime_pdbs = glob.glob(os.path.join(args.design_dir, "*_mpnn.pdb"))
+    b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "B_prime_candidate_*.pdb")))
+    if not b_prime_pdbs:
+        b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_mpnn.pdb")))
     if not b_prime_pdbs:
         fallback_pdb = os.path.join(args.design_dir, "B_prime_rfd_mpnn.pdb")
         if execution_mode == 'mock':

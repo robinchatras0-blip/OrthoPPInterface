@@ -34,6 +34,7 @@ ligandmpnn:
   temperature_rupture: 0.20
   temperature_rescue: 0.10
   rescue_coadaptation: true
+  rescue_n_batches: 3
 
 folding:
   engine: "af2" # Options: "af2" (ColabFold) or "af3" (AlphaFold 3)

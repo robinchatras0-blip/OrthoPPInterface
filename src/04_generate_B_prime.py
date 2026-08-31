@@ -209,6 +209,12 @@ def main():
     fixed_list = []
     for chain, res_list in old_fixed.items():
         fixed_list.extend([f"{chain}{res}" for res in res_list])
+
+    # Filter fixed residues to only those actually present in rfd_input_pdb
+    parser_chk_b = PDBParser(QUIET=True)
+    st_chk_b = parser_chk_b.get_structure("chk_b", rfd_input_pdb)
+    existing_res_b = set(f"{ch.id}{r.id[1]}" for m in st_chk_b for ch in m for r in ch if r.id[0] == ' ')
+    fixed_list = [f for f in fixed_list if f in existing_res_b]
     fixed_str = ",".join(fixed_list)
 
     # Compute Complementary Rescue Bias for B' mutable residues against mutated A'
@@ -291,6 +297,8 @@ def main():
         is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))
         temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.10))
 
+        rescue_n_batches = str(lmpnn_cfg.get('rescue_n_batches', 3))
+
         mpnn_cmd = mpnn_bin.split() + [
             "--structure_path", rfd_input_pdb.replace('\\', '/'),
             "--out_directory", mpnn_out_dir.replace('\\', '/'),
@@ -298,14 +306,14 @@ def main():
             "--checkpoint_path", checkpoint_path.replace('\\', '/'),
             "--is_legacy_weights", is_legacy,
             "--batch_size", "1",
-            "--number_of_batches", "1",
+            "--number_of_batches", rescue_n_batches,
             "--temperature", temp_rescue,
             "--fixed_residues", fixed_str,
             "--bias_per_residue", json.dumps(rescue_bias),
             "--write_structures", "True"
         ]
 
-        print(f"  Running LigandMPNN (B') -> {' '.join(mpnn_cmd)}")
+        print(f"  Running LigandMPNN (B', {rescue_n_batches} designs) -> {' '.join(mpnn_cmd)}")
         env = os.environ.copy()
         subprocess.run(mpnn_cmd, check=True, env=env)
 
@@ -314,7 +322,7 @@ def main():
     
     out_search_dir = mpnn_out_dir if execution_mode in ['colab', 'local'] else args.out_dir
 
-    mpnn_outputs = [f for f in glob.glob(os.path.join(out_search_dir, "**", "*.pdb"), recursive=True) if not f.endswith("B_prime_rfd_mpnn.pdb")]
+    mpnn_outputs = [f for f in glob.glob(os.path.join(out_search_dir, "**", "*.pdb"), recursive=True) if not f.endswith("B_prime_rfd_mpnn.pdb") and "candidate" not in f]
     mpnn_cifs = glob.glob(os.path.join(out_search_dir, "**", "*.cif.gz"), recursive=True) + glob.glob(os.path.join(out_search_dir, "**", "*.cif"), recursive=True)
     
     mpnn_outputs = [f for f in mpnn_outputs if os.path.abspath(f) != os.path.abspath(rfd_input_pdb)]
@@ -324,38 +332,51 @@ def main():
     if packed_outputs:
         mpnn_outputs = packed_outputs
 
-    final_pdb_path = os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb")
-    if mpnn_outputs:
-        best_pdb = mpnn_outputs[0]
-        shutil.copy(best_pdb, final_pdb_path)
-    elif mpnn_cifs:
-        best_cif = mpnn_cifs[0]
-        import gzip
-        from Bio.PDB import MMCIFParser
-        
-        parser = MMCIFParser(QUIET=True)
-        if best_cif.endswith('.gz'):
-            with gzip.open(best_cif, 'rt') as f:
-                structure = parser.get_structure("struct", f)
-        else:
-            with open(best_cif, 'rt') as f:
-                structure = parser.get_structure("struct", f)
-                
-        io = PDBIO()
-        io.set_structure(structure)
-        io.save(final_pdb_path)
-    else:
+    if not mpnn_outputs and not mpnn_cifs:
         raise FileNotFoundError("LigandMPNN did not produce any backbones!")
 
-    # Clean nan sidechains
-    with open(final_pdb_path, 'r') as f:
-        lines = f.readlines()
-    with open(final_pdb_path, 'w') as f:
-        for line in lines:
-            if 'nan' not in line:
-                f.write(line)
+    saved_b_pdbs = []
+    if mpnn_outputs:
+        for b_idx, cand_pdb in enumerate(sorted(mpnn_outputs)):
+            dest_cand_pdb = os.path.join(args.out_dir, f"B_prime_candidate_{b_idx:02d}.pdb")
+            shutil.copy(cand_pdb, dest_cand_pdb)
+            # Clean nan sidechains
+            with open(dest_cand_pdb, 'r') as f:
+                lines = f.readlines()
+            with open(dest_cand_pdb, 'w') as f:
+                for line in lines:
+                    if 'nan' not in line:
+                        f.write(line)
+            saved_b_pdbs.append(dest_cand_pdb)
+            if b_idx == 0:
+                shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb"))
+    elif mpnn_cifs:
+        import gzip
+        from Bio.PDB import MMCIFParser
+        for b_idx, cand_cif in enumerate(sorted(mpnn_cifs)):
+            dest_cand_pdb = os.path.join(args.out_dir, f"B_prime_candidate_{b_idx:02d}.pdb")
+            parser = MMCIFParser(QUIET=True)
+            if cand_cif.endswith('.gz'):
+                with gzip.open(cand_cif, 'rt') as f:
+                    structure = parser.get_structure("struct", f)
+            else:
+                with open(cand_cif, 'rt') as f:
+                    structure = parser.get_structure("struct", f)
+            io = PDBIO()
+            io.set_structure(structure)
+            io.save(dest_cand_pdb)
+            # Clean nan
+            with open(dest_cand_pdb, 'r') as f:
+                lines = f.readlines()
+            with open(dest_cand_pdb, 'w') as f:
+                for line in lines:
+                    if 'nan' not in line:
+                        f.write(line)
+            saved_b_pdbs.append(dest_cand_pdb)
+            if b_idx == 0:
+                shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb"))
 
-    print(f"\nModule 4 Complete: Rescue B' generated successfully -> {final_pdb_path}")
+    print(f"\nModule 4 Complete: {len(saved_b_pdbs)} Rescue B' candidates generated successfully.")
 
 if __name__ == "__main__":
     main()
