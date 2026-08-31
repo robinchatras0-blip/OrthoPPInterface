@@ -24,6 +24,7 @@ flowchart TD
 5. [Quickstart & Usage](#quickstart--usage)
 6. [Configuration Reference (`config.yaml`)](#configuration-reference-configyaml)
 7. [Output Files & Database Schema](#output-files--database-schema)
+8. [Authors & Acknowledgments](#authors--acknowledgments)
 
 ---
 
@@ -219,6 +220,13 @@ ORDER BY f_ortho DESC;
 
 ---
 
+## 👥 Authors & Acknowledgments
+
+- **Lead Developer & Research**: [Robin Chatras](https://github.com/robinchatras0-blip)
+- **AI Pair Programming & Architecture**: Developed in collaborative pair programming with **Antigravity** (Advanced Agentic AI Assistant, Google DeepMind).
+
+---
+
 ## 📜 License & Citation
 Developed for advanced computational protein engineering and synthetic biology research.
-Distributed under the MIT License.
+Distributed under the MIT License (see [`LICENSE`](LICENSE)).
