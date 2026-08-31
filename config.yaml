@@ -1,72 +1,100 @@
+# ==============================================================================
+# ORTHOPPINTERFACE CONFIGURATION FILE
+# Automated De Novo Orthogonal Protein-Protein Interface Redesign Framework
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Pipeline Execution & Target Complex
+# ------------------------------------------------------------------------------
 pipeline:
-  run_name: "run_01_baseline" # Run identifier folder name
-  runs_dir: "runs"            # Root directory where runs are stored
-  execution_mode: "local" # Options: "local", "colab", "hpc", or "mock"
-  python_bin: "python"
+  run_name: "run_02_production"          # Name of the experiment directory under runs/
+  runs_dir: "runs"                       # Root directory where experiment runs are saved
+  execution_mode: "local"                # "local" (OrthoIntRob), "colab", "hpc", or "mock"
+  python_bin: "python"                   # Python binary executable
+
+  # Target Native Complex & MSA Inputs
   input_pdb: "data/inputs/complex_S1_S2.pdb"
   input_msa_A: "data/inputs/S1_chain_A.a3m"
   input_msa_B: "data/inputs/S2_chain_B.a3m"
   input_msa: "data/inputs/S1_chain_A.a3m"
   chain_A: "A"
   chain_B: "B"
-  
-  # Local OrthoIntRob settings (Self-contained)
-  local_rfdiffusion: "bash OrthoIntRob/bin/rfd3"
-  local_ligandmpnn: "bash OrthoIntRob/bin/mpnn"
-  
-  # HPC Apptainer / Binary settings
-  apptainer_rfdiffusion: "containers/rfdiffusion.sif"
-  apptainer_ligandmpnn: "containers/ligandmpnn.sif"
-  
-  # Colab settings
-  colab_rfdiffusion: "rfd3"
-  colab_ligandmpnn: "mpnn"
-  
-  # Foundry parameters
-  foundry_n_batches: 5
+
+  # Sampling Space Dimensions (Module 2)
+  foundry_n_batches: 10                  # Number of RFD3 backbone conformations sampled for A'
   foundry_diffusion_batch_size: 1
 
+  # Local Engine Commands
+  local_rfdiffusion: "bash OrthoIntRob/bin/rfd3"
+  local_ligandmpnn: "bash OrthoIntRob/bin/mpnn"
+
+  # HPC Container Paths
+  apptainer_rfdiffusion: "containers/rfdiffusion.sif"
+  apptainer_ligandmpnn: "containers/ligandmpnn.sif"
+
+  # Google Colab Commands
+  colab_rfdiffusion: "rfd3"
+  colab_ligandmpnn: "mpnn"
+
+# ------------------------------------------------------------------------------
+# 2. Multi-Motif Diversity Exploration (Module 4)
+# ------------------------------------------------------------------------------
+diversity_selection:
+  enabled: true                          # Enable MaxMin diversity clustering on passing A' candidates
+  max_a_prime_motifs: 3                  # Number K of chemically diverse A' motifs to co-adapt (e.g. 3)
+
+# ------------------------------------------------------------------------------
+# 3. LigandMPNN Sequence Redesign & Co-adaptation (Modules 2 & 4)
+# ------------------------------------------------------------------------------
 ligandmpnn:
   checkpoint_path: "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt"
-  model_type: "ligand_mpnn"
+  model_type: "ligand_mpnn"              # "ligand_mpnn" or "protein_mpnn"
   is_legacy_weights: "True"
   pack_side_chains: 1
-  temperature_rupture: 0.20
-  temperature_rescue: 0.10
-  rescue_coadaptation: true
-  rescue_n_batches: 3
+  temperature_rupture: 0.20              # Higher temperature (0.20) for diverse negative rupture design
+  temperature_rescue: 0.10               # Lower temperature (0.10) for high-affinity positive rescue packing
+  rescue_coadaptation: true              # Run RFD3 backbone loop co-adaptation around redesigned A'
+  rescue_n_batches: 3                    # Number M of rescue B' sequences generated per A' motif
 
+# ------------------------------------------------------------------------------
+# 4. Structure Prediction & Validation Engine (Modules 3 & 5)
+# ------------------------------------------------------------------------------
 folding:
-  engine: "af2" # Options: "af2" (ColabFold) or "af3" (AlphaFold 3)
+  engine: "af2"                          # "af2" (ColabFold / AF2 Multimer) or "af3" (AlphaFold 3)
   
-  # AlphaFold 3 settings
-  af3_cmd: "alphafold3"
-  
-  # AlphaFold 2 / ColabFold settings
+  # AlphaFold 2 / ColabFold Parameters
   colabfold_cmd: "bash OrthoIntRob/bin/colabfold_batch"
-  colabfold_num_recycle: 3
+  colabfold_num_recycle: 3               # Number of recycling iterations for high precision
   colabfold_model_type: "alphafold2_multimer_v3"
-  colabfold_pair_mode: "unpaired"
+  colabfold_pair_mode: "unpaired"        # Unpaired MSA forces evaluation based on physical chemistry
+  
+  # AlphaFold 3 Parameters
+  af3_cmd: "alphafold3"
 
+# ------------------------------------------------------------------------------
+# 5. Geometric & Structural Constraints (Module 1)
+# ------------------------------------------------------------------------------
 structural_constraints:
-  interface_distance_threshold_angstroms: 6.0
-  neighborhood_radius_angstroms: 5.0
-  crop_chain_B_distance_angstroms: 15.0
-  max_hotspot_mutations: 3
+  interface_distance_threshold_angstroms: 6.0   # Inter-chain heavy-atom contact cutoff (Å)
+  neighborhood_radius_angstroms: 5.0            # Mutable loop neighborhood radius (Å)
+  crop_chain_B_distance_angstroms: 15.0         # Spatial cropping cutoff for Chain B in RFD3 (Å)
+  max_hotspot_mutations: 3                      # Maximum simultaneous hotspot charge inversions
 
+# ------------------------------------------------------------------------------
+# 6. Acceptance & Filtering Thresholds (Modules 3 & 5)
+# ------------------------------------------------------------------------------
 thresholds:
   monomer_stability:
-    plddt_min: 80.0
-    rmsd_max: 2.0
+    plddt_min: 80.0                      # Minimum monomer pLDDT for A' fold stability
+    rmsd_max: 2.0                        # Maximum CA RMSD (Å) relative to native WT structure
   negative_design_rupture:
-    iptm_rupture_max: 0.35 
+    iptm_rupture_max: 0.35               # Maximum iPTM for complete WT rupture (A'·B_WT and A_WT·B')
   positive_design_rescue:
-    iptm_rescue_min: 0.75
+    iptm_rescue_min: 0.75                # Minimum iPTM target for high-affinity synthetic rescue (A'·B')
 
-diversity_selection:
-  enabled: true
-  max_a_prime_motifs: 3 # Maximum number of diverse A' motifs to co-adapt (K)
-
+# ------------------------------------------------------------------------------
+# 7. HPC Slurm Defaults (Cluster Mode)
+# ------------------------------------------------------------------------------
 slurm_defaults:
   partition: "gpu"
   cpus_per_task: 8
