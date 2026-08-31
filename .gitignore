@@ -1,0 +1,12 @@
+.gemini/
+__pycache__/
+results/
+data/outputs/
+*.pdb
+*.pt
+*.pkl
+*.npy
+*.a3m
+OrthoIntRob/
+scratch/
+runs/
