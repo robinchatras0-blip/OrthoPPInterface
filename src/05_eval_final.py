@@ -59,7 +59,12 @@ def main():
             fixed_b = set(fixed_data.get(chain_B_id, []))
             modified_indices_B = [i for i in range(1, len(seq_B_wt) + 1) if i not in fixed_b]
 
-    b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "B_prime_candidate_*.pdb")))
+    # 1. Glob all designed complex pairs (Multi-A' motifs and B' candidates)
+    b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_B_cand_*.pdb")))
+    if not b_prime_pdbs:
+        b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_B_prime_cand_*.pdb")))
+    if not b_prime_pdbs:
+        b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "B_prime_candidate_*.pdb")))
     if not b_prime_pdbs:
         b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_mpnn.pdb")))
     if not b_prime_pdbs:
@@ -73,12 +78,22 @@ def main():
             print(f"Error: No B' design PDBs found in {args.design_dir}")
             sys.exit(1)
 
+    metadata_pairs_path = os.path.join(args.design_dir, "diversity_pairs_metadata.json")
+    meta_pairs = {}
+    if os.path.exists(metadata_pairs_path):
+        with open(metadata_pairs_path, 'r') as f:
+            meta_pairs = json.load(f)
+
     results_data = []
 
     for b_prime_pdb in b_prime_pdbs:
         basename = os.path.basename(b_prime_pdb)
         design_id = os.path.splitext(basename)[0]
-        print(f"Module 5: Evaluating design pair {design_id}...")
+        parent_a = meta_pairs.get(design_id, {}).get("parent_a", "")
+        if not parent_a and "_B_" in design_id:
+            parent_a = design_id.split("_B_")[0]
+
+        print(f"\nModule 5: Evaluating design pair {design_id} (Parent A' motif: {parent_a or 'primary'})...")
 
         # Extract A' and B' sequences from designed complex PDB
         seq_A_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_A_id)
@@ -131,25 +146,38 @@ def main():
         iptm_negative = metrics_neg.get("iptm", 1.0)
         plddt_negative = metrics_neg.get("plddt", 0.0)
 
-        # 3. Retrieve Rupture iPTM and A' metrics from Module 3
+        # 3. Retrieve Rupture iPTM and A' metrics from Module 3 for this specific A' parent
         search_filter_dir = args.filter_dir
         if not search_filter_dir:
             parent_run = os.path.dirname(os.path.abspath(args.out_dir))
             inferred = os.path.join(parent_run, "03_fail_fast")
             search_filter_dir = inferred if os.path.exists(inferred) else "results/03_fail_fast"
         
-        rupture_metrics_files = sorted(glob.glob(os.path.join(search_filter_dir, "metrics_*.json")))
         iptm_rupture = 0.15
         plddt_a_prime = 90.0
         rmsd_a_prime = 0.55
-        if rupture_metrics_files:
-            with open(rupture_metrics_files[0], 'r') as f:
-                metrics_rupture = json.load(f)
-            iptm_rupture = metrics_rupture.get("iptm_rupture", 0.15)
-            plddt_a_prime = metrics_rupture.get("plddt_monomer", 90.0)
-            rmsd_a_prime = metrics_rupture.get("rmsd_monomer", 0.55)
 
-        # 4. Compute RMSD for B' vs WT B
+        # Check for specific candidate metrics file
+        parent_metrics_file = os.path.join(search_filter_dir, f"metrics_{parent_a}.json") if parent_a else None
+        if parent_metrics_file and os.path.exists(parent_metrics_file):
+            with open(parent_metrics_file, 'r') as f:
+                m_data = json.load(f)
+                iptm_rupture = m_data.get("iptm_rupture", 0.15)
+                plddt_a_prime = m_data.get("plddt_monomer", 90.0)
+                rmsd_a_prime = m_data.get("rmsd_monomer", 0.55)
+        else:
+            rupture_metrics_files = sorted(glob.glob(os.path.join(search_filter_dir, "metrics_*.json")))
+            if rupture_metrics_files:
+                with open(rupture_metrics_files[0], 'r') as f:
+                    m_data = json.load(f)
+                    iptm_rupture = m_data.get("iptm_rupture", 0.15)
+                    plddt_a_prime = m_data.get("plddt_monomer", 90.0)
+                    rmsd_a_prime = m_data.get("rmsd_monomer", 0.55)
+
+        # 4. Compute RMSDs vs native WT
+        rmsd_a_prime_calc = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_A_id, chain_pred=chain_A_id)
+        if rmsd_a_prime_calc > 0:
+            rmsd_a_prime = rmsd_a_prime_calc
         rmsd_b_prime = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_B_id, chain_pred=chain_B_id)
 
         # Calculate Orthogonality Score F_ortho
@@ -164,6 +192,7 @@ def main():
 
         results_data.append({
             "design_id": design_id,
+            "parent_a_motif": parent_a or "primary",
             "folding_engine": folding_engine,
             "iptm_rescue": iptm_rescue,
             "iptm_rupture": iptm_rupture,

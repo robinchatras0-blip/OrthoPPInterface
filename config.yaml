@@ -63,6 +63,10 @@ thresholds:
   positive_design_rescue:
     iptm_rescue_min: 0.75
 
+diversity_selection:
+  enabled: true
+  max_a_prime_motifs: 3 # Maximum number of diverse A' motifs to co-adapt (K)
+
 slurm_defaults:
   partition: "gpu"
   cpus_per_task: 8
