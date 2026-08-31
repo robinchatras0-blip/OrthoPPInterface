@@ -82,4 +82,4 @@ rule eval_final:
         gpu = 1,
         runtime = 60
     shell:
-        "{py} src/05_eval_final.py --config config.yaml --analysis_dir {run_path}/01_analysis --design_dir {run_path}/04_rescue_design --out_dir {run_path}/05_final_eval"
+        "{py} src/05_eval_final.py --config config.yaml --analysis_dir {run_path}/01_analysis --design_dir {run_path}/04_rescue_design --filter_dir {run_path}/03_fail_fast --out_dir {run_path}/05_final_eval"

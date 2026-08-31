@@ -264,7 +264,9 @@ def main():
         ],
         "hotspot_ids": hotspot_ids,
         "neighborhood_ids": neighborhood_ids,
-        "fixed_ids_A": fixed_ids_A
+        "fixed_ids_A": fixed_ids_A,
+        "crop_min_B": min_B,
+        "crop_max_B": max_B
     }
 
     mpnn_fixed_positions_A_prime = {chain_A_id: fixed_ids_A, chain_B_id: fixed_ids_B}

@@ -102,7 +102,7 @@ def main():
         print("\n" + "#" * 60)
         print(f"  [STEP 5/5] MODULE 5: FINAL EVALUATION & ORTHOGONALITY MATRIX")
         print("#" * 60)
-        cmd_5 = [python_exe, "src/05_eval_final.py", "--config", config_copy_path, "--analysis_dir", dir_01, "--design_dir", dir_04, "--out_dir", dir_05]
+        cmd_5 = [python_exe, "src/05_eval_final.py", "--config", config_copy_path, "--analysis_dir", dir_01, "--design_dir", dir_04, "--filter_dir", dir_03, "--out_dir", dir_05]
         subprocess.run(cmd_5, check=True)
 
     # Generate Run Summary Markdown

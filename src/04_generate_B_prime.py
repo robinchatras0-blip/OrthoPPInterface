@@ -18,11 +18,18 @@ def main():
         lines = f.readlines()
     if not lines:
         raise ValueError("No passed candidates found!")
-    # format: results/02_rupture_design/A_prime_rfd_mpnn.pdb (just the filename or path)
+    
     in_pdb = lines[0].strip()
     if not os.path.exists(in_pdb):
-        # Maybe it's just the basename
-        in_pdb = os.path.join("results/02_rupture_design", in_pdb)
+        # Resolve relative to passed_candidates directory or parent run structure
+        cand_dir = os.path.dirname(os.path.abspath(args.passed_candidates))
+        parent_dir = os.path.dirname(cand_dir)
+        if os.path.exists(os.path.join(cand_dir, in_pdb)):
+            in_pdb = os.path.join(cand_dir, in_pdb)
+        elif os.path.exists(os.path.join(parent_dir, "02_rupture_design", os.path.basename(in_pdb))):
+            in_pdb = os.path.join(parent_dir, "02_rupture_design", os.path.basename(in_pdb))
+        elif os.path.exists(os.path.join("results/02_rupture_design", os.path.basename(in_pdb))):
+            in_pdb = os.path.join("results/02_rupture_design", os.path.basename(in_pdb))
 
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
@@ -34,11 +41,21 @@ def main():
     
     mpnn_fixed_pos = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
 
-    print("Module 4: Simulating Rescue Design B' (Fixing A' and targeting B')...")
+    # Load dynamic cropped residue range for Chain B from Module 1 index mapping
+    mapping_file = os.path.join(args.analysis_dir, 'index_mapping.json')
+    crop_min_b = 1
+    crop_max_b = 88
+    if os.path.exists(mapping_file):
+        with open(mapping_file, 'r') as f:
+            mapping_data = json.load(f)
+            crop_min_b = mapping_data.get('crop_min_B', 1)
+            crop_max_b = mapping_data.get('crop_max_B', 88)
+
+    print(f"Module 4: Simulating Rescue Design B' (Crop B range: {crop_min_b}-{crop_max_b})...")
 
     from Bio.PDB import PDBParser, PDBIO, Structure, Model, Chain, Superimposer
 
-    # 1. Build cropped complex [A' + B_WT(1-88)] for RFD3
+    # 1. Build cropped complex [A' + B_WT(cropped)] for RFD3
     parser = PDBParser(QUIET=True)
     struct_A = parser.get_structure("A_prime", in_pdb)
     wt_pdb = config['pipeline'].get('input_pdb', 'data/inputs/complex_S1_S2.pdb')
@@ -69,7 +86,7 @@ def main():
                 break
         break
 
-    # Add cropped wild-type Chain B (1-88) for RFD3
+    # Add cropped wild-type Chain B for RFD3
     b_chain_crop = Chain.Chain(chain_B_id)
     complex_model.add(b_chain_crop)
     wt_chain_B_res = []
@@ -78,7 +95,7 @@ def main():
             if chain.id == chain_B_id:
                 wt_chain_B_res = [res for res in chain if res.id[0] == ' ']
                 for res in wt_chain_B_res:
-                    if 1 <= res.id[1] <= 88:
+                    if crop_min_b <= res.id[1] <= crop_max_b:
                         b_chain_crop.add(res.copy())
                 break
         break
@@ -87,7 +104,7 @@ def main():
     io = PDBIO()
     io.set_structure(complex_struct)
     io.save(complex_pdb)
-    print(f"Module 4: Assembled cropped complex [A' + B_WT(1-88)] -> {complex_pdb}")
+    print(f"Module 4: Assembled cropped complex [A' + B_WT({crop_min_b}-{crop_max_b})] -> {complex_pdb}")
 
     # Check if RFD3 co-adaptation is enabled
     lmpnn_cfg = config.get('ligandmpnn', {})
@@ -149,9 +166,9 @@ def main():
             rfd_input_pdb = rfd_pdbs[0]
             print(f"  RFD3 Co-adaptation successful -> {rfd_input_pdb}")
 
-    # Reconstruct full-length Chain B (align WT Chain B to the co-adapted B[1-88] frame, then attach tail 89-557)
+    # Reconstruct full-length Chain B (align WT Chain B to the co-adapted cropped frame, then attach tail)
     if wt_chain_B_res:
-        tail_res = [r for r in wt_chain_B_res if r.id[1] > 88]
+        tail_res = [r for r in wt_chain_B_res if r.id[1] > crop_max_b]
         if tail_res:
             p_full = PDBParser(QUIET=True)
             st_full = p_full.get_structure("assembled", rfd_input_pdb)
@@ -162,7 +179,7 @@ def main():
                 old_fixed = json.load(f)
             fixed_b_set = set(old_fixed.get(chain_B_id, []))
             
-            fixed_crop_ids = set([res.id[1] for res in wt_chain_B_res if 1 <= res.id[1] <= 88 and res.id[1] in fixed_b_set])
+            fixed_crop_ids = set([res.id[1] for res in wt_chain_B_res if crop_min_b <= res.id[1] <= crop_max_b and res.id[1] in fixed_b_set])
             wt_b_ca = [r['CA'] for r in struct_wt[0][chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
             rfd_b_ca = [r['CA'] for r in m_full[chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
             
@@ -175,7 +192,7 @@ def main():
             
             if chain_B_id in m_full:
                 for r in struct_wt[0][chain_B_id]:
-                    if r.id[0] == ' ' and r.id[1] > 88:
+                    if r.id[0] == ' ' and r.id[1] > crop_max_b:
                         m_full[chain_B_id].add(r.copy())
             assembled_pdb = os.path.join(args.out_dir, "complex_assembled_full.pdb")
             io_full = PDBIO()

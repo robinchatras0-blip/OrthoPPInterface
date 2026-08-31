@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--config', default='config.yaml')
     parser.add_argument('--analysis_dir', default='results/01_analysis')
     parser.add_argument('--design_dir', default='results/04_rescue_design')
+    parser.add_argument('--filter_dir', default=None, help="Directory containing Module 3 fail-fast outputs")
     parser.add_argument('--out_dir', default='results/05_final_eval')
     args = parser.parse_args()
 
@@ -129,7 +130,13 @@ def main():
         plddt_negative = metrics_neg.get("plddt", 0.0)
 
         # 3. Retrieve Rupture iPTM and A' metrics from Module 3
-        rupture_metrics_files = sorted(glob.glob("results/03_fail_fast/metrics_*.json"))
+        search_filter_dir = args.filter_dir
+        if not search_filter_dir:
+            parent_run = os.path.dirname(os.path.abspath(args.out_dir))
+            inferred = os.path.join(parent_run, "03_fail_fast")
+            search_filter_dir = inferred if os.path.exists(inferred) else "results/03_fail_fast"
+        
+        rupture_metrics_files = sorted(glob.glob(os.path.join(search_filter_dir, "metrics_*.json")))
         iptm_rupture = 0.15
         plddt_a_prime = 90.0
         rmsd_a_prime = 0.55
