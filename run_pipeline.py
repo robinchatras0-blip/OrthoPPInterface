@@ -8,8 +8,8 @@ import datetime
 import pandas as pd
 
 def main():
-    parser = argparse.ArgumentParser(description="OrthoInterface: End-to-End Experiment Pipeline Runner")
-    parser.add_argument('--config', default='config.yaml', help="Path to config.yaml")
+    parser = argparse.ArgumentParser(description="OrthoPPInterface: End-to-End Experiment Pipeline Runner")
+    parser.add_argument("--config", default="config.yaml", help="Path to config YAML")
     parser.add_argument('--run_name', default=None, help="Name of the experiment run folder (overrides config)")
     parser.add_argument('--runs_dir', default=None, help="Root directory for runs (overrides config)")
     parser.add_argument('--steps', default='1-5', help="Pipeline steps to run (e.g. 1-5, all, 1,2,3, 4-5)")
@@ -112,7 +112,7 @@ def main():
     if os.path.exists(csv_scores):
         df = pd.read_csv(csv_scores)
         with open(summary_md_path, 'w') as f:
-            f.write(f"# OrthoInterface Experiment Summary: `{run_name}`\n\n")
+            f.write(f"# OrthoPPInterface Experiment Summary: `{run_name}`\n\n")
             f.write(f"- **Execution Date**: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"- **Execution Mode**: `{config.get('pipeline', {}).get('execution_mode', 'local')}`\n")
             f.write(f"- **Folding Engine**: `{config.get('folding', {}).get('engine', 'af2')}`\n")

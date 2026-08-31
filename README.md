@@ -1,8 +1,8 @@
-# OrthoInterface 🧬🔬
+# OrthoPPInterface 🧬🔬
 
 **Automated End-to-End Pipeline for De Novo Orthogonal Protein-Protein Interface Redesign**
 
-OrthoInterface is a high-throughput computational biology framework designed to re-engineer protein-protein interaction (PPI) pairs $(A \cdot B)$ into mutually orthogonal synthetic pairs $(A' \cdot B')$. The designed pair binds tightly to each other while neither component interacts with the original wild-type counterparts.
+OrthoPPInterface is a high-throughput computational biology framework designed to re-engineer protein-protein interaction (PPI) pairs $(A \cdot B)$ into mutually orthogonal synthetic pairs $(A' \cdot B')$. The designed pair binds tightly to each other while neither component interacts with the original wild-type counterparts.
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ $$
 - $F_{\text{ortho}} \ge 0.40$: Highly selective, benchmark-grade orthogonal interface.
 
 ### 3. Zero-Latency Local Hybrid Unpaired MSAs
-To eliminate web server bottlenecks and prevent artificial co-evolutionary bias, OrthoInterface constructs **block-diagonal unpaired MSAs** directly from local monomer `.a3m` files:
+To eliminate web server bottlenecks and prevent artificial co-evolutionary bias, OrthoPPInterface constructs **block-diagonal unpaired MSAs** directly from local monomer `.a3m` files:
 - **Block 1**: Homologs of Chain $A$ with modified positions masked (`-`) and Chain $B$ padded with gaps.
 - **Block 2**: Homologs of Chain $B$ with modified positions masked (`-`) and Chain $A$ padded with gaps.
 - Multi-chain ColabFold is run in `--pair-mode unpaired`, forcing AlphaFold2 Multimer to evaluate binding strictly based on the physical chemistry of the newly designed sidechains.
