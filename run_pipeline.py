@@ -37,7 +37,7 @@ def main():
         yaml.dump(config, f, sort_keys=False)
 
     print("=" * 70)
-    print(f"  ORTHOINTERFACE PIPELINE - RUN: {run_name}")
+    print(f"  ORTHOPPINTERFACE PIPELINE - RUN: {run_name}")
     print(f"  Output Directory: {run_path}")
     print(f"  Configuration:    {args.config} (archived to {config_copy_path})")
     print(f"  Execution Mode:   {config.get('pipeline', {}).get('execution_mode', 'local')}")
