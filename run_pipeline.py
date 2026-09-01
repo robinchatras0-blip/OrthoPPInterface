@@ -105,7 +105,9 @@ def main():
         cmd_5 = [python_exe, "src/05_eval_final.py", "--config", config_copy_path, "--analysis_dir", dir_01, "--design_dir", dir_04, "--filter_dir", dir_03, "--out_dir", dir_05]
         subprocess.run(cmd_5, check=True)
 
-    # Generate Run Summary Markdown
+    # Generate Run Summary Markdown, Excel (.xlsx), and Interactive HTML (.html)
+    summary_xlsx_path = os.path.join(run_path, "SUMMARY.xlsx")
+    summary_html_path = os.path.join(run_path, "SUMMARY.html")
     csv_scores = os.path.join(dir_05, "orthogonality_scores.csv")
     summary_md_path = os.path.join(run_path, "SUMMARY.md")
     
@@ -120,9 +122,18 @@ def main():
             f.write("## 📊 Orthogonality Scores Table\n\n")
             f.write(df.to_markdown(index=False) + "\n\n")
             f.write("## 🧬 Artifacts\n\n")
+            f.write(f"- Interactive HTML Dashboard: [`SUMMARY.html`](file:///{os.path.abspath(summary_html_path)})\n")
+            f.write(f"- Styled Excel Spreadsheet: [`SUMMARY.xlsx`](file:///{os.path.abspath(summary_xlsx_path)})\n")
             f.write(f"- CSV Scores: [`orthogonality_scores.csv`](file:///{os.path.abspath(csv_scores)})\n")
             f.write(f"- SQLite DB: [`results.db`](file:///{os.path.abspath(os.path.join(dir_05, 'results.db'))})\n")
             f.write(f"- Configuration Archive: [`config_used.yaml`](file:///{os.path.abspath(config_copy_path)})\n")
+
+        try:
+            from src.export_styled_reports import generate_styled_excel, generate_interactive_html
+            generate_styled_excel(csv_scores, summary_xlsx_path)
+            generate_interactive_html(csv_scores, summary_html_path)
+        except Exception as e:
+            print(f"Warning: Could not generate executive styled reports: {e}")
 
     print("\n" + "=" * 70)
     print(f"  [SUCCESS] RUN COMPLETED: {run_name}")

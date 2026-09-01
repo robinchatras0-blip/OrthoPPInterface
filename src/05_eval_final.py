@@ -10,6 +10,7 @@ import glob
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
 from folding_engine import get_chain_sequence, build_unpaired_complex_a3m, predict_structure, calculate_ca_rmsd
+from dockq import calculate_dockq
 
 def main():
     parser = argparse.ArgumentParser(description="Module 5: Final Validation & Orthogonality Scoring via AF2 / AF3")
@@ -239,6 +240,19 @@ def main():
     df.to_sql("scores", conn, if_exists="replace", index=False)
     conn.close()
     print(f"Module 5: Saved SQLite database to {db_path}")
+
+    # Export to Excel (.xlsx) and Interactive HTML (.html)
+    xlsx_path = os.path.join(args.out_dir, "orthogonality_scores.xlsx")
+    html_path = os.path.join(args.out_dir, "orthogonality_scores.html")
+    try:
+        try:
+        from export_styled_reports import generate_styled_excel, generate_interactive_html
+    except ImportError:
+        from src.export_styled_reports import generate_styled_excel, generate_interactive_html
+        generate_styled_excel(csv_path, xlsx_path)
+        generate_interactive_html(csv_path, html_path)
+    except Exception as e:
+        print(f"Warning: Failed to generate styled reports: {e}")
 
     print("Module 5 Complete: Final evaluation and orthogonality scoring complete.")
 
