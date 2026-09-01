@@ -28,9 +28,9 @@ ligandmpnn:
   temperature_rupture: 0.2
   temperature_rescue: 0.2
   rescue_coadaptation: true
-  rescue_n_batches: 4
-  samples_per_scaffold: 20
-  top_k_per_scaffold: 4
+  rescue_n_batches: 30
+  samples_per_scaffold: 30
+  top_k_per_scaffold: 2
 folding:
   engine: af2
   colabfold_cmd: bash OrthoIntRob/bin/colabfold_batch

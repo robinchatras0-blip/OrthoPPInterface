@@ -7,6 +7,7 @@ import glob
 import subprocess
 import copy
 import sys
+import gzip
 from Bio.PDB import MMCIFParser, PDBIO, PDBParser, Superimposer, Structure, Model, Chain, Residue, Atom
 THREE_TO_ONE = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
@@ -399,9 +400,10 @@ def main():
             if mpnn_outputs:
                 # If more variants than top_k_selected, filter for maximum chemical/sequence diversity
                 if len(mpnn_outputs) > top_k_selected:
+                    mutable_indices_B = [r.id[1] for r in chain_B_res if r.id[1] not in fixed_b_set]
                     cand_seqs = []
                     for p in mpnn_outputs:
-                        seq = extract_interface_sequence(p, chain_B_id, neighborhood_ids_B)
+                        seq = extract_interface_sequence(p, chain_B_id, mutable_indices_B)
                         cand_seqs.append(seq)
                     
                     # Farthest point sampling on unique sequence space

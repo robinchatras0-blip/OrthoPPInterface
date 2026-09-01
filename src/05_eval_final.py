@@ -251,6 +251,11 @@ def main():
             from src.export_styled_reports import generate_styled_excel, generate_interactive_html
         generate_styled_excel(csv_path, xlsx_path)
         generate_interactive_html(csv_path, html_path)
+        # Also copy to root run directory SUMMARY files if in run folder
+        parent_run = os.path.dirname(os.path.abspath(args.out_dir))
+        if os.path.exists(parent_run) and os.path.basename(args.out_dir) == "05_final_eval":
+            generate_styled_excel(csv_path, os.path.join(parent_run, "SUMMARY.xlsx"))
+            generate_interactive_html(csv_path, os.path.join(parent_run, "SUMMARY.html"))
     except Exception as e:
         print(f'Warning: Failed to generate styled reports: {e}')
     print("Module 5 Complete: Final evaluation and orthogonality scoring complete.")
