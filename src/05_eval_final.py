@@ -180,6 +180,16 @@ def main():
             rmsd_a_prime = rmsd_a_prime_calc
         rmsd_b_prime = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_B_id, chain_pred=chain_B_id)
 
+        # 5. Compute DockQ Structural Alignment Metric (pos_out vs Native WT Complex)
+        dockq_res = calculate_dockq(wt_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
+        if dockq_res.get(("dockq"), 0.0) == 0.0 and dockq_res.get(("irms"), 99.9) >= 90.0:
+            dockq_res = calculate_dockq(wt_pdb, b_prime_pdb, chain_A=chain_A_id, chain_B=chain_B_id)
+        dockq_val = dockq_res.get("dockq", 0.0)
+        dockq_quality = dockq_res.get("quality", "Incorrect")
+        fnat_val = dockq_res.get("fnat", 0.0)
+        irms_val = dockq_res.get("irms", 99.9)
+        lrms_val = dockq_res.get("lrms", 99.9)
+
         # Calculate Orthogonality Score F_ortho
         f_ortho = iptm_rescue - max(iptm_rupture, iptm_negative)
 
@@ -188,6 +198,7 @@ def main():
         print(f"  --> iPTM Negative (A_WT + B'): {iptm_negative:.2f}")
         print(f"  --> Monomer RMSD (A'): {rmsd_a_prime:.3f} Å")
         print(f"  --> Monomer RMSD (B'): {rmsd_b_prime:.3f} Å")
+        print(f"  --> DockQ Score: {dockq_val:.4f} ({dockq_quality}) [Fnat: {fnat_val:.3f}, Irms: {irms_val:.2f} Å, Lrms: {lrms_val:.2f} Å]")
         print(f"  --> Orthogonality Score F_ortho: {f_ortho:.2f}")
 
         results_data.append({
@@ -198,6 +209,11 @@ def main():
             "iptm_rupture": iptm_rupture,
             "iptm_negative": iptm_negative,
             "f_ortho": f_ortho,
+            "dockq": dockq_val,
+            "dockq_quality": dockq_quality,
+            "fnat": fnat_val,
+            "irms": irms_val,
+            "lrms": lrms_val,
             "plddt_rescue": plddt_rescue,
             "plddt_a_prime": plddt_a_prime,
             "rmsd_a_prime": rmsd_a_prime,
