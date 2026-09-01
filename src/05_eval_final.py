@@ -106,12 +106,10 @@ def main():
 
         # 1. Positive Design Evaluation (A' + B')
         pos_out = os.path.join(args.out_dir, "complex_rescue", design_id)
-        if os.path.exists(pos_out):
-            import shutil
-            shutil.rmtree(pos_out)
         os.makedirs(pos_out, exist_ok=True)
         rescue_a3m = os.path.join(pos_out, f"{design_id}_rescue.a3m")
-        build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_prime, seq_B_prime, modified_indices_A, rescue_a3m, modified_indices_B=modified_indices_B)
+        if not os.path.exists(rescue_a3m):
+            build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_prime, seq_B_prime, modified_indices_A, rescue_a3m, modified_indices_B=modified_indices_B)
 
         metrics_pos = predict_structure(
             input_pdb=b_prime_pdb,
@@ -129,10 +127,10 @@ def main():
 
         # 2. Negative Design Evaluation (A_WT + B')
         neg_out = os.path.join(args.out_dir, "complex_negative", design_id)
-        if os.path.exists(neg_out):
-            import shutil
-            shutil.rmtree(neg_out)
         os.makedirs(neg_out, exist_ok=True)
+        neg_a3m = os.path.join(neg_out, f"{design_id}_negative.a3m")
+        if not os.path.exists(neg_a3m):
+            build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_wt, seq_B_prime, [], neg_a3m, modified_indices_B=modified_indices_B)
         neg_a3m = os.path.join(neg_out, f"{design_id}_negative.a3m")
         build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_wt, seq_B_prime, [], neg_a3m, modified_indices_B=modified_indices_B)
 

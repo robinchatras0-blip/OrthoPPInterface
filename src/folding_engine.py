@@ -200,6 +200,25 @@ def run_colabfold_prediction(fasta_path, out_dir, config, execution_mode):
     model_type = str(colabfold_cfg.get('colabfold_model_type', 'alphafold2_multimer_v3'))
     pair_mode = str(colabfold_cfg.get('colabfold_pair_mode', 'paired'))
 
+    # Check if prediction is already completed and cached
+    score_files = sorted(glob.glob(os.path.join(out_dir, "*scores*.json")))
+    rank_pdb_files = glob.glob(os.path.join(out_dir, "*_unrelaxed_rank_*.pdb")) + glob.glob(os.path.join(out_dir, "*_relaxed_rank_*.pdb")) + glob.glob(os.path.join(out_dir, "*_model_1_*.pdb"))
+    if score_files and rank_pdb_files:
+        print(f"  [AF2/ColabFold] Found cached prediction in {out_dir}, skipping re-computation.")
+        with open(score_files[0], 'r') as f:
+            data = json.load(f)
+            plddt_list = data.get("plddt", [85.0])
+            mean_plddt = sum(plddt_list) / len(plddt_list) if isinstance(plddt_list, list) and plddt_list else float(plddt_list)
+            iptm = float(data.get("iptm", data.get("ptm", 0.0)))
+            ptm = float(data.get("ptm", 0.0))
+            ranking_score = float(data.get("ranking_confidence", data.get("multimer", iptm)))
+            return {
+                "plddt": mean_plddt,
+                "iptm": iptm,
+                "ptm": ptm,
+                "ranking_score": ranking_score
+            }
+
     if execution_mode == 'mock':
         mock_script = "data/mock_tools/mock_alphafold3.py"
         cmd = [sys.executable, mock_script, "--input", fasta_path, "--out_dir", out_dir]
