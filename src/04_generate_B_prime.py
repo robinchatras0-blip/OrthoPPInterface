@@ -127,8 +127,10 @@ def main():
 
     lmpnn_cfg = config.get('ligandmpnn', {})
     coadapt_enabled = lmpnn_cfg.get('rescue_coadaptation', True)
-    rescue_n_batches = str(lmpnn_cfg.get('rescue_n_batches', 3))
-    temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.10))
+    samples_per_scaffold = int(lmpnn_cfg.get('samples_per_scaffold', lmpnn_cfg.get('rescue_n_batches', 4) * 5))
+    top_k_selected = int(lmpnn_cfg.get('top_k_per_scaffold', lmpnn_cfg.get('rescue_n_batches', 4)))
+    rescue_n_batches = str(samples_per_scaffold)
+    temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.20))
     model_type = lmpnn_cfg.get('model_type', "ligand_mpnn")
     is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))
     default_ckpt = "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local' else "/content/drive/MyDrive/OrthoPPInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt"
@@ -395,7 +397,35 @@ def main():
                 mpnn_outputs = packed_outputs
 
             if mpnn_outputs:
-                for b_idx, cand_pdb in enumerate(sorted(mpnn_outputs)):
+                # If more variants than top_k_selected, filter for maximum chemical/sequence diversity
+                if len(mpnn_outputs) > top_k_selected:
+                    cand_seqs = []
+                    for p in mpnn_outputs:
+                        seq = extract_interface_sequence(p, chain_B_id, neighborhood_ids_B)
+                        cand_seqs.append(seq)
+                    
+                    # Farthest point sampling on unique sequence space
+                    selected_indices = [0]
+                    while len(selected_indices) < top_k_selected and len(selected_indices) < len(mpnn_outputs):
+                        best_cand = None
+                        max_min_dist = -1
+                        for cand_idx in range(len(mpnn_outputs)):
+                            if cand_idx in selected_indices:
+                                continue
+                            min_dist = min(sum(1 for a, b in zip(cand_seqs[cand_idx], cand_seqs[s_idx]) if a != b) for s_idx in selected_indices)
+                            if min_dist > max_min_dist:
+                                max_min_dist = min_dist
+                                best_cand = cand_idx
+                        if best_cand is not None:
+                            selected_indices.append(best_cand)
+                        else:
+                            break
+                    print(f"  Selected top {len(selected_indices)} most diverse B' sequence solutions out of {len(mpnn_outputs)} MPNN samples.")
+                    mpnn_outputs = [mpnn_outputs[i] for i in selected_indices]
+                else:
+                    mpnn_outputs = sorted(mpnn_outputs)[:top_k_selected]
+
+                for b_idx, cand_pdb in enumerate(mpnn_outputs):
                     pair_id = f"{a_cand_name}_B_cand_{b_idx:02d}"
                     dest_cand_pdb = os.path.join(args.out_dir, f"{pair_id}.pdb")
                     shutil.copy(cand_pdb, dest_cand_pdb)

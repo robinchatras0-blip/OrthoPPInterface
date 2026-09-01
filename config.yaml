@@ -26,9 +26,11 @@ ligandmpnn:
   is_legacy_weights: 'True'
   pack_side_chains: 1
   temperature_rupture: 0.2
-  temperature_rescue: 0.1
+  temperature_rescue: 0.2
   rescue_coadaptation: true
-  rescue_n_batches: 10
+  rescue_n_batches: 4
+  samples_per_scaffold: 20
+  top_k_per_scaffold: 4
 folding:
   engine: af2
   colabfold_cmd: bash OrthoIntRob/bin/colabfold_batch
@@ -38,7 +40,7 @@ folding:
   af3_cmd: alphafold3
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
-  neighborhood_radius_angstroms: 5.0
+  neighborhood_radius_angstroms: 10.0
   crop_chain_B_distance_angstroms: 15.0
   max_hotspot_mutations: 3
 thresholds:
