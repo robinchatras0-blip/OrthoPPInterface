@@ -1,18 +1,18 @@
 import argparse
 import yaml
-import subprocess
-import sys
-import os
 import json
-import glob
+import os
 import shutil
-from Bio.PDB import PDBParser, PDBIO, Structure, Model, Chain, Superimposer
-
+import glob
+import subprocess
+import copy
+import sys
+from Bio.PDB import MMCIFParser, PDBIO, PDBParser, Superimposer, Structure, Model, Chain, Residue, Atom
 THREE_TO_ONE = {
-    'ALA':'A', 'CYS':'C', 'ASP':'D', 'GLU':'E', 'PHE':'F',
-    'GLY':'G', 'HIS':'H', 'ILE':'I', 'LYS':'K', 'LEU':'L',
-    'MET':'M', 'ASN':'N', 'PRO':'P', 'GLN':'Q', 'ARG':'R',
-    'SER':'S', 'THR':'T', 'VAL':'V', 'TRP':'W', 'TYR':'Y'
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
 }
 
 def extract_interface_sequence(pdb_path, chain_id, interface_indices):
@@ -226,8 +226,6 @@ def main():
             rfd_cifs = sorted(glob.glob(os.path.join(rfd_rescue_dir, "*.cif.gz")) + glob.glob(os.path.join(rfd_rescue_dir, "*.cif")))
 
             if not rfd_pdbs and rfd_cifs:
-                import gzip
-                from Bio.PDB import MMCIFParser
                 for cif_path in rfd_cifs:
                     pdb_path = cif_path.replace(".cif.gz", ".pdb").replace(".cif", ".pdb")
                     cif_parser = MMCIFParser(QUIET=True)
@@ -372,6 +370,25 @@ def main():
             mpnn_cifs = glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif.gz"), recursive=True) + glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif"), recursive=True)
             mpnn_outputs = [f for f in mpnn_outputs if os.path.abspath(f) != os.path.abspath(rfd_input_pdb)]
             mpnn_cifs = [f for f in mpnn_cifs if os.path.abspath(f) != os.path.abspath(rfd_input_pdb)]
+
+            if not mpnn_outputs and mpnn_cifs:
+                cif_parser = MMCIFParser(QUIET=True)
+                converted_pdbs = []
+                for cif_file in sorted(mpnn_cifs):
+                    pdb_file = cif_file.replace(".cif.gz", ".pdb").replace(".cif", ".pdb")
+                    try:
+                        if cif_file.endswith('.gz'):
+                            with gzip.open(cif_file, 'rt') as gz_f:
+                                struct = cif_parser.get_structure("cif_struct", gz_f)
+                        else:
+                            struct = cif_parser.get_structure("cif_struct", cif_file)
+                        io = PDBIO()
+                        io.set_structure(struct)
+                        io.save(pdb_file)
+                        converted_pdbs.append(pdb_file)
+                    except Exception as e:
+                        print(f"Warning: could not convert {cif_file} to PDB: {e}")
+                mpnn_outputs = converted_pdbs
 
             packed_outputs = [f for f in mpnn_outputs if "packed" in f]
             if packed_outputs:
