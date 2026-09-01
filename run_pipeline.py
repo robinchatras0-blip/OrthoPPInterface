@@ -111,7 +111,7 @@ def main():
     
     if os.path.exists(csv_scores):
         df = pd.read_csv(csv_scores)
-        with open(summary_md_path, 'w') as f:
+        with open(summary_md_path, 'w', encoding='utf-8') as f:
             f.write(f"# OrthoPPInterface Experiment Summary: `{run_name}`\n\n")
             f.write(f"- **Execution Date**: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"- **Execution Mode**: `{config.get('pipeline', {}).get('execution_mode', 'local')}`\n")
@@ -125,7 +125,7 @@ def main():
             f.write(f"- Configuration Archive: [`config_used.yaml`](file:///{os.path.abspath(config_copy_path)})\n")
 
     print("\n" + "=" * 70)
-    print(f"  🎉 RUN COMPLETED SUCCESSFULLY: {run_name}")
+    print(f"  [SUCCESS] RUN COMPLETED: {run_name}")
     print(f"  All results saved in: {run_path}")
     if os.path.exists(summary_md_path):
         print(f"  Summary generated:    {summary_md_path}")

@@ -1,4 +1,4 @@
-name: orthointerface
+name: orthoppinterface
 channels:
   - conda-forge
   - bioconda

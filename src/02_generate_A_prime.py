@@ -135,7 +135,7 @@ def main():
         elif execution_mode in ['colab', 'local']:
             mpnn_bin = config['pipeline'].get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn') if execution_mode == 'local' else config['pipeline']['colab_ligandmpnn']
             lmpnn_cfg = config.get('ligandmpnn', {})
-            default_ckpt = "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local' else "/content/drive/MyDrive/OrthoInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt"
+            default_ckpt = "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local' else "/content/drive/MyDrive/OrthoPPInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt"
             checkpoint_path = lmpnn_cfg.get('checkpoint_path', default_ckpt)
             model_type = lmpnn_cfg.get('model_type', "ligand_mpnn")
             is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))

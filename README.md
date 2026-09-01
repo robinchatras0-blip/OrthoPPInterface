@@ -120,8 +120,8 @@ runs/
 ### 1. Python Environment
 ```bash
 # Create Conda environment
-conda create -n orthointerface python=3.10 biopython pyyaml pandas tabulate -y
-conda activate orthointerface
+conda create -n orthoppinterface python=3.10 biopython pyyaml pandas tabulate -y
+conda activate orthoppinterface
 ```
 
 ### 2. Self-Contained Local Engines (`OrthoIntRob`)

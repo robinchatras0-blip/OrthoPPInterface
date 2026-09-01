@@ -131,7 +131,7 @@ def main():
     temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.10))
     model_type = lmpnn_cfg.get('model_type', "ligand_mpnn")
     is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))
-    default_ckpt = "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local' else "/content/drive/MyDrive/OrthoInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt"
+    default_ckpt = "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local' else "/content/drive/MyDrive/OrthoPPInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt"
     checkpoint_path = lmpnn_cfg.get('checkpoint_path', default_ckpt)
 
     metadata_pairs = {}
