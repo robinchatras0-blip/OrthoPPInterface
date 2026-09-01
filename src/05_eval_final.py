@@ -246,14 +246,13 @@ def main():
     html_path = os.path.join(args.out_dir, "orthogonality_scores.html")
     try:
         try:
-        from export_styled_reports import generate_styled_excel, generate_interactive_html
-    except ImportError:
-        from src.export_styled_reports import generate_styled_excel, generate_interactive_html
+            from export_styled_reports import generate_styled_excel, generate_interactive_html
+        except ImportError:
+            from src.export_styled_reports import generate_styled_excel, generate_interactive_html
         generate_styled_excel(csv_path, xlsx_path)
         generate_interactive_html(csv_path, html_path)
     except Exception as e:
-        print(f"Warning: Failed to generate styled reports: {e}")
-
+        print(f'Warning: Failed to generate styled reports: {e}')
     print("Module 5 Complete: Final evaluation and orthogonality scoring complete.")
 
 if __name__ == "__main__":
