@@ -53,6 +53,22 @@ To eliminate web server bottlenecks and prevent artificial co-evolutionary bias,
 - **Block 2**: Homologs of Chain $B$ with modified positions masked (`-`) and Chain $A$ padded with gaps.
 - Multi-chain ColabFold is run in `--pair-mode unpaired`, forcing AlphaFold2 Multimer to evaluate binding strictly based on the physical chemistry of the newly designed sidechains.
 
+### 4. MSA regimes & predictor calibration (RF3)
+The three orthogonality tests (`A'+B'`, `A_WT+B'`, `A'+B_WT`) must be scored under the **same information regime**, otherwise `F_ortho` measures MSA asymmetry rather than binding. `config.yaml -> folding` controls it:
+
+| Key | Values | Meaning |
+| :--- | :--- | :--- |
+| `msa_mask_scope` | `diff` (default) / `mutable` | mask only columns that really differ from WT / every redesignable column |
+| `msa_mask_mode` | `gap` / `substitute` / `keep` | homolog rows get `-` / the designed residue / are left WT (biased) |
+| `negative_msa_regime` | `matched` (default) / `native` | WT partner masked like its designed counterpart / full WT MSA |
+| `wt_ceiling_control` | `true` | folds WT/WT under the same masks -> `iptm_ceiling`, the best iPTM achievable in that regime |
+
+Before a long campaign, choose the regime empirically on in-silico controls (conservative vs disruptive interface variants):
+```bash
+python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
+```
+If no regime separates the two groups (gap < 0.15) iPTM is not a usable filter for this system. RF3 predictions are cached with a signature of sequences + MSA contents + parameters, so changing the regime never silently re-uses old scores. Unit + wiring tests: `pytest tests`.
+
 ---
 
 ## 🏗️ Pipeline Architecture (Modules 1–5)
@@ -199,7 +215,12 @@ thresholds:
 | Column | Description |
 | :--- | :--- |
 | `design_id` | Unique identifier of the designed pair ($B'$ name) |
-| `folding_engine` | Engine used (`af2` or `af3`) |
+| `folding_engine` | Engine used (`rf3`) |
+| `status` / `passes` | `ok` or `early_exit_low_rescue` / all criteria met (rescue, rupture, negative, `f_ortho >= f_ortho_min`) |
+| `iptm_ceiling` / `iptm_rescue_rel` | WT/WT iPTM under the same masks / `iptm_rescue / iptm_ceiling` |
+| `dockq_vs_design`, `selfcons_lrms` | RF3 prediction vs the *designed* complex (self-consistency) |
+| `scaffold_idx`, `scaffold_flex_rmsd` | RFD3 scaffold the B' came from, and how far its loop backbone moved from WT |
+| `n_mut_A`, `n_mut_B` | Mutations vs WT |
 | `iptm_rescue` | Interface PTM for the synthetic complex $A' \cdot B'$ |
 | `iptm_rupture` | Interface PTM for $A' \cdot B_{\text{WT}}$ (WT rupture) |
 | `iptm_negative` | Interface PTM for $A_{\text{WT}} \cdot B'$ (Cross WT rupture) |

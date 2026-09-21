@@ -3,6 +3,9 @@ import math
 import glob
 import numpy as np
 from Bio.PDB import PDBParser, Superimposer
+import sys
+sys.path.append(os.path.dirname(__file__))
+from design_utils import match_residues
 
 def get_heavy_atoms(residue):
     return [atom for atom in residue if atom.element != 'H' and not atom.get_name().startswith('H')]
@@ -33,11 +36,11 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
 
     nat_A = [r for r in m_nat[chain_A] if r.id[0] == ' ']
     nat_B = [r for r in m_nat[chain_B] if r.id[0] == ' ']
-    mod_A = [r for r in m_mod[chain_A] if r.id[0] == ' ']
-    mod_B = [r for r in m_mod[chain_B] if r.id[0] == ' ']
 
-    mod_A_dict = {r.id[1]: r for r in mod_A}
-    mod_B_dict = {r.id[1]: r for r in mod_B}
+    # Key model residues by the NATIVE residue id. RF3 output is renumbered from 1, so pairing by
+    # raw residue number silently breaks whenever the native numbering does not start at 1.
+    mod_A_dict = {n.id[1]: m for n, m in match_residues(m_nat[chain_A], m_mod[chain_A])}
+    mod_B_dict = {n.id[1]: m for n, m in match_residues(m_nat[chain_B], m_mod[chain_B])}
 
     # 1. Native Contacts and Interface Residues
     native_contacts = set()
@@ -107,8 +110,8 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
         irms = 99.9
 
     # 4. Compute Ligand RMSD (L_RMS)
-    common_A_ids = sorted(set([r.id[1] for r in nat_A if 'CA' in r]) & set([r.id[1] for r in mod_A if 'CA' in r]))
-    common_B_ids = sorted(set([r.id[1] for r in nat_B if 'CA' in r]) & set([r.id[1] for r in mod_B if 'CA' in r]))
+    common_A_ids = sorted(i for i, m in mod_A_dict.items() if 'CA' in m and 'CA' in m_nat[chain_A][i])
+    common_B_ids = sorted(i for i, m in mod_B_dict.items() if 'CA' in m and 'CA' in m_nat[chain_B][i])
 
     if len(common_A_ids) >= 3 and len(common_B_ids) >= 1:
         nat_A_ca = [m_nat[chain_A][i]['CA'] for i in common_A_ids]
