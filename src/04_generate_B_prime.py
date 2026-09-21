@@ -57,6 +57,32 @@ def collect_pdbs(directory):
     return out
 
 
+def align_scaffolds(pdbs, ref_a_chain, chain_A_id, out_dir):
+    """RFD3 re-centres its output (~70 A shift observed on real runs), so a diffused scaffold is not
+    in the frame of the A' it was built around. A' is fixed in the rescue contig, hence identical in
+    every scaffold: fit each scaffold on A' and bring it back into the reference (WT) frame."""
+    os.makedirs(out_dir, exist_ok=True)
+    aligned = []
+    for p in pdbs:
+        st = PDBParser(QUIET=True).get_structure("rfd", p)
+        if chain_A_id not in st[0]:
+            print(f"    Skipping {os.path.basename(p)}: chain {chain_A_id} missing.")
+            continue
+        pairs = [(r, m) for r, m in match_residues(ref_a_chain, st[0][chain_A_id]) if 'CA' in r and 'CA' in m]
+        if len(pairs) < 3:
+            print(f"    Skipping {os.path.basename(p)}: cannot fit on chain {chain_A_id}.")
+            continue
+        sup = Superimposer()
+        sup.set_atoms([r['CA'] for r, _ in pairs], [m['CA'] for _, m in pairs])
+        sup.apply(list(st.get_atoms()))
+        if sup.rms > 0.5:
+            print(f"    WARNING: {os.path.basename(p)} chain {chain_A_id} differs from A' after fit (RMSD {sup.rms:.2f} A).")
+        out = os.path.join(out_dir, os.path.basename(p))
+        save_structure(st, out)
+        aligned.append(out)
+    return aligned
+
+
 def renumber_like(chain, ref_ids):
     """RFD3 may renumber residues. If the chain has as many residues as the reference id list but
     different numbering, re-apply the reference ids so that fixed-residue bookkeeping stays valid."""
@@ -312,6 +338,7 @@ def main():
                 subprocess.run(rfd_cmd, check=True, env=env)
                 rfd_pdbs = [p for p in collect_pdbs(rfd_dir) if os.path.abspath(p) != os.path.abspath(complex_pdb)]
 
+        rfd_pdbs = align_scaffolds(rfd_pdbs, a_chain, chain_A_id, os.path.join(motif_work_dir, "rfd3_aligned"))
         scaffolds = pick_scaffolds(rfd_pdbs, a_chain, wt_B_chain, crop_ids, fixed_b_ids, chain_B_id, pcfg, complex_pdb)
         print(f"  RFD3 produced {len(rfd_pdbs)} backbone(s); {len(scaffolds)} scaffold(s) retained:")
         for i, (p, native, m) in enumerate(scaffolds):

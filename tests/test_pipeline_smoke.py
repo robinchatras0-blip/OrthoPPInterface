@@ -9,6 +9,7 @@ import os
 import random
 import sys
 
+import numpy as np
 import pandas as pd
 import pytest
 import yaml
@@ -88,7 +89,12 @@ def fake_subprocess_run(cmd, **kw):
                 if r.id[1] in (9, 10, 11):                                   # flexible loop actually moves
                     for at in r:
                         at.coord = at.coord + [0.9 * (n + 1), 0.4 * n, 0.0]
-            write_pdb(os.path.join(out, f"rfd_{n}.pdb"), [model["A"].copy(), b])
+            a = model["A"].copy()
+            ang = 0.9 + n
+            rot = np.array([[np.cos(ang), -np.sin(ang), 0], [np.sin(ang), np.cos(ang), 0], [0, 0, 1]])
+            for at in list(a.get_atoms()) + list(b.get_atoms()):     # real RFD3 re-centres its output (~70 A)
+                at.coord = at.coord @ rot + np.array([-40.0, 55.0, 12.0])
+            write_pdb(os.path.join(out, f"rfd_{n}.pdb"), [a, b])
     else:                                                                     # fake LigandMPNN
         get = lambda flag: cmd[cmd.index(flag) + 1]  # noqa: E731
         model = PDBParser(QUIET=True).get_structure("s", get("--structure_path"))[0]
@@ -137,6 +143,7 @@ def test_modules_4_and_5_end_to_end(workspace, monkeypatch):
         b = PDBParser(QUIET=True).get_structure("x", m["pdb"])[0]["B"]
         assert [r.id[1] for r in b] == list(range(1, 21))                     # head + tail restored
         assert m["scaffold_is_native"] is False
+        assert m["contacts_a_prime"] > 0                                      # B' is designed in A''s frame
     # the bug: previously every retained design came from scaffold 0
     assert all(len(s) >= 2 for s in per_motif.values()), per_motif
 

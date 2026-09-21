@@ -209,7 +209,6 @@ def generate_interactive_html(csv_path, html_path):
         rows_html.append(row_str)
 
     max_iptm_r = df['iptm_rescue'].max() if not df.empty else 0.0
-    min_iptm_neg = df['iptm_negative'].min() if not df.empty and 'iptm_negative' in df.columns else (df['iptm_rupture'].min() if not df.empty else 0.0)
     max_f_ortho = df['f_ortho'].max() if not df.empty else 0.0
     total_designs = len(df)
     ortho_count = len(df[df['f_ortho'] > 0])

@@ -119,7 +119,6 @@ def main():
     DONORS_B = {'ARG', 'LYS', 'HIS', 'TRP'}
     ACCEPTORS_B = {'ASP', 'GLU'}
     AMPHOTERIC_POLAR_B = {'ASN', 'GLN', 'SER', 'THR', 'TYR'}
-    HYDROPHOBIC_B = {'ALA', 'VAL', 'LEU', 'ILE', 'PHE', 'PRO', 'MET', 'CYS'}
 
     for res_A in interface_A:
         aid = str(res_A.id[1])

@@ -93,11 +93,9 @@ def main():
 
     with open(mpnn_fixed_pos) as f:
         old_fixed = json.load(f)
-    fixed_str = ""
     fixed_list = []
     for chain, res_list in old_fixed.items():
         fixed_list.extend([f"{chain}{res}" for res in res_list])
-    fixed_str = ",".join(fixed_list)
 
     with open(mpnn_bias) as f:
         old_bias = json.load(f)

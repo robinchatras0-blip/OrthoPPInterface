@@ -2,127 +2,126 @@
 
 **Automated End-to-End Pipeline for De Novo Orthogonal Protein-Protein Interface Redesign**
 
-OrthoPPInterface is a high-throughput computational biology framework designed to re-engineer protein-protein interaction (PPI) pairs $(A \cdot B)$ into mutually orthogonal synthetic pairs $(A' \cdot B')$. The designed pair binds tightly to each other while neither component interacts with the original wild-type counterparts.
+OrthoPPInterface is a computational biology framework designed to re-engineer protein-protein interaction (PPI) pairs $(A \cdot B)$ into mutually orthogonal synthetic pairs $(A' \cdot B')$. The designed pair should bind each other while neither component binds the original wild-type counterpart.
 
 ```mermaid
 flowchart TD
-    WT["WT Complex (A · B)"] --> M1["<b>Module 1: Interface & Hotspots</b><br/>Interface contacts, loops, charge inversion bias"]
+    WT["WT Complex (A · B)"] --> M1["<b>Module 1: Interface & Hotspots</b><br/>Interface contacts, mutable region, rupture bias"]
     M1 --> M2["<b>Module 2: A' Rupture Design</b><br/>RFD3 backbone diffusion + LigandMPNN"]
-    M2 --> M3{"<b>Module 3: Fail-Fast Screening</b><br/>Monomer pLDDT ≥ 80.0, RMSD ≤ 2.0 Å<br/>Rupture iPTM(A'·B_WT) ≤ 0.35"}
-    M3 -- Pass --> M4["<b>Module 4: B' Rescue Design</b><br/>Rigid realignment + RFD3 co-adaptation + Complementary MPNN"]
+    M2 --> M3{"<b>Module 3: Fail-Fast Screening (RF3)</b><br/>Monomer pLDDT ≥ 80, RMSD ≤ 2.0 Å<br/>Rupture iPTM(A'·B_WT) ≤ 0.35"}
+    M3 -- Pass --> M4["<b>Module 4: B' Rescue Design</b><br/>RFD3 co-adaptation (re-aligned on A') + specificity-biased LigandMPNN"]
     M3 -- Fail --> Drop["Rejected"]
-    M4 --> M5["<b>Module 5: Final Evaluation</b><br/>Rescue iPTM(A'·B') ≥ 0.75<br/>Cross-rupture iPTM(A_WT·B') ≤ 0.35<br/>Orthogonality Score F_ortho > 0"]
+    M4 --> M5["<b>Module 5: Final Evaluation (RF3)</b><br/>Rescue, cross-rupture, rupture, WT ceiling<br/>F_ortho + pass/fail"]
 ```
 
 ---
 
 ## 📑 Table of Contents
-1. [Theoretical Principles & Mathematical Framework](#theoretical-principles--mathematical-framework)
+1. [Theoretical Principles](#theoretical-principles)
 2. [Pipeline Architecture (Modules 1–5)](#pipeline-architecture-modules-15)
 3. [Experiment Management & Isolated Runs](#experiment-management--isolated-runs)
 4. [Installation & Environments](#installation--environments)
 5. [Quickstart & Usage](#quickstart--usage)
 6. [Configuration Reference (`config.yaml`)](#configuration-reference-configyaml)
 7. [Output Files & Database Schema](#output-files--database-schema)
-8. [Authors & Acknowledgments](#authors--acknowledgments)
+8. [Tests](#tests)
+9. [Authors & Acknowledgments](#authors--acknowledgments)
 
 ---
 
-## 🧮 Theoretical Principles & Mathematical Framework
+## 🧮 Theoretical Principles
 
 ### 1. The Orthogonality Problem
-Given a native complex $A \cdot B$, our objective is to engineer mutated variants $A'$ and $B'$ satisfying four simultaneous conditions:
-1. **Monomer Stability**: Both $A'$ and $B'$ fold into their native monomeric conformations ($\text{pLDDT} \ge 80.0$, $\text{RMSD} \le 2.0\text{ \AA}$).
-2. **Wild-Type Rupture ($A' \cdot B_{\text{WT}}$)**: $A'$ has lost affinity for wild-type $B$ ($\text{iPTM} \le 0.35$).
-3. **Cross-Wild-Type Rupture ($A_{\text{WT}} \cdot B'$)**: $B'$ has lost affinity for wild-type $A$ ($\text{iPTM} \le 0.35$).
-4. **Synthetic Rescue ($A' \cdot B'$)**: $A'$ and $B'$ bind specifically to each other with high affinity ($\text{iPTM} \ge 0.75$).
+Given a native complex $A \cdot B$, the objective is to engineer variants $A'$ and $B'$ such that:
+1. **Monomer stability**: $A'$ folds into its native conformation ($\text{pLDDT} \ge 80$, $C_\alpha$ $\text{RMSD} \le 2.0$ Å) — gated in Module 3. $B'$ is judged through the rescue complex (`plddt_rescue`, self-consistency).
+2. **Wild-type rupture** $A' \cdot B_{\text{WT}}$: $\text{iPTM} \le 0.35$.
+3. **Cross-wild-type rupture** $A_{\text{WT}} \cdot B'$: $\text{iPTM} \le 0.35$.
+4. **Synthetic rescue** $A' \cdot B'$: high $\text{iPTM}$ (default $\ge 0.75$, or $\ge 0.85 \times$ the WT ceiling of the same MSA regime, whichever is lower).
 
 ### 2. Orthogonality Score ($F_{\text{ortho}}$)
-The overall quality of a redesign pair is quantified by the Orthogonality Score:
 
 $$
 F_{\text{ortho}} = \text{iPTM}(A' \cdot B') - \max\Big(\text{iPTM}(A' \cdot B_{\text{WT}}),\; \text{iPTM}(A_{\text{WT}} \cdot B')\Big)
 $$
 
-- $F_{\text{ortho}} > 0$: Favorable orthogonal selectivity over both wild-type cross-reactions.
-- $F_{\text{ortho}} \ge 0.40$: Highly selective, benchmark-grade orthogonal interface.
+- $F_{\text{ortho}} > 0$: favourable selectivity over both wild-type cross-reactions.
+- A design **passes** when rescue, rupture and cross-rupture criteria are met and $F_{\text{ortho}} \ge$ `f_ortho_min` (default 0.30).
 
-### 3. Zero-Latency Local Hybrid Unpaired MSAs
-To eliminate web server bottlenecks and prevent artificial co-evolutionary bias, OrthoPPInterface constructs **block-diagonal unpaired MSAs** directly from local monomer `.a3m` files:
-- **Block 1**: Homologs of Chain $A$ with modified positions masked (`-`) and Chain $B$ padded with gaps.
-- **Block 2**: Homologs of Chain $B$ with modified positions masked (`-`) and Chain $A$ padded with gaps.
-- Multi-chain ColabFold is run in `--pair-mode unpaired`, forcing AlphaFold2 Multimer to evaluate binding strictly based on the physical chemistry of the newly designed sidechains.
+### 3. Local MSAs and the information regime (RF3)
+RF3 (Foundry, RoseTTAFold-3 All-Atom) receives **one unpaired `.a3m` per chain**; there is no inter-chain pairing. For a designed chain, the WT alignment is adapted so that no evolutionary information is claimed where the sequence was redesigned: the query is replaced by the designed sequence and the alignment columns of mutated positions are handled according to `folding.msa_mask_mode`.
 
-### 4. MSA regimes & predictor calibration (RF3)
-The three orthogonality tests (`A'+B'`, `A_WT+B'`, `A'+B_WT`) must be scored under the **same information regime**, otherwise `F_ortho` measures MSA asymmetry rather than binding. `config.yaml -> folding` controls it:
+The three orthogonality tests (`A'+B'`, `A_WT+B'`, `A'+B_WT`) must be scored under the **same information regime**, otherwise $F_{\text{ortho}}$ measures MSA asymmetry rather than binding. Key options in `config.yaml → folding`:
 
 | Key | Values | Meaning |
 | :--- | :--- | :--- |
 | `msa_mask_scope` | `diff` (default) / `mutable` | mask only columns that really differ from WT / every redesignable column |
-| `msa_mask_mode` | `gap` / `substitute` / `keep` | homolog rows get `-` / the designed residue / are left WT (biased) |
+| `msa_mask_mode` | `gap` (default) / `substitute` / `keep` | homolog rows get `-` / the designed residue / are left untouched (WT-biased) |
 | `negative_msa_regime` | `matched` (default) / `native` | WT partner masked like its designed counterpart / full WT MSA |
-| `wt_ceiling_control` | `true` | folds WT/WT under the same masks -> `iptm_ceiling`, the best iPTM achievable in that regime |
+| `wt_ceiling_control` | `true` | folds WT/WT under the same masks → `iptm_ceiling`, the best iPTM achievable in that regime |
+| `strict_msa` | `true` | raise if the alignment width does not match the sequence length |
+| `diffusion_batch_size` | `5` | RF3 samples per prediction; the best-ranked one is reported, iPTM mean/std are logged |
 
-Before a long campaign, choose the regime empirically on in-silico controls (conservative vs disruptive interface variants):
+RF3 predictions are cached with a **signature** of sequences + MSA contents + inference parameters, so changing the regime never silently re-uses old scores (caches created by earlier versions have no signature and are recomputed).
+
+Choose the regime empirically before a long campaign, on in-silico controls (conservative vs disruptive interface variants of WT chain A folded against $B_{\text{WT}}$):
 ```bash
 python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 ```
-If no regime separates the two groups (gap < 0.15) iPTM is not a usable filter for this system. RF3 predictions are cached with a signature of sequences + MSA contents + parameters, so changing the regime never silently re-uses old scores. Unit + wiring tests: `pytest tests`.
+If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter for this system and structural metrics must carry the decision.
 
 ---
 
 ## 🏗️ Pipeline Architecture (Modules 1–5)
 
 ### [Module 1: Interface & Hotspot Analysis](src/01_analyze_interface.py)
-- Identifies contact residues ($d \le 5.0\text{ \AA}$) between Chain A and Chain B.
-- Selects charged and polar interaction hotspots (Arg, Lys, Asp, Glu, His, Tyr, etc.).
-- Defines mutable loop segments vs. rigid structural framework.
-- Generates RFD3 contig strings with cropped $B[1-88]$ to prevent GPU VRAM OOM.
-- Builds the **Soluble Rupture Bias Matrix** for LigandMPNN (charge repulsion, hydrogen-bond inversion, and steric pocket disruption).
+- Interface residues of chain A: heavy-atom distance to chain B $\le$ `interface_distance_threshold_angstroms` (6.0 Å); mutable neighbourhood within `neighborhood_radius_angstroms` (10.0 Å) of the interface.
+- Selects hotspots (charged/polar contact residues), defines mutable vs frozen positions for LigandMPNN.
+- Crops chain B to the residues within `crop_chain_B_distance_angstroms` (15.0 Å) of the interface to keep RFD3 within GPU memory.
+- Generates the RFD3 contigs (`inputs.json` for the rupture, `inputs_rescue.json` for the rescue), the rupture bias (`mpnn_bias.json`), the fixed-position files and `index_mapping.json`.
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
-- Runs **RFD3 (Foundry)** diffusion across $N$ batches to sample backbone conformations.
-- Converts MMCIF to PDB and cleans incomplete/NaN atom coordinates.
-- Runs **LigandMPNN** with sidechain packing and rupture bias at $T = 0.20$.
-- Freezes Chain B and all non-interface residues of Chain A.
+- RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
+- LigandMPNN with rupture bias at `temperature_rupture`; chain B and non-interface residues of A are frozen. Structures are converted from CIF and cleaned of NaN atoms.
 
 ### [Module 3: Fail-Fast Screening](src/03_filter_A_prime.py)
-- **Gate 1 (Monomer Stability)**: Folds $A'$ alone with local `.a3m` $\to \text{pLDDT} \ge 80.0$ and $\text{RMSD} \le 2.0\text{ \AA}$.
-- **Gate 2 (Rupture Validation)**: Folds $A' \cdot B_{\text{WT}}$ complex with unpaired `.a3m` $\to \text{iPTM} \le 0.35$.
-- Exports passing candidates to `passed_candidates.txt`.
+- **Sanity check**: folds the native complex with full MSAs (`wt_control.json`); a warning is raised if RF3 does not recognise it (iPTM < 0.6).
+- **Gate 1 (monomer)**: folds $A'$ alone (MSA masked where $A'$ differs from WT) → pLDDT and $C_\alpha$ RMSD vs WT.
+- **Gate 2 (rupture)**: folds $A' \cdot B_{\text{WT}}$ (full WT MSA for B) → iPTM $\le$ `iptm_rupture_max`.
+- Writes `metrics_<candidate>.json` and `passed_candidates.txt` (stops after `max_passing_candidates`).
 
 ### [Module 4: $B'$ Rescue Design](src/04_generate_B_prime.py)
-- **Spatial Realignment**: Superimposes designed $A'$ onto the exact 3D coordinate frame of $A_{\text{WT}}$ ($\text{RMSD} = 0.104\text{ \AA}$).
-- **Backbone Co-adaptation**: Runs RFD3 on $B[1-88]$ with frozen $A'$ to allow $B'$ loops to physically pack around mutated $A'$ sidechains.
-- **Seamless Grafting**: Re-aligns and attaches the full-length constant domain $B[89-557]$.
-- **Complementary Rescue Bias**: Calculates $+5.0$ reciprocal electrostatic steering:
-  - $A'^-$ (Asp/Glu) $\to B'^+$ (Arg/Lys)
-  - $A'^+$ (Arg/Lys) $\to B'^-$ (Asp/Glu)
-  - $A'^{\text{arom}}$ (Phe/Tyr/Trp) $\to B'^{\text{pocket}}$ (Leu/Ile/Val/Tyr)
-- Runs LigandMPNN sequence redesign at $T = 0.10$.
+1. **A' motif selection**: farthest-point selection on the interface sequence (Hamming distance) keeps `max_a_prime_motifs` distinct A' designs.
+2. **Frame alignment**: A' is fitted onto the WT frame using the unchanged framework of A.
+3. **Backbone co-adaptation**: RFD3 redesigns the interface loops of B around the frozen A'. RFD3 **re-centres its output** (≈70 Å shift observed), so every diffused scaffold is re-fitted onto A' (chain A is identical in all outputs) before any scoring.
+4. **Scaffold selection**: scaffolds are filtered (heavy-atom clashes with A', distortion of the fixed framework of B) and de-duplicated (loop backbones must differ by at least `scaffold_min_flex_rmsd`). The rigid native backbone is only used if `include_native_scaffold: true` or as a fallback when nothing passes.
+5. **Grafting**: the WT residues of B outside the RFD3 crop (N-terminal head and C-terminal tail) are re-attached after fitting a copy of WT B on the scaffold framework.
+6. **Specificity-by-difference bias** for LigandMPNN: at each mutable B position, residues complementary to the *new* A' residue are favoured and those complementary to the *WT* A residue penalised (charge swap, knob/hole). Positions where A' kept the WT residue get a mild generic complementarity bias.
+7. **Sampling and selection**: `samples_per_scaffold` sequences per scaffold; designs with more than `max_clashes_with_a_prime` clashes are dropped; the rest are ranked by a rigid proxy (contacts kept with A', contacts lost with $A_{\text{WT}}$) plus the LigandMPNN confidence when it can be read, then `top_k_per_motif` designs are chosen by farthest-point selection **with at least one design per scaffold**.
+- Outputs `<A'>_B_cand_NN.pdb` complexes and `diversity_pairs_metadata.json` (parent A', scaffold index, scaffold loop movement, proxy metrics). Cached per motif; use `--force` to recompute.
 
 ### [Module 5: Final Evaluation & Database Export](src/05_eval_final.py)
-- Folds positive rescue complex ($A' \cdot B'$) with bipartite interface masking.
-- Folds negative cross complex ($A_{\text{WT}} \cdot B'$).
-- Calculates structural $C_\alpha$ RMSD for both $A'$ and $B'$ against wild-type crystal structures.
-- Computes $F_{\text{ortho}}$ and exports results to [`orthogonality_scores.csv`](results/05_final_eval/orthogonality_scores.csv) and [`results.db`](results/05_final_eval/results.db).
+For every designed pair, all four folds are run under the same MSA regime:
+- **Rescue** $A' \cdot B'$, **cross-rupture** $A_{\text{WT}} \cdot B'$, **rupture** $A' \cdot B_{\text{WT}}$ (recomputed here, never reused from another candidate) and the **WT ceiling** $A_{\text{WT}} \cdot B_{\text{WT}}$ with the same masked columns.
+- Geometry: $C_\alpha$ RMSD of A' and B' vs WT, DockQ vs the WT crystal and vs the *designed* complex, ligand-RMSD self-consistency of the RF3 prediction vs the design.
+- Missing values are `NaN`, never substituted by defaults. Optional early exit (`thresholds.early_exit.rescue_iptm_floor`) skips the other folds for hopeless rescues.
+- Exports `orthogonality_scores.csv`, `results.db`, and (if `openpyxl` is installed) styled `.xlsx` / `.html` reports.
 
 ---
 
 ## 🗂️ Experiment Management & Isolated Runs
 
-Every experiment runs in its own dedicated, timestamped directory under `runs/`, preventing overwrites and guaranteeing 100% reproducibility:
+Every experiment runs in its own directory under `runs/` (git-ignored), guaranteeing reproducibility:
 
 ```text
 runs/
 └── run_01_baseline/
     ├── config_used.yaml         # Exact snapshot of all parameters used
-    ├── SUMMARY.md               # Auto-generated Markdown report with score table
-    ├── 01_analysis/             # Contigs, index mappings, MPNN bias matrices
-    ├── 02_rupture_design/       # A' candidate PDBs and MPNN fasta outputs
-    ├── 03_fail_fast/            # Monomer & complex folding logs, metrics JSONs
-    ├── 04_rescue_design/        # Aligned B' designs and co-adapted structures
-    └── 05_final_eval/           # Final CSV, SQLite DB, and folded PDB complexes
+    ├── SUMMARY.md / .xlsx / .html
+    ├── 01_analysis/             # Contigs, index mappings, MPNN bias, fixed positions
+    ├── 02_rupture_design/       # A' candidate PDBs
+    ├── 03_fail_fast/            # wt_control.json, metrics_<A'>.json, passed_candidates.txt
+    ├── 04_rescue_design/        # <A'>_B_cand_NN.pdb, diversity_pairs_metadata.json, motif_*/ work dirs
+    └── 05_final_eval/           # orthogonality_scores.csv, results.db, RF3 outputs per fold
 ```
 
 ---
@@ -130,22 +129,19 @@ runs/
 ## 💻 Installation & Environments
 
 ### Prerequisites
-- **OS**: Linux / WSL2 (Ubuntu 22.04+).
-- **GPU**: NVIDIA GPU (RTX 3070+, RTX 40/50 series, A6000, A100, H100) with CUDA 12+.
+- **GPU**: NVIDIA GPU with CUDA 12+ (developed and tested on an RTX 5070 Ti, 16 GB).
+- **OS**: Linux, or Windows 11 with WSL2 (Ubuntu). On Windows the pipeline runs from a Windows Python environment and calls RF3 through `wsl -d <distro>` (`folding.use_wsl`, default `true` on Windows). RFD3/LigandMPNN wrappers (`OrthoIntRob/bin/rfd3`, `mpnn`) are bash scripts that run inside WSL.
 
-### 1. Python Environment
+### 1. Python environment
 ```bash
-# Create Conda environment
-conda create -n orthoppinterface python=3.10 biopython pyyaml pandas tabulate -y
+conda env create -f environment.yml
 conda activate orthoppinterface
 ```
+> **Windows note:** always *activate* the environment. Calling its `python.exe` directly (without the conda DLL paths on `PATH`) crashes NumPy linear algebra (`0xc06d007f`).
 
-### 2. Self-Contained Local Engines (`OrthoIntRob`)
-All deep learning tools (RFD3, LigandMPNN, ColabFold / AlphaFold 2 Multimer) are bundled locally:
-```bash
-# In WSL2 Ubuntu
-bash OrthoIntRob/setup_all.sh
-```
+### 2. Engines
+- **RF3 (Foundry)** and its checkpoint in the WSL/Linux environment; set `folding.rf3_bin` and `folding.rf3_ckpt`.
+- **RFD3 / LigandMPNN**: bundled in `OrthoIntRob` (`bash OrthoIntRob/setup_all.sh` in WSL2). The local wrappers use paths relative to the project root, so launch the pipeline from there.
 
 ---
 
@@ -154,20 +150,27 @@ bash OrthoIntRob/setup_all.sh
 ### 1. Launching via Master Runner (`run_pipeline.py`)
 
 ```bash
-# Run full end-to-end pipeline (Modules 1 to 5)
+# Full pipeline (Modules 1 to 5)
 python run_pipeline.py --run_name run_01_baseline
 
-# Run with custom configuration file
-python run_pipeline.py --run_name run_02_T02_batches10 --config config_alt.yaml
+# Custom configuration file
+python run_pipeline.py --run_name run_02 --config config_alt.yaml
 
-# Run specific steps only (e.g. Steps 4 and 5)
+# Specific steps only (e.g. Steps 4 and 5)
 python run_pipeline.py --run_name run_01_baseline --steps 4-5
 ```
+
+Modules can also be launched individually (e.g. `python src/04_generate_B_prime.py --config ... --force`).
 
 ### 2. Launching via Snakemake
 
 ```bash
 snakemake --cores 4
+```
+
+### 3. Before a long campaign
+```bash
+python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 ```
 
 ---
@@ -176,36 +179,65 @@ snakemake --cores 4
 
 ```yaml
 pipeline:
-  run_name: "run_01_baseline"          # Default run folder name
-  runs_dir: "runs"                     # Root directory for experiments
-  execution_mode: "local"              # "local", "colab", "hpc", or "mock"
-  input_pdb: "data/inputs/complex_S1_S2.pdb"
-  input_msa_A: "data/inputs/S1_chain_A.a3m"
-  input_msa_B: "data/inputs/S2_chain_B.a3m"
-  chain_A: "A"
-  chain_B: "B"
-  foundry_n_batches: 5                 # Number of RFD3 backbone samples
-
+  run_name: run_rf3_deep_search
+  runs_dir: runs
+  execution_mode: local                # local | colab | (apptainer) | mock
+  input_pdb: data/inputs/complex_S1_S2.pdb
+  input_msa_A: data/inputs/S1_chain_A.a3m
+  input_msa_B: data/inputs/S2_chain_B.a3m
+  chain_A: A
+  chain_B: B
+  foundry_n_batches: 100               # RFD3 backbones for the A' rupture design
+  rescue_diffusion_n_batches: 15       # RFD3 backbones per A' motif for the B' rescue
+  max_rescue_scaffolds: 4              # scaffolds kept per motif
+  local_rfdiffusion: bash OrthoIntRob/bin/rfd3
+  local_ligandmpnn: bash OrthoIntRob/bin/mpnn
+  include_native_scaffold: false       # also design on the rigid WT backbone (control)
+  scaffold_max_clashes: 5              # RFD3 backbone vs A' heavy-atom clashes tolerated
+  scaffold_max_framework_rmsd: 1.5     # max distortion of the fixed framework of B (Å)
+  scaffold_min_flex_rmsd: 0.5          # min loop-backbone difference between kept scaffolds (Å)
+diversity_selection:
+  enabled: true
+  max_a_prime_motifs: 8
 ligandmpnn:
-  temperature_rupture: 0.20            # Higher temperature for diverse rupture exploration
-  temperature_rescue: 0.10             # Lower temperature for high-affinity rescue packing
+  checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
+  model_type: ligand_mpnn
+  temperature_rupture: 0.2
+  temperature_rescue: 0.15
   rescue_coadaptation: true
-
+  samples_per_scaffold: 60             # LigandMPNN samples per scaffold (min 15 after splitting)
+  top_k_per_motif: 6                   # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
+  max_clashes_with_a_prime: 3          # hard filter on LigandMPNN outputs
+folding:                               # see "Local MSAs and the information regime"
+  engine: rf3
+  rf3_bin: /home/<user>/miniforge3/envs/foundry_env/bin/rf3
+  rf3_ckpt: /home/<user>/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
+  use_msa: true
+  msa_mask_scope: diff
+  msa_mask_mode: gap
+  negative_msa_regime: matched
+  wt_ceiling_control: true
+  strict_msa: true
+  diffusion_batch_size: 5
+  # n_recycles: 10 | num_steps: 200 | wsl_distro: Ubuntu | use_wsl: true   (optional RF3/WSL overrides)
 structural_constraints:
-  interface_distance_threshold_angstroms: 5.0
-  neighborhood_radius_angstroms: 8.0
-  max_hotspot_mutations: 3
+  interface_distance_threshold_angstroms: 6.0
+  neighborhood_radius_angstroms: 10.0
   crop_chain_B_distance_angstroms: 15.0
-
+  max_hotspot_mutations: 3
 thresholds:
-  monomer_stability:
-    plddt_min: 80.0
-    rmsd_max: 2.0                      # Maximum CA RMSD relative to WT
-  negative_design_rupture:
-    iptm_rupture_max: 0.35             # Complete dissociation threshold
+  monomer_stability: {plddt_min: 80.0, rmsd_max: 2.0}
+  negative_design_rupture: {iptm_rupture_max: 0.35}          # A' · B_WT
+  negative_design_orthogonality: {iptm_negative_max: 0.35}   # A_WT · B'
   positive_design_rescue:
-    iptm_rescue_min: 0.75              # High-affinity binding threshold
+    iptm_rescue_min: 0.75
+    relative_to_ceiling: 0.85          # effective min = min(0.75, 0.85 × WT ceiling of the same regime)
+  orthogonality: {f_ortho_min: 0.30}
+  early_exit: {rescue_iptm_floor: 0.0} # e.g. 0.3: skip the other folds when the rescue iPTM is below it
+  fail_fast: {max_passing_candidates: 12}
 ```
+
+The configuration file is read as UTF-8 (a BOM is tolerated) and missing `pipeline`/`thresholds` sections raise an explicit error instead of silently falling back to defaults.
 
 ---
 
@@ -214,30 +246,45 @@ thresholds:
 ### 1. `orthogonality_scores.csv`
 | Column | Description |
 | :--- | :--- |
-| `design_id` | Unique identifier of the designed pair ($B'$ name) |
-| `folding_engine` | Engine used (`rf3`) |
-| `status` / `passes` | `ok` or `early_exit_low_rescue` / all criteria met (rescue, rupture, negative, `f_ortho >= f_ortho_min`) |
-| `iptm_ceiling` / `iptm_rescue_rel` | WT/WT iPTM under the same masks / `iptm_rescue / iptm_ceiling` |
-| `dockq_vs_design`, `selfcons_lrms` | RF3 prediction vs the *designed* complex (self-consistency) |
-| `scaffold_idx`, `scaffold_flex_rmsd` | RFD3 scaffold the B' came from, and how far its loop backbone moved from WT |
-| `n_mut_A`, `n_mut_B` | Mutations vs WT |
-| `iptm_rescue` | Interface PTM for the synthetic complex $A' \cdot B'$ |
-| `iptm_rupture` | Interface PTM for $A' \cdot B_{\text{WT}}$ (WT rupture) |
-| `iptm_negative` | Interface PTM for $A_{\text{WT}} \cdot B'$ (Cross WT rupture) |
-| `f_ortho` | Orthogonality Score ($iPTM_{\text{rescue}} - \max(iPTM_{\text{rupture}}, iPTM_{\text{neg}})$) |
-| `plddt_rescue` | Mean pLDDT of the rescue complex |
-| `plddt_a_prime` | Monomer pLDDT of redesigned $A'$ |
-| `rmsd_a_prime` | $C_\alpha$ RMSD of $A'$ against native $A_{\text{WT}}$ (Å) |
-| `rmsd_b_prime` | $C_\alpha$ RMSD of $B'$ against native $B_{\text{WT}}$ (Å) |
+| `design_id`, `parent_a_motif`, `folding_engine` | Pair identifier, A' motif it derives from, engine (`rf3`) |
+| `status` | `ok` or `early_exit_low_rescue` |
+| `passes` | All criteria met: rescue, rupture, cross-rupture and $F_{\text{ortho}} \ge$ `f_ortho_min` |
+| `pass_rescue`, `pass_rupture`, `pass_negative` | Individual criteria |
+| `iptm_rescue` | iPTM of $A' \cdot B'$ (best-ranked RF3 sample) |
+| `iptm_rupture` | iPTM of $A' \cdot B_{\text{WT}}$ |
+| `iptm_negative` | iPTM of $A_{\text{WT}} \cdot B'$ |
+| `iptm_ceiling`, `iptm_rescue_rel` | iPTM of WT/WT under the same masks; `iptm_rescue / iptm_ceiling` |
+| `f_ortho` | $\text{iPTM}_{\text{rescue}} - \max(\text{iPTM}_{\text{rupture}}, \text{iPTM}_{\text{neg}})$ |
+| `iptm_rescue_mean`, `iptm_rescue_std` | Mean / std of the iPTM over the RF3 samples |
+| `pae_min_rescue`, `has_clash`, `ranking_score` | RF3 interface PAE minimum (if reported), clash flag, ranking score |
+| `plddt_rescue`, `plddt_a_prime` | Mean pLDDT of the rescue complex / monomer pLDDT of A' (Module 3) |
+| `rmsd_a_prime`, `rmsd_b_prime` | $C_\alpha$ RMSD of A' / B' (design) vs WT (Å) |
+| `rmsd_a_prime_monomer` | Monomer RMSD of A' vs WT (Module 3) |
+| `dockq`, `dockq_quality`, `fnat`, `irms`, `lrms` | DockQ of the RF3 rescue prediction vs the WT crystal complex |
+| `dockq_vs_design`, `selfcons_lrms`, `pred_interface_contacts` | RF3 prediction vs the *designed* complex (self-consistency), contacts in the prediction |
+| `n_mut_A`, `n_mut_B` | Number of mutations vs WT |
+| `scaffold_idx`, `scaffold_flex_rmsd` | RFD3 scaffold the B' comes from; movement of its loop backbone vs WT (Å) |
+| `proxy_contacts_a_wt`, `proxy_clashes_a_wt` | Module 4 rigid proxy: contacts / clashes of B' with $A_{\text{WT}}$ |
+
+Values that could not be computed are empty (`NaN`); they are never replaced by defaults.
 
 ### 2. SQLite Database (`results.db`)
-Accessible with Python, SQL, or SQLite viewers:
 ```sql
-SELECT design_id, iptm_rescue, iptm_rupture, iptm_negative, f_ortho, rmsd_a_prime, rmsd_b_prime
+SELECT design_id, iptm_rescue, iptm_rupture, iptm_negative, iptm_ceiling, f_ortho, rmsd_b_prime
 FROM scores
-WHERE f_ortho > 0
+WHERE passes = 1
 ORDER BY f_ortho DESC;
 ```
+
+---
+
+## 🧪 Tests
+
+```bash
+pip install pytest
+pytest tests
+```
+The suite covers the sequence/structure helpers, MSA construction, RF3 output parsing and caching, DockQ numbering, and an end-to-end wiring test of Modules 3 → 4 → 5 with RFD3, LigandMPNN and RF3 replaced by fakes (including RFD3's re-centred output frame). It checks plumbing, not scientific quality.
 
 ---
 

@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import glob
@@ -249,6 +250,8 @@ def _collect_metrics(out_dir):
     """Aggregates every diffusion sample RF3 wrote. Reports the best-ranked sample (headline
     metrics) plus mean/std of iPTM over samples so that noise is visible."""
     files = sorted(glob.glob(os.path.join(out_dir, "**", "*_summary_confidences.json"), recursive=True))
+    # RF3 also writes a top-level summary that duplicates the best sample: count samples only once
+    files = [p for p in files if re.search(r"seed-\d+_sample-\d+", os.path.basename(p))] or files
     if not files:
         return None, None
     parsed = [(p, _parse_summary(p)) for p in files]

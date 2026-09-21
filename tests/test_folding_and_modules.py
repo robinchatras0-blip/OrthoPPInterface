@@ -181,3 +181,36 @@ def test_module4_pick_scaffolds_drops_clashing_and_duplicate_backbones(tmp_path)
     cfg["include_native_scaffold"] = True
     picked = m4.pick_scaffolds([good], a, wt_b, list(range(1, 21)), fixed, "B", cfg, native)
     assert picked[0][1] is True                                 # native is opt-in and flagged
+
+
+def test_module4_align_scaffolds_restores_a_prime_frame(tmp_path):
+    import numpy as np
+    from design_utils import interface_stats
+    m4 = load_module("04_generate_B_prime.py")
+    names = ["ALA", "LEU", "LYS", "GLU", "ASP", "VAL", "ILE", "SER", "THR", "ARG"] * 2
+    a = make_chain("A", names)
+    b = make_chain("B", names, origin=(9, 0, 0))
+    ref_contacts, _ = interface_stats(a, b)
+    a2, b2 = make_chain("A", names), make_chain("B", names, origin=(9, 0, 0))
+    ang = 1.3
+    rot = np.array([[np.cos(ang), 0, np.sin(ang)], [0, 1, 0], [-np.sin(ang), 0, np.cos(ang)]])
+    for at in list(a2.get_atoms()) + list(b2.get_atoms()):      # RFD3-style re-centring
+        at.coord = at.coord @ rot + np.array([-30.0, 70.0, 5.0])
+    moved = write_pdb(tmp_path / "moved.pdb", [a2, b2])
+    assert interface_stats(a, PDBParser(QUIET=True).get_structure("m", moved)[0]["B"])[0] == 0
+    out = m4.align_scaffolds([moved], a, "A", str(tmp_path / "aligned"))
+    assert len(out) == 1
+    b_aligned = PDBParser(QUIET=True).get_structure("x", out[0])[0]["B"]
+    assert interface_stats(a, b_aligned)[0] == ref_contacts > 0
+
+
+def test_rf3_top_level_summary_does_not_double_count_best_sample(tmp_path):
+    def write(path, iptm, rank):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"iptm": iptm, "ptm": 0.8, "ranking_score": rank, "overall_plddt": 0.8}))
+    write(tmp_path / "x" / "x_summary_confidences.json", 0.9, 0.95)               # duplicate of the best sample
+    for i, v in enumerate((0.9, 0.5, 0.1)):
+        write(tmp_path / "x" / f"seed-0_sample-{i}" / f"x_seed-0_sample-{i}_summary_confidences.json", v, v + 0.05)
+    _, m = fe._collect_metrics(str(tmp_path))
+    assert m["n_samples"] == 3 and m["iptm"] == 0.9
+    assert m["iptm_mean"] == pytest.approx(0.5)
