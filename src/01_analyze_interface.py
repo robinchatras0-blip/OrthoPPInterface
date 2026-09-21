@@ -1,31 +1,12 @@
 import argparse
-import yaml
 import json
 import os
 import sys
 from Bio.PDB import PDBParser
 
-# Standard amino acid 1-letter to 3-letter mapping
-THREE_TO_ONE = {
-    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
-    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
-    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
-    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
-}
+sys.path.append(os.path.dirname(__file__))
+from design_utils import THREE_TO_ONE, heavy_atoms, load_config, min_residue_distance
 
-def get_heavy_atoms(residue):
-    return [atom for atom in residue if atom.element != 'H']
-
-def min_heavy_atom_distance(res1, res2):
-    min_dist = float('inf')
-    atoms1 = get_heavy_atoms(res1)
-    atoms2 = get_heavy_atoms(res2)
-    for a1 in atoms1:
-        for a2 in atoms2:
-            dist = a1 - a2
-            if dist < min_dist:
-                min_dist = dist
-    return min_dist
 
 def main():
     parser = argparse.ArgumentParser(description="Module 1: Interface Parsing & Hotspot Targeting")
@@ -33,8 +14,7 @@ def main():
     parser.add_argument('--out_dir', default='results/01_analysis')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -47,13 +27,7 @@ def main():
     crop_dist = config['structural_constraints'].get('crop_chain_B_distance_angstroms', 15.0)
 
     if not os.path.exists(pdb_file):
-        if config['pipeline']['execution_mode'] == 'mock':
-            print(f"Mock mode: Input PDB {pdb_file} not found. Creating dummy analysis files.")
-            create_dummy_outputs(args.out_dir, chain_A_id)
-            sys.exit(0)
-        else:
-            print(f"Error: Input PDB {pdb_file} not found!")
-            sys.exit(1)
+        sys.exit(f"Error: Input PDB {pdb_file} not found!")
 
     parser_pdb = PDBParser(QUIET=True)
     structure = parser_pdb.get_structure("complex", pdb_file)
@@ -66,14 +40,14 @@ def main():
     chain_A = model[chain_A_id]
     chain_B = model[chain_B_id]
 
-    residues_A = [res for res in chain_A if res.id[0] == ' ' and len(get_heavy_atoms(res)) > 0]
-    residues_B = [res for res in chain_B if res.id[0] == ' ' and len(get_heavy_atoms(res)) > 0]
+    residues_A = [res for res in chain_A if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
+    residues_B = [res for res in chain_B if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
 
     # Calculate interface residues on Chain A
     interface_A = []
     for res_A in residues_A:
         for res_B in residues_B:
-            if min_heavy_atom_distance(res_A, res_B) <= dist_thresh:
+            if min_residue_distance(res_A, res_B) <= dist_thresh:
                 interface_A.append(res_A)
                 break
 
@@ -93,7 +67,7 @@ def main():
     mutable_A = set(interface_A)
     for res_A in residues_A:
         for if_res in interface_A:
-            if min_heavy_atom_distance(res_A, if_res) <= neighborhood_radius:
+            if min_residue_distance(res_A, if_res) <= neighborhood_radius:
                 mutable_A.add(res_A)
                 break
 
@@ -107,7 +81,7 @@ def main():
     mutable_B = set()
     for res_B in residues_B:
         for if_res in interface_A:
-            if min_heavy_atom_distance(res_B, if_res) <= dist_thresh + 1.0:
+            if min_residue_distance(res_B, if_res) <= dist_thresh + 1.0:
                 mutable_B.add(res_B)
                 break
     neighborhood_ids_B = sorted(list(set([res.id[1] for res in mutable_B])))
@@ -132,7 +106,7 @@ def main():
         # 2. Find interacting partners on Chain B
         partners_B = []
         for res_B in residues_B:
-            dist = min_heavy_atom_distance(res_A, res_B)
+            dist = min_residue_distance(res_A, res_B)
             if dist <= dist_thresh:
                 partners_B.append((dist, res_B))
 
@@ -216,7 +190,7 @@ def main():
     for res_B in residues_B:
         is_close = False
         for res_A in interface_A:
-            if min_heavy_atom_distance(res_B, res_A) <= crop_dist:
+            if min_residue_distance(res_B, res_A) <= crop_dist:
                 is_close = True
                 break
         if is_close:
@@ -325,23 +299,6 @@ def main():
         json.dump(index_mapping, f, indent=2)
 
     print(f"Module 1 Complete: Identified {len(hotspots)} hotspots and {len(neighborhood_ids)} neighborhood residues on Chain {chain_A_id}.")
-
-def create_dummy_outputs(out_dir, chain_A_id):
-    with open(os.path.join(out_dir, "inputs.json"), 'w') as f:
-        json.dump({"design": {"input": "dummy.pdb", "contig": f"{chain_A_id}1-100"}}, f, indent=2)
-    with open(os.path.join(out_dir, "mpnn_fixed_positions.json"), 'w') as f:
-        json.dump({chain_A_id: [1, 2, 4, 5]}, f, indent=2)
-    with open(os.path.join(out_dir, "mpnn_fixed_positions_B.json"), 'w') as f:
-        json.dump({chain_A_id: [1, 2, 3, 4, 5], "B": [1, 2, 4, 5]}, f, indent=2)
-    with open(os.path.join(out_dir, "mpnn_bias.json"), 'w') as f:
-        json.dump({chain_A_id: {"3": {"ASP": 10.0, "GLU": 10.0}}}, f, indent=2)
-    with open(os.path.join(out_dir, "index_mapping.json"), 'w') as f:
-        json.dump({
-            "chain_A": chain_A_id,
-            "hotspot_ids": [3],
-            "neighborhood_ids": [3],
-            "fixed_ids_A": [1, 2, 4, 5]
-        }, f, indent=2)
 
 if __name__ == "__main__":
     main()

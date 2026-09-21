@@ -1,12 +1,9 @@
 pipeline:
   run_name: run_rf3_deep_search
   runs_dir: runs
-  execution_mode: local
-  python_bin: python
   input_pdb: data/inputs/complex_S1_S2.pdb
   input_msa_A: data/inputs/S1_chain_A.a3m
   input_msa_B: data/inputs/S2_chain_B.a3m
-  input_msa: data/inputs/S1_chain_A.a3m
   chain_A: A
   chain_B: B
   foundry_n_batches: 100
@@ -19,10 +16,6 @@ pipeline:
   scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
   local_rfdiffusion: bash OrthoIntRob/bin/rfd3
   local_ligandmpnn: bash OrthoIntRob/bin/mpnn
-  apptainer_rfdiffusion: containers/rfdiffusion.sif
-  apptainer_ligandmpnn: containers/ligandmpnn.sif
-  colab_rfdiffusion: rfd3
-  colab_ligandmpnn: mpnn
 diversity_selection:
   enabled: true
   max_a_prime_motifs: 8
@@ -30,17 +23,13 @@ ligandmpnn:
   checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
   model_type: ligand_mpnn
   is_legacy_weights: 'True'
-  pack_side_chains: 1
   temperature_rupture: 0.2
   temperature_rescue: 0.15
   rescue_coadaptation: true
-  rescue_n_batches: 60
   samples_per_scaffold: 60
-  top_k_per_scaffold: 3
   top_k_per_motif: 6                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
 folding:
-  engine: rf3
   rf3_bin: /home/ommearo/miniforge3/envs/foundry_env/bin/rf3
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
@@ -77,8 +66,3 @@ thresholds:
     rescue_iptm_floor: 0.0            # e.g. 0.3: skip negative/rupture/ceiling folds when rescue iPTM is below it
   fail_fast:
     max_passing_candidates: 12
-slurm_defaults:
-  partition: gpu
-  cpus_per_task: 8
-  mem_gb: 32
-  gpu_type: a100

@@ -48,7 +48,7 @@ def main():
     config = load_config(args.config)
     p = config['pipeline']
     wt_pdb, chA, chB = p['input_pdb'], p.get('chain_A', 'A'), p.get('chain_B', 'B')
-    a3m_A, a3m_B = p.get('input_msa_A', p.get('input_msa')), p['input_msa_B']
+    a3m_A, a3m_B = p['input_msa_A'], p['input_msa_B']
     seq_A, seq_B = get_chain_sequence(wt_pdb, chA), get_chain_sequence(wt_pdb, chB)
     mapping = json.load(open(os.path.join(args.analysis_dir, 'index_mapping.json')))
     iface = [r['sequential_index'] - 1 for r in mapping['residues_A'] if r['is_interface']]
@@ -72,8 +72,7 @@ def main():
             os.makedirs(d, exist_ok=True)
             msa_a = os.path.join(d, "A.a3m")
             prepare_msa(a3m_A, seq, msa_a, cfg, modified_indices=sorted(neigh))
-            m = predict_structure(input_pdb=wt_pdb, out_dir=d, msa_path=None, config=cfg,
-                                  fasta_sequences=[('A_var', seq, msa_a), ('B_wt', seq_B, a3m_B)])
+            m = predict_structure([('A_var', seq, msa_a), ('B_wt', seq_B, a3m_B)], d, cfg)
             rows.append({"mode": mode, "scope": scope, "control": name, "expected_binder": label,
                          "iptm": m["iptm"], "ptm": m["ptm"], "plddt": m["plddt"]})
             print(f"  {mode:10s}/{scope:7s} {name:6s} iPTM={m['iptm']:.3f}")

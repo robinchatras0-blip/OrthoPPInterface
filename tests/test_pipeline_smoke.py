@@ -7,6 +7,7 @@ selection, WT head/tail are restored, no fabricated metrics, matched MSA regimes
 import json
 import os
 import random
+import shutil
 import sys
 
 import numpy as np
@@ -42,6 +43,9 @@ def workspace(tmp_path, monkeypatch):
     json.dump({"A": list(range(1, 21)), "B": [i for i in range(1, 21) if i not in B_MUTABLE]},
               open(ana / "mpnn_fixed_positions_B.json", "w"))
     json.dump({"design": {"input": "x.pdb", "contig": "A1-20,/0,B5-15"}}, open(ana / "inputs_rescue.json", "w"))
+    json.dump({"design": {"input": "x.pdb", "contig": "A1-20,/0,B5-15"}}, open(ana / "inputs.json", "w"))
+    json.dump({"A": list(range(11, 21)), "B": list(range(1, 21))}, open(ana / "mpnn_fixed_positions.json", "w"))
+    json.dump({"A": {"3": {"ASP": 2.0}}}, open(ana / "mpnn_bias.json", "w"))
 
     d2 = tmp_path / "run" / "02_rupture_design"
     d2.mkdir()
@@ -58,7 +62,7 @@ def workspace(tmp_path, monkeypatch):
         json.dump({"plddt_monomer": 88.0, "rmsd_monomer": 0.9, "iptm_rupture": 0.2}, open(d3 / f"metrics_A_prime_candidate_{i:02d}.json", "w"))
 
     cfg = {
-        "pipeline": {"execution_mode": "local", "input_pdb": str(wt), "input_msa_A": str(data / "A.a3m"),
+        "pipeline": {"input_pdb": str(wt), "input_msa_A": str(data / "A.a3m"),
                      "input_msa_B": str(data / "B.a3m"), "chain_A": "A", "chain_B": "B",
                      "local_rfdiffusion": "rfd3", "local_ligandmpnn": "mpnn", "rescue_diffusion_n_batches": 4,
                      "max_rescue_scaffolds": 3, "include_native_scaffold": False},
@@ -66,6 +70,8 @@ def workspace(tmp_path, monkeypatch):
         "ligandmpnn": {"samples_per_scaffold": 15, "top_k_per_motif": 5, "temperature_rescue": 0.2},
         "folding": {"use_msa": True, "msa_mask_scope": "diff", "msa_mask_mode": "gap",
                     "negative_msa_regime": "matched", "wt_ceiling_control": True},
+        "structural_constraints": {"interface_distance_threshold_angstroms": 6.0, "neighborhood_radius_angstroms": 10.0,
+                                   "crop_chain_B_distance_angstroms": 15.0, "max_hotspot_mutations": 3},
         "thresholds": {"monomer_stability": {"plddt_min": 80, "rmsd_max": 2.0},
                        "negative_design_rupture": {"iptm_rupture_max": 0.35},
                        "positive_design_rescue": {"iptm_rescue_min": 0.75, "relative_to_ceiling": 0.85},
@@ -110,7 +116,7 @@ def fake_subprocess_run(cmd, **kw):
     return R()
 
 
-def fake_predict(input_pdb, fasta_sequences, out_dir, msa_path, config):
+def fake_predict(fasta_sequences, out_dir, config):
     labels = tuple(x[0] for x in fasta_sequences)
     for item in fasta_sequences:                                              # MSAs must be well-formed
         if len(item) > 2 and item[2] and os.path.exists(item[2]):
@@ -201,3 +207,70 @@ def test_calibration_script_runs(workspace, monkeypatch):
                    "--n_controls", "2", "--n_pos_mut", "3", "--n_neg_mut", "5"], monkeypatch)
     df = pd.read_csv(os.path.join(out, "calibration_summary.csv"))
     assert len(df) == 4 and {"gap", "iptm_pos_mean", "iptm_neg_mean"} <= set(df.columns)
+
+
+def fake_mpnn_cif_only(cmd, n_mutations=3):
+    """LigandMPNN (Foundry) writes CIF files only; the designed sequence differs from the input backbone."""
+    from Bio.PDB import MMCIFIO
+    get = lambda flag: cmd[cmd.index(flag) + 1]  # noqa: E731
+    st = PDBParser(QUIET=True).get_structure("s", get("--structure_path"))
+    for r in [r for r in st[0]["A"] if r.id[1] in (2, 3, 4)][:n_mutations]:
+        r.resname = "TRP"
+    io = MMCIFIO()
+    io.set_structure(st)
+    io.save(os.path.join(get("--out_directory"), "design_b0_d0.cif"))
+
+
+def test_module1_writes_all_analysis_files(workspace, monkeypatch):
+    m1 = load_module("01_analyze_interface.py")
+    out = str(workspace["root"] / "analysis_new")
+    run_main(m1, ["--config", workspace["cfg"], "--out_dir", out], monkeypatch)
+    for name in ("inputs.json", "inputs_rescue.json", "mpnn_fixed_positions.json", "mpnn_fixed_positions_B.json",
+                 "mpnn_bias.json", "index_mapping.json"):
+        assert os.path.exists(os.path.join(out, name)), name
+    mapping = json.load(open(os.path.join(out, "index_mapping.json")))
+    assert mapping["neighborhood_ids"] and len(mapping["residues_A"]) == 20
+
+
+def test_module2_uses_mpnn_design_not_raw_rfd3_backbone(workspace, monkeypatch):
+    """Regression: mpnn writes CIF only and the old code silently kept the raw RFD3 backbone."""
+    m2 = load_module("02_generate_A_prime.py")
+    root = workspace["root"]
+    wt = workspace["wt"]
+
+    def run(cmd, **kw):
+        if any(str(c).startswith("inputs=") for c in cmd):                 # fake RFD3: backbone = WT A + B
+            out = [c.split("=", 1)[1] for c in cmd if str(c).startswith("out_dir=")][0]
+            shutil.copy(wt, os.path.join(out, "inputs_design_0_model_0.pdb"))
+        else:
+            fake_mpnn_cif_only(cmd)
+
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(m2.subprocess, "run", run)
+    out2 = str(root / "run" / "02_new")
+    run_main(m2, ["--config", workspace["cfg"], "--analysis_dir", workspace["ana"], "--out_dir", out2], monkeypatch)
+    cand = PDBParser(QUIET=True).get_structure("c", os.path.join(out2, "A_prime_candidate_00.pdb"))[0]["A"]
+    seq = "".join(THREE_TO_ONE.get(r.get_resname(), "X") for r in cand)
+    assert seq.count("W") >= 3 and seq != ONE(NAMES_A)                      # the MPNN design, not the RFD3 input
+
+
+def test_module2_fails_loudly_when_mpnn_writes_nothing(workspace, monkeypatch):
+    m2 = load_module("02_generate_A_prime.py")
+    wt = workspace["wt"]
+
+    def run(cmd, **kw):
+        if any(str(c).startswith("inputs=") for c in cmd):
+            out = [c.split("=", 1)[1] for c in cmd if str(c).startswith("out_dir=")][0]
+            shutil.copy(wt, os.path.join(out, "inputs_design_0_model_0.pdb"))
+
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(m2.subprocess, "run", run)
+    with pytest.raises(RuntimeError, match="LigandMPNN wrote no structure"):
+        run_main(m2, ["--config", workspace["cfg"], "--analysis_dir", workspace["ana"],
+                      "--out_dir", str(workspace["root"] / "run" / "02_empty")], monkeypatch)

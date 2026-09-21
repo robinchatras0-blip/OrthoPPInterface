@@ -124,15 +124,14 @@ def test_stale_cache_is_recomputed_when_msa_changes(tmp_path, monkeypatch):
         return R()
 
     monkeypatch.setattr(fe.subprocess, "run", fake_run)
-    cfg = {"pipeline": {"execution_mode": "local"}, "folding": {"use_wsl": False, "use_msa": True}}
+    cfg = {"folding": {"use_wsl": False, "use_msa": True}}
     msa = write_a3m(tmp_path / "m.a3m", [WT])
     out = str(tmp_path / "t")
-    args = dict(input_pdb=None, out_dir=out, msa_path=None, config=cfg)
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
     assert len(calls) == 1                               # cache hit
     write_a3m(tmp_path / "m.a3m", [WT, "AAAAAAAAAA"])
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
     assert len(calls) == 2                               # MSA changed -> recomputed, not the old score
 
 

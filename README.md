@@ -81,7 +81,7 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
 - RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
-- LigandMPNN with rupture bias at `temperature_rupture`; chain B and non-interface residues of A are frozen. Structures are converted from CIF and cleaned of NaN atoms.
+- LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; chain B and non-interface residues of A are frozen. LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone).
 
 ### [Module 3: Fail-Fast Screening](src/03_filter_A_prime.py)
 - **Sanity check**: folds the native complex with full MSAs (`wt_control.json`); a warning is raised if RF3 does not recognise it (iPTM < 0.6).
@@ -130,7 +130,7 @@ runs/
 
 ### Prerequisites
 - **GPU**: NVIDIA GPU with CUDA 12+ (developed and tested on an RTX 5070 Ti, 16 GB).
-- **OS**: Linux, or Windows 11 with WSL2 (Ubuntu). On Windows the pipeline runs from a Windows Python environment and calls RF3 through `wsl -d <distro>` (`folding.use_wsl`, default `true` on Windows). RFD3/LigandMPNN wrappers (`OrthoIntRob/bin/rfd3`, `mpnn`) are bash scripts that run inside WSL.
+- **OS**: Linux, or Windows 11 with WSL2 (Ubuntu). Only local execution is supported. On Windows the pipeline runs from a Windows Python environment and calls RF3 through `wsl -d <distro>` (`folding.use_wsl`, default `true` on Windows). RFD3/LigandMPNN wrappers (`OrthoIntRob/bin/rfd3`, `mpnn`) are bash scripts that run inside WSL.
 
 ### 1. Python environment
 ```bash
@@ -162,13 +162,7 @@ python run_pipeline.py --run_name run_01_baseline --steps 4-5
 
 Modules can also be launched individually (e.g. `python src/04_generate_B_prime.py --config ... --force`).
 
-### 2. Launching via Snakemake
-
-```bash
-snakemake --cores 4
-```
-
-### 3. Before a long campaign
+### 2. Before a long campaign
 ```bash
 python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 ```
@@ -181,7 +175,6 @@ python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>
 pipeline:
   run_name: run_rf3_deep_search
   runs_dir: runs
-  execution_mode: local                # local | colab | (apptainer) | mock
   input_pdb: data/inputs/complex_S1_S2.pdb
   input_msa_A: data/inputs/S1_chain_A.a3m
   input_msa_B: data/inputs/S2_chain_B.a3m
@@ -284,7 +277,7 @@ ORDER BY f_ortho DESC;
 pip install pytest
 pytest tests
 ```
-The suite covers the sequence/structure helpers, MSA construction, RF3 output parsing and caching, DockQ numbering, and an end-to-end wiring test of Modules 3 → 4 → 5 with RFD3, LigandMPNN and RF3 replaced by fakes (including RFD3's re-centred output frame). It checks plumbing, not scientific quality.
+The suite covers the sequence/structure helpers, MSA construction, RF3 output parsing and caching, DockQ numbering, and wiring tests of Modules 1 to 5 with RFD3, LigandMPNN and RF3 replaced by fakes (including RFD3's re-centred output frame and LigandMPNN's CIF-only output). It checks plumbing, not scientific quality.
 
 ---
 

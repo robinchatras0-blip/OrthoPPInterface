@@ -2,10 +2,14 @@
 
 Everything here is pure Python / Biopython so it can be unit-tested without a GPU.
 """
+import glob
+import gzip
 import os
+import re
+import warnings
 
 import numpy as np
-from Bio.PDB import NeighborSearch, PDBParser
+from Bio.PDB import MMCIFParser, NeighborSearch, PDBIO, PDBParser
 
 THREE_TO_ONE = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
@@ -113,6 +117,62 @@ def std_residues(chain):
 
 def heavy_atoms(entity):
     return [a for a in entity.get_atoms() if a.element != 'H' and not a.get_name().startswith('H')]
+
+
+def min_residue_distance(res1, res2):
+    """Smallest heavy-atom distance between two residues (vectorised)."""
+    a = np.array([at.coord for at in heavy_atoms(res1)])
+    b = np.array([at.coord for at in heavy_atoms(res2)])
+    if not len(a) or not len(b):
+        return float('inf')
+    return float(np.sqrt(((a[:, None, :] - b[None, :, :]) ** 2).sum(-1).min()))
+
+
+def save_structure(obj, path):
+    """Writes a Bio.PDB object to PDB (LigandMPNN CIFs carry NaN B-factors: silence that warning)."""
+    io = PDBIO()
+    io.set_structure(obj)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*bfactor nan.*")
+        io.save(path)
+
+
+def strip_nan_lines(path):
+    """Drops atom lines with NaN coordinates (unpacked side chains) from a PDB file."""
+    with open(path, 'r') as f:
+        lines = [l for l in f if 'nan' not in l]
+    with open(path, 'w') as f:
+        f.writelines(lines)
+
+
+def cif_to_pdb(cif_path, pdb_path=None):
+    """Converts a (optionally gzipped) mmCIF file to PDB and returns the PDB path."""
+    pdb_path = pdb_path or re.sub(r"\.cif(\.gz)?$", ".pdb", cif_path)
+    parser = MMCIFParser(QUIET=True)
+    if cif_path.endswith('.gz'):
+        with gzip.open(cif_path, 'rt') as f:
+            struct = parser.get_structure("cif", f)
+    else:
+        struct = parser.get_structure("cif", cif_path)
+    save_structure(struct, pdb_path)
+    return pdb_path
+
+
+def collect_pdbs(directory):
+    """All structures written by a tool in `directory` (recursive) as PDB paths. Foundry's mpnn writes
+    CIF only, so CIF files are converted when no PDB is present."""
+    pdbs = sorted(glob.glob(os.path.join(directory, "**", "*.pdb"), recursive=True))
+    if pdbs:
+        return pdbs
+    cifs = sorted(glob.glob(os.path.join(directory, "**", "*.cif.gz"), recursive=True)
+                  + glob.glob(os.path.join(directory, "**", "*.cif"), recursive=True))
+    out = []
+    for c in cifs:
+        try:
+            out.append(cif_to_pdb(c))
+        except Exception as e:
+            print(f"Warning: could not convert {c} to PDB: {e}")
+    return out
 
 
 def load_chain(pdb_path, chain_id):

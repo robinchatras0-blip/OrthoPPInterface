@@ -53,11 +53,9 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
     pcfg = config.get('pipeline', {})
-    execution_mode = pcfg.get('execution_mode', 'mock')
     chain_A_id, chain_B_id = pcfg.get('chain_A', 'A'), pcfg.get('chain_B', 'B')
-    wt_pdb = pcfg.get('input_pdb', 'data/inputs/complex_S1_S2.pdb')
-    wt_a3m_A = pcfg.get('input_msa_A', pcfg.get('input_msa', 'data/inputs/S1_chain_A.a3m'))
-    wt_a3m_B = pcfg.get('input_msa_B', 'data/inputs/S2_chain_B.a3m')
+    wt_pdb = pcfg['input_pdb']
+    wt_a3m_A, wt_a3m_B = pcfg['input_msa_A'], pcfg['input_msa_B']
 
     th = config['thresholds']
     iptm_rescue_min = th['positive_design_rescue']['iptm_rescue_min']
@@ -88,25 +86,14 @@ def main():
 
     seq_A_wt = get_chain_sequence(wt_pdb, chain_id=chain_A_id)
     seq_B_wt = get_chain_sequence(wt_pdb, chain_id=chain_B_id)
-    if (not seq_A_wt or not seq_B_wt) and execution_mode != 'mock':
+    if not seq_A_wt or not seq_B_wt:
         print(f"Error: cannot read WT sequences from {wt_pdb}")
         sys.exit(1)
 
     # 1. Designed complexes
-    b_prime_pdbs = []
-    for pat in ("*_B_cand_*.pdb", "*_B_prime_cand_*.pdb", "B_prime_candidate_*.pdb", "*_mpnn.pdb"):
-        b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, pat)))
-        if b_prime_pdbs:
-            break
+    b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_B_cand_*.pdb")))
     if not b_prime_pdbs:
-        fallback_pdb = os.path.join(args.design_dir, "B_prime_rfd_mpnn.pdb")
-        if execution_mode == 'mock':
-            if not os.path.exists(fallback_pdb):
-                open(fallback_pdb, 'w').write("DUMMY B PRIME PDB CONTENT\n")
-            b_prime_pdbs = [fallback_pdb]
-        else:
-            print(f"Error: No B' design PDBs found in {args.design_dir}")
-            sys.exit(1)
+        sys.exit(f"Error: No B' design PDBs found in {args.design_dir}")
 
     meta_pairs = {}
     meta_path = os.path.join(args.design_dir, "diversity_pairs_metadata.json")
@@ -127,10 +114,8 @@ def main():
         seq_A_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_A_id)
         seq_B_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_B_id)
         if not seq_A_prime or not seq_B_prime:
-            if execution_mode != 'mock':
-                print(f"  Skipping {design_id}: missing chain sequence(s) in design PDB.")
-                continue
-            seq_A_prime, seq_B_prime = seq_A_prime or "M" * 50, seq_B_prime or "M" * 50
+            print(f"  Skipping {design_id}: missing chain sequence(s) in design PDB.")
+            continue
         if len(seq_A_prime) != len(seq_A_wt) or len(seq_B_prime) != len(seq_B_wt):
             print(f"  WARNING: length differs from WT (A {len(seq_A_prime)}/{len(seq_A_wt)}, "
                   f"B {len(seq_B_prime)}/{len(seq_B_wt)}); MSA regime may fall back to single-sequence.")
@@ -152,8 +137,7 @@ def main():
         print(f"  Mutations vs WT: A'={n_mut_A}, B'={n_mut_B} | masked cols: A={st_a['n_masked']}, B={st_b['n_masked']}")
 
         # 2. Positive design: A' + B'
-        m_pos = predict_structure(input_pdb=b_prime_pdb, out_dir=pos_out, msa_path=None, config=config,
-                                  fasta_sequences=[('A_prime', seq_A_prime, msa_A_prime), ('B_prime', seq_B_prime, msa_B_prime)])
+        m_pos = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_prime', seq_B_prime, msa_B_prime)], pos_out, config)
         iptm_rescue = m_pos.get("iptm", NAN)
         print(f"  Positive (A'+B') iPTM: {iptm_rescue:.3f}  (min {iptm_rescue_min})")
 
@@ -169,8 +153,7 @@ def main():
                 prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=seq_A_prime)
             else:
                 msa_A_wt = wt_a3m_A
-            m_neg = predict_structure(input_pdb=b_prime_pdb, out_dir=neg_out, msa_path=None, config=config,
-                                      fasta_sequences=[('A_wt', seq_A_wt, msa_A_wt), ('B_prime', seq_B_prime, msa_B_prime)])
+            m_neg = predict_structure([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', seq_B_prime, msa_B_prime)], neg_out, config)
             iptm_negative = m_neg.get("iptm", NAN)
 
             # 4. Rupture A' + B_WT (recomputed here so it shares the regime of the other tests)
@@ -179,8 +162,7 @@ def main():
                 prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime)
             else:
                 msa_B_wt = wt_a3m_B
-            m_rup = predict_structure(input_pdb=b_prime_pdb, out_dir=rup_out, msa_path=None, config=config,
-                                      fasta_sequences=[('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)])
+            m_rup = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)], rup_out, config)
             iptm_rupture = m_rup.get("iptm", NAN)
 
             # 5. Ceiling: WT complex under the very same masked columns = best achievable iPTM in this regime
@@ -189,8 +171,7 @@ def main():
                 msa_B_c = os.path.join(ctl_out, f"{design_id}_Bwt_ceiling.a3m")
                 prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime)
                 prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime)
-                m_ctl = predict_structure(input_pdb=wt_pdb, out_dir=ctl_out, msa_path=None, config=config,
-                                          fasta_sequences=[('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)])
+                m_ctl = predict_structure([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], ctl_out, config)
                 iptm_ceiling = m_ctl.get("iptm", NAN)
 
         # 6. Module 3 monomer metrics for the parent A' (NaN when unavailable - never invented)

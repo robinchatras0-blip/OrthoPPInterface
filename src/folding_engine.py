@@ -3,13 +3,12 @@ import re
 import sys
 import json
 import glob
-import gzip
 import hashlib
 import subprocess
-from Bio.PDB import PDBParser, MMCIFParser, PDBIO
+from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import THREE_TO_ONE, diff_positions  # noqa: E402  (re-exported for callers)
+from design_utils import THREE_TO_ONE, cif_to_pdb, diff_positions  # noqa: E402
 
 
 def _use_wsl(config):
@@ -24,24 +23,6 @@ def to_wsl_path(path):
         drive = abs_path[0].lower()
         return f"/mnt/{drive}{abs_path[2:]}"
     return abs_path
-
-
-def convert_cif_to_pdb(cif_path, pdb_path):
-    """Converts a (optionally gzipped) CIF file to PDB format using BioPython."""
-    try:
-        cif_parser = MMCIFParser(QUIET=True)
-        if cif_path.endswith('.gz'):
-            with gzip.open(cif_path, 'rt') as f:
-                struct = cif_parser.get_structure("cif_model", f)
-        else:
-            struct = cif_parser.get_structure("cif_model", cif_path)
-        io = PDBIO()
-        io.set_structure(struct)
-        io.save(pdb_path)
-        return True
-    except Exception as e:
-        print(f"Warning: Could not convert {cif_path} to PDB: {e}")
-        return False
 
 
 def get_chain_sequence(pdb_path, chain_id='A'):
@@ -275,12 +256,13 @@ def _find_model(out_dir, tag, summary_path):
     return None
 
 
-def run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=None, execution_mode="local"):
+def predict_structure(fasta_sequences, out_dir, config):
     """Runs RoseTTAFold-3 (Foundry RF3) on a monomer or complex.
 
-    fasta_sequences items: (label, seq) or (label, seq, msa_path). Results are cached in `out_dir`
-    together with a signature of sequences + MSA contents + parameters, so any change of the MSA
-    strategy transparently invalidates stale predictions.
+    fasta_sequences: [(label, sequence, msa_path_or_None), ...], one entry per chain (chain ids A, B, ...).
+    Results are cached in `out_dir` together with a signature of sequences + MSA contents + parameters,
+    so any change of the MSA strategy transparently invalidates stale predictions.
+    Returns the metrics of the best-ranked sample (plus iPTM mean/std over samples and `model_pdb`).
     """
     os.makedirs(out_dir, exist_ok=True)
     tag = os.path.basename(out_dir.rstrip('/\\'))
@@ -288,21 +270,11 @@ def run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=Non
     wsl = _use_wsl(config)
     pth = to_wsl_path if wsl else (lambda p: os.path.abspath(p).replace('\\', '/'))
     use_msa = fcfg.get('use_msa', True)
-    default_msa_B = config.get('pipeline', {}).get('input_msa_B')
-
     rf3_params = {k: fcfg[k] for k in ('diffusion_batch_size', 'n_recycles', 'num_steps', 'seed') if k in fcfg}
 
-    chain_ids = ['A', 'B', 'C', 'D']
     raw_components = []
-    for idx, item in enumerate(fasta_sequences):
-        seq = item[1]
-        msa_p = item[2] if len(item) > 2 else None
-        if not msa_p and use_msa:
-            if idx == 0 and msa_path and os.path.exists(msa_path):
-                msa_p = msa_path
-            elif idx == 1 and default_msa_B and os.path.exists(default_msa_B):
-                msa_p = default_msa_B
-        comp = {"seq": seq, "chain_id": chain_ids[idx] if idx < len(chain_ids) else chr(ord('A') + idx)}
+    for idx, (_, seq, msa_p) in enumerate(fasta_sequences):
+        comp = {"seq": seq, "chain_id": chr(ord('A') + idx)}
         if use_msa and msa_p and os.path.exists(msa_p) and os.path.getsize(msa_p) > 0:
             comp["msa_path"] = msa_p
         raw_components.append(comp)
@@ -314,11 +286,6 @@ def run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=Non
         json.dump([{"name": tag, "components": [
             {**c, **({"msa_path": pth(c["msa_path"])} if "msa_path" in c else {})} for c in raw_components]}],
             f, indent=2)
-
-    if execution_mode == 'mock':
-        return {"plddt": 85.0, "iptm": 0.82, "ptm": 0.80, "ranking_score": 0.82, "has_clash": False,
-                "iptm_mean": 0.82, "iptm_std": 0.0, "n_samples": 1, "chain_pair_pae_min": None,
-                "model_pdb": None}
 
     cached_sig = open(sig_path).read().strip() if os.path.exists(sig_path) else None
     summary_path, metrics = _collect_metrics(out_dir)
@@ -350,17 +317,14 @@ def run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=Non
     out_pdb = os.path.join(out_dir, f"{tag}_unrelaxed_rank_001.pdb")
     if not os.path.exists(out_pdb):
         cif = _find_model(out_dir, tag, summary_path)
-        if cif and convert_cif_to_pdb(cif, out_pdb):
-            print(f"  [Foundry RF3] Converted {os.path.basename(cif)} -> {os.path.basename(out_pdb)}")
+        if cif:
+            try:
+                cif_to_pdb(cif, out_pdb)
+                print(f"  [Foundry RF3] Converted {os.path.basename(cif)} -> {os.path.basename(out_pdb)}")
+            except Exception as e:
+                print(f"  Warning: could not convert {cif} to PDB: {e}")
     metrics["model_pdb"] = out_pdb if os.path.exists(out_pdb) else None
     return metrics
-
-
-def predict_structure(input_pdb, fasta_sequences, out_dir, msa_path, config):
-    """Unified folding prediction dispatching to RoseTTAFold-3 (RF3)."""
-    execution_mode = config.get('pipeline', {}).get('execution_mode', 'local')
-    return run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=msa_path,
-                              execution_mode=execution_mode)
 
 
 def calculate_ca_rmsd(ref_pdb, pred_pdb_or_dir, chain_ref='A', chain_pred=None, subset_res_ids=None):

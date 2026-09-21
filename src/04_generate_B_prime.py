@@ -1,60 +1,17 @@
 import argparse
 import json
 import os
-import shutil
 import glob
 import subprocess
-import gzip
 import sys
-from Bio.PDB import MMCIFParser, PDBIO, PDBParser, Superimposer, Structure, Model, Chain
+from Bio.PDB import PDBParser, Superimposer, Structure, Model, Chain
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import (  # noqa: E402
     THREE_TO_ONE, select_diverse, std_residues, match_residues, scaffold_metrics,
     ca_rmsd_after_fit, build_rescue_bias, candidate_specificity_score, parse_mpnn_confidence,
-    load_chain, load_config,
+    load_chain, load_config, collect_pdbs, save_structure, strip_nan_lines,
 )
-
-
-def save_structure(obj, path):
-    io = PDBIO()
-    io.set_structure(obj)
-    io.save(path)
-
-
-def strip_nan_lines(path):
-    with open(path, 'r') as f:
-        lines = [l for l in f if 'nan' not in l]
-    with open(path, 'w') as f:
-        f.writelines(lines)
-
-
-def cif_to_pdb(cif_path):
-    pdb_path = cif_path.replace(".cif.gz", ".pdb").replace(".cif", ".pdb")
-    parser = MMCIFParser(QUIET=True)
-    if cif_path.endswith('.gz'):
-        with gzip.open(cif_path, 'rt') as f:
-            struct = parser.get_structure("cif", f)
-    else:
-        struct = parser.get_structure("cif", cif_path)
-    save_structure(struct, pdb_path)
-    return pdb_path
-
-
-def collect_pdbs(directory):
-    """All PDB outputs in a directory tree, converting CIF(.gz) when no PDB was written."""
-    pdbs = sorted(glob.glob(os.path.join(directory, "**", "*.pdb"), recursive=True))
-    if pdbs:
-        return pdbs
-    cifs = sorted(glob.glob(os.path.join(directory, "**", "*.cif.gz"), recursive=True)
-                  + glob.glob(os.path.join(directory, "**", "*.cif"), recursive=True))
-    out = []
-    for c in cifs:
-        try:
-            out.append(cif_to_pdb(c))
-        except Exception as e:
-            print(f"Warning: could not convert {c} to PDB: {e}")
-    return out
 
 
 def align_scaffolds(pdbs, ref_a_chain, chain_A_id, out_dir):
@@ -224,7 +181,6 @@ def main():
                 break
 
     pcfg = config['pipeline']
-    execution_mode = pcfg.get('execution_mode', 'mock')
     chain_A_id, chain_B_id = pcfg.get('chain_A', 'A'), pcfg.get('chain_B', 'B')
     wt_pdb = pcfg.get('input_pdb', 'data/inputs/complex_S1_S2.pdb')
 
@@ -254,16 +210,13 @@ def main():
 
     lmpnn_cfg = config.get('ligandmpnn', {})
     coadapt_enabled = lmpnn_cfg.get('rescue_coadaptation', True)
-    samples_per_scaffold = int(lmpnn_cfg.get('samples_per_scaffold', lmpnn_cfg.get('rescue_n_batches', 4) * 5))
-    top_k_per_scaffold = int(lmpnn_cfg.get('top_k_per_scaffold', 3))
-    top_k_per_motif = int(lmpnn_cfg.get('top_k_per_motif', top_k_per_scaffold * 2))
+    samples_per_scaffold = int(lmpnn_cfg.get('samples_per_scaffold', 60))
+    top_k_per_motif = int(lmpnn_cfg.get('top_k_per_motif', 6))
     max_clash_a = int(lmpnn_cfg.get('max_clashes_with_a_prime', 3))
     temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.20))
     model_type = lmpnn_cfg.get('model_type', "ligand_mpnn")
     is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))
-    default_ckpt = ("OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt" if execution_mode == 'local'
-                    else "/content/drive/MyDrive/OrthoPPInterface_Data/FoundryModels/LigandMPNN/model_params/ligandmpnn_v_32_010_25.pt")
-    checkpoint_path = lmpnn_cfg.get('checkpoint_path', default_ckpt)
+    checkpoint_path = lmpnn_cfg.get('checkpoint_path', "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt")
 
     metadata_pairs, all_saved_b_pdbs = {}, []
     print(f"\nModule 4: Co-adapting and designing rescue B' for {len(selected_candidates)} diverse A' motifs...")
@@ -315,7 +268,7 @@ def main():
 
         # ---- Step 1: RFD3 co-adaptation of B around A'
         rfd_pdbs = []
-        if coadapt_enabled and execution_mode != 'mock':
+        if coadapt_enabled:
             rfd_dir = os.path.join(motif_work_dir, "rfd3_coadapt_out")
             os.makedirs(rfd_dir, exist_ok=True)
             rfd_pdbs = [p for p in collect_pdbs(rfd_dir) if os.path.abspath(p) != os.path.abspath(complex_pdb)]
@@ -329,7 +282,7 @@ def main():
                 inputs_json = os.path.join(rfd_dir, "inputs.json").replace('\\', '/')
                 with open(inputs_json, 'w') as f:
                     json.dump(rescue_json, f, indent=2)
-                rfd_bin = pcfg.get('local_rfdiffusion', 'OrthoIntRob/bin/rfd3') if execution_mode == 'local' else pcfg['colab_rfdiffusion']
+                rfd_bin = pcfg.get('local_rfdiffusion', 'OrthoIntRob/bin/rfd3')
                 rfd_cmd = rfd_bin.split() + [
                     f"inputs={inputs_json}", f"out_dir={rfd_dir.replace(chr(92), '/')}",
                     f"n_batches={pcfg.get('rescue_diffusion_n_batches', 10)}", "diffusion_batch_size=1"]
@@ -368,9 +321,7 @@ def main():
 
             mpnn_out_dir = os.path.join(motif_work_dir, f"mpnn_out_scaffold_{sc_idx}")
             os.makedirs(mpnn_out_dir, exist_ok=True)
-            if execution_mode == 'mock':
-                continue
-            mpnn_bin = pcfg.get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn') if execution_mode == 'local' else pcfg['colab_ligandmpnn']
+            mpnn_bin = pcfg.get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn')
             mpnn_cmd = mpnn_bin.split() + [
                 "--structure_path", assembled.replace('\\', '/'),
                 "--out_directory", mpnn_out_dir.replace('\\', '/'),
@@ -388,7 +339,7 @@ def main():
 
             outs = [f for f in collect_pdbs(mpnn_out_dir)
                     if os.path.abspath(f) != os.path.abspath(assembled)
-                    and not f.endswith("B_prime_rfd_mpnn.pdb") and "candidate" not in os.path.basename(f)]
+                    and "candidate" not in os.path.basename(f)]
             packed = [f for f in outs if "packed" in f]
             outs = packed or outs
 
@@ -407,9 +358,8 @@ def main():
                              "conf": parse_mpnn_confidence(p), "spec": spec,
                              "scaffold_flex_rmsd": sc_m.get("flex_rmsd")})
 
-        if execution_mode == 'mock' or not pool:
-            if not pool:
-                print(f"  WARNING: no LigandMPNN candidates produced for {a_cand_name}.")
+        if not pool:
+            print(f"  WARNING: no LigandMPNN candidates produced for {a_cand_name}.")
             continue
 
         # ---- Step 3: rank (negative-design proxy + LigandMPNN confidence) then diversify
@@ -446,10 +396,6 @@ def main():
                 "parent_a": a_cand_name, "pdb": dest, "scaffold_idx": cand["scaffold"],
                 "scaffold_is_native": cand["native"], "scaffold_flex_rmsd": cand["scaffold_flex_rmsd"],
                 "mpnn_confidence": cand["conf"], **cand["spec"]}
-            if a_idx == 0:   # backward-compatible aliases for the primary motif
-                shutil.copy(dest, os.path.join(args.out_dir, f"B_prime_candidate_{b_idx:02d}.pdb"))
-                if b_idx == 0:
-                    shutil.copy(dest, os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb"))
 
     with open(os.path.join(args.out_dir, "diversity_pairs_metadata.json"), 'w') as f:
         json.dump(metadata_pairs, f, indent=2)
