@@ -77,7 +77,7 @@ def read_a3m_rows(p):
 
 
 def test_prepare_msa_reference_masks_where_the_other_design_differs(a3m, tmp_path):
-    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap"}}
+    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap", "msa_mask_scope": "diff"}}
     out = str(tmp_path / "wtmatched.a3m")
     fe.prepare_msa(a3m, WT, out, cfg, reference_sequence="AAAEFGHIKL")   # design differs at cols 1,2
     rows = read_rows(out)
@@ -124,15 +124,14 @@ def test_stale_cache_is_recomputed_when_msa_changes(tmp_path, monkeypatch):
         return R()
 
     monkeypatch.setattr(fe.subprocess, "run", fake_run)
-    cfg = {"pipeline": {"execution_mode": "local"}, "folding": {"use_wsl": False, "use_msa": True}}
+    cfg = {"folding": {"use_wsl": False, "use_msa": True}}
     msa = write_a3m(tmp_path / "m.a3m", [WT])
     out = str(tmp_path / "t")
-    args = dict(input_pdb=None, out_dir=out, msa_path=None, config=cfg)
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
     assert len(calls) == 1                               # cache hit
     write_a3m(tmp_path / "m.a3m", [WT, "AAAAAAAAAA"])
-    fe.predict_structure(fasta_sequences=[("A", WT, msa)], **args)
+    fe.predict_structure([("A", WT, msa)], out, cfg)
     assert len(calls) == 2                               # MSA changed -> recomputed, not the old score
 
 
@@ -181,3 +180,65 @@ def test_module4_pick_scaffolds_drops_clashing_and_duplicate_backbones(tmp_path)
     cfg["include_native_scaffold"] = True
     picked = m4.pick_scaffolds([good], a, wt_b, list(range(1, 21)), fixed, "B", cfg, native)
     assert picked[0][1] is True                                 # native is opt-in and flagged
+
+
+def test_module4_align_scaffolds_restores_a_prime_frame(tmp_path):
+    import numpy as np
+    from design_utils import interface_stats
+    m4 = load_module("04_generate_B_prime.py")
+    names = ["ALA", "LEU", "LYS", "GLU", "ASP", "VAL", "ILE", "SER", "THR", "ARG"] * 2
+    a = make_chain("A", names)
+    b = make_chain("B", names, origin=(9, 0, 0))
+    ref_contacts, _ = interface_stats(a, b)
+    a2, b2 = make_chain("A", names), make_chain("B", names, origin=(9, 0, 0))
+    ang = 1.3
+    rot = np.array([[np.cos(ang), 0, np.sin(ang)], [0, 1, 0], [-np.sin(ang), 0, np.cos(ang)]])
+    for at in list(a2.get_atoms()) + list(b2.get_atoms()):      # RFD3-style re-centring
+        at.coord = at.coord @ rot + np.array([-30.0, 70.0, 5.0])
+    moved = write_pdb(tmp_path / "moved.pdb", [a2, b2])
+    assert interface_stats(a, PDBParser(QUIET=True).get_structure("m", moved)[0]["B"])[0] == 0
+    out = m4.align_scaffolds([moved], a, "A", str(tmp_path / "aligned"))
+    assert len(out) == 1
+    b_aligned = PDBParser(QUIET=True).get_structure("x", out[0])[0]["B"]
+    assert interface_stats(a, b_aligned)[0] == ref_contacts > 0
+
+
+def test_rf3_top_level_summary_does_not_double_count_best_sample(tmp_path):
+    def write(path, iptm, rank):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"iptm": iptm, "ptm": 0.8, "ranking_score": rank, "overall_plddt": 0.8}))
+    write(tmp_path / "x" / "x_summary_confidences.json", 0.9, 0.95)               # duplicate of the best sample
+    for i, v in enumerate((0.9, 0.5, 0.1)):
+        write(tmp_path / "x" / f"seed-0_sample-{i}" / f"x_seed-0_sample-{i}_summary_confidences.json", v, v + 0.05)
+    _, m = fe._collect_metrics(str(tmp_path))
+    assert m["n_samples"] == 3 and m["iptm"] == 0.9
+    assert m["iptm_mean"] == pytest.approx(0.5)
+
+
+def test_interface_scope_masks_interface_columns_for_wt_and_designs(a3m, tmp_path):
+    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap", "msa_mask_scope": "interface"}}
+    out = str(tmp_path / "o.a3m")
+    st = fe.prepare_msa(a3m, WT, out, cfg, interface_columns=[0, 5])          # WT chain: interface only
+    assert st["n_masked"] == 2 and read_rows(out)[0] == WT and read_rows(out)[1] == "-CDEF-HIKL"
+    st = fe.prepare_msa(a3m, "ACWEFGHIKL", out, cfg, interface_columns=[5])   # design: mutated column + interface
+    assert st["n_masked"] == 2 and read_rows(out)[1] == "AC-EF-HIKL"
+    st = fe.prepare_msa(a3m, WT, out, cfg, reference_sequence="AAAEFGHIKL", interface_columns=[5])
+    assert st["n_masked"] == 3                                                # matched regime: columns 1, 2 and 5
+
+
+def test_interface_scope_requires_columns_and_scope_is_validated(a3m, tmp_path):
+    out = str(tmp_path / "o.a3m")
+    with pytest.raises(ValueError, match="interface columns"):
+        fe.prepare_msa(a3m, WT, out, {"folding": {"msa_mask_scope": "interface"}})
+    with pytest.raises(ValueError, match="Unknown folding.msa_mask_scope"):
+        fe.prepare_msa(a3m, WT, out, {"folding": {"msa_mask_scope": "everything"}})
+
+
+def test_interface_columns_fall_back_for_mappings_without_the_new_keys(helix_pair):
+    from design_utils import interface_columns
+    path, _, _ = helix_pair
+    old_mapping = {"residues_A": [{"resseq": i, "is_interface": i <= 3} for i in range(1, 21)]}
+    cols_a, cols_b = interface_columns(path, "A", "B", old_mapping, fixed_b_ids=list(range(1, 17)))
+    assert cols_a == [0, 1, 2] and cols_b == [16, 17, 18, 19]                 # B interface = residues left mutable
+    new_mapping = {"residues_A": [], "interface_ids_A": [5], "interface_ids_B": [2, 3]}
+    assert interface_columns(path, "A", "B", new_mapping) == ([4], [1, 2])

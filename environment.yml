@@ -5,12 +5,10 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - snakemake-minimal
   - biopython
   - pandas
   - pyyaml
+  - tabulate
   - numpy
-  - scipy
-  - sqlite
   - openpyxl
   - pytest
