@@ -2,7 +2,6 @@
 
 Everything here is pure Python / Biopython so it can be unit-tested without a GPU.
 """
-import math
 import os
 
 import numpy as np
@@ -23,9 +22,7 @@ RESIDUE_VOLUME = {
     'TYR': 193.6, 'TRP': 227.8,
 }
 
-_POS, _NEG = {'ARG', 'LYS'}, {'ASP', 'GLU'}
 _HYD = {'LEU', 'ILE', 'VAL', 'PHE', 'MET', 'TRP', 'TYR', 'ALA'}
-_POLAR = {'ASN', 'GLN', 'SER', 'THR', 'HIS'}
 
 # Residues that make a favourable contact with a given partner residue.
 COMPLEMENT = {
@@ -43,13 +40,6 @@ _LARGE = {'TRP', 'PHE', 'TYR', 'MET', 'ARG', 'LEU'}
 # --------------------------------------------------------------------------- #
 # Sequence helpers
 # --------------------------------------------------------------------------- #
-def seq_to_str(seq):
-    """Normalise a sequence given as str / list / {resid: aa} dict to a comparable str."""
-    if isinstance(seq, dict):
-        return "".join(seq[k] for k in sorted(seq))
-    return "".join(seq)
-
-
 def hamming(a, b):
     """Hamming distance. Dicts ({resid: aa}) are compared over the union of keys;
     strings position by position (a length difference counts as mismatches)."""
@@ -291,8 +281,7 @@ def parse_mpnn_confidence(pdb_path):
     Looks for a sibling FASTA (seqs/<name>.fa) with `overall_confidence=` headers; returns
     None when unavailable so callers can degrade gracefully.
     """
-    stem = os.path.splitext(os.path.basename(pdb_path))[0]
-    stem = stem.replace("_packed", "").split("_packed")[0]
+    stem = os.path.splitext(os.path.basename(pdb_path))[0].split("_packed")[0]
     root = os.path.dirname(pdb_path)
     for base in {root, os.path.dirname(root)}:
         for cand in (os.path.join(base, "seqs", stem + ".fa"), os.path.join(base, stem + ".fa")):
@@ -308,5 +297,15 @@ def parse_mpnn_confidence(pdb_path):
     return None
 
 
-def nan_to_none(x):
-    return None if x is None or (isinstance(x, float) and math.isnan(x)) else x
+def load_config(path):
+    """Reads config.yaml (tolerating a UTF-8 BOM, which PowerShell 5.1 adds) and fails loudly when
+    mandatory sections are missing instead of silently falling back to defaults / mock mode."""
+    import yaml
+    with open(path, 'r', encoding='utf-8-sig') as f:
+        config = yaml.safe_load(f)
+    missing = [k for k in ('pipeline', 'thresholds') if not isinstance(config, dict) or k not in config]
+    if missing:
+        raise ValueError(f"{path}: missing section(s) {missing} (top-level keys: "
+                         f"{list(config)[:5] if isinstance(config, dict) else config!r}). "
+                         f"Check the file encoding (BOM) and indentation.")
+    return config

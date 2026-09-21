@@ -1,5 +1,4 @@
 import argparse
-import yaml
 import json
 import os
 import shutil
@@ -13,7 +12,7 @@ sys.path.append(os.path.dirname(__file__))
 from design_utils import (  # noqa: E402
     THREE_TO_ONE, select_diverse, std_residues, match_residues, scaffold_metrics,
     ca_rmsd_after_fit, build_rescue_bias, candidate_specificity_score, parse_mpnn_confidence,
-    load_chain,
+    load_chain, load_config,
 )
 
 
@@ -180,8 +179,7 @@ def main():
     parser.add_argument('--force', action='store_true', help="Ignore cached RFD3/B' results")
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
     os.makedirs(args.out_dir, exist_ok=True)
 
     with open(args.passed_candidates, 'r') as f:

@@ -36,8 +36,6 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
 
     nat_A = [r for r in m_nat[chain_A] if r.id[0] == ' ']
     nat_B = [r for r in m_nat[chain_B] if r.id[0] == ' ']
-    mod_A = [r for r in m_mod[chain_A] if r.id[0] == ' ']
-    mod_B = [r for r in m_mod[chain_B] if r.id[0] == ' ']
 
     # Key model residues by the NATIVE residue id. RF3 output is renumbered from 1, so pairing by
     # raw residue number silently breaks whenever the native numbering does not start at 1.

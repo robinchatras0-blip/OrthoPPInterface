@@ -1,5 +1,4 @@
 import argparse
-import yaml
 import json
 import os
 import sqlite3
@@ -11,7 +10,7 @@ import glob
 sys.path.append(os.path.dirname(__file__))
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
 from dockq import calculate_dockq
-from design_utils import (diff_positions, load_chain, match_residues, interface_stats,
+from design_utils import (diff_positions, load_chain, load_config, match_residues, interface_stats,
                           ligand_rmsd_after_receptor_fit, std_residues)
 
 NAN = float('nan')
@@ -50,8 +49,7 @@ def main():
     parser.add_argument('--out_dir', default='results/05_final_eval')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     os.makedirs(args.out_dir, exist_ok=True)
     pcfg = config.get('pipeline', {})
@@ -270,10 +268,7 @@ def main():
     xlsx_path = os.path.join(args.out_dir, "orthogonality_scores.xlsx")
     html_path = os.path.join(args.out_dir, "orthogonality_scores.html")
     try:
-        try:
-            from export_styled_reports import generate_styled_excel, generate_interactive_html
-        except ImportError:
-            from src.export_styled_reports import generate_styled_excel, generate_interactive_html
+        from export_styled_reports import generate_styled_excel, generate_interactive_html
         generate_styled_excel(csv_path, xlsx_path)
         generate_interactive_html(csv_path, html_path)
         parent_run = os.path.dirname(os.path.abspath(args.out_dir))

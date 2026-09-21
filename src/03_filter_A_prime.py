@@ -1,13 +1,12 @@
 import argparse
-import yaml
 import json
 import os
 import sys
 import glob
-import shutil
 
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
+from design_utils import load_config
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
 
 def get_wt_residues(pdb_path, chain_id):
@@ -23,8 +22,7 @@ def main():
     parser.add_argument('--out_dir', default='results/03_fail_fast')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     os.makedirs(args.out_dir, exist_ok=True)
     execution_mode = config.get('pipeline', {}).get('execution_mode', 'mock')

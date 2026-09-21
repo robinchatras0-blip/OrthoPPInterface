@@ -16,9 +16,9 @@ import random
 import sys
 
 import pandas as pd
-import yaml
 
 sys.path.append(os.path.dirname(__file__))
+from design_utils import load_config  # noqa: E402
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure  # noqa: E402
 
 CONSERVATIVE = {'I': 'V', 'V': 'I', 'L': 'I', 'M': 'L', 'K': 'R', 'R': 'K', 'D': 'E', 'E': 'D',
@@ -45,7 +45,7 @@ def main():
     ap.add_argument('--seed', type=int, default=0)
     args = ap.parse_args()
 
-    config = yaml.safe_load(open(args.config))
+    config = load_config(args.config)
     p = config['pipeline']
     wt_pdb, chA, chB = p['input_pdb'], p.get('chain_A', 'A'), p.get('chain_B', 'B')
     a3m_A, a3m_B = p.get('input_msa_A', p.get('input_msa')), p['input_msa_B']

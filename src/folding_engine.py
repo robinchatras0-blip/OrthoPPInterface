@@ -3,7 +3,6 @@ import sys
 import json
 import glob
 import gzip
-import shutil
 import hashlib
 import subprocess
 from Bio.PDB import PDBParser, MMCIFParser, PDBIO
@@ -61,19 +60,6 @@ def get_chain_sequence(pdb_path, chain_id='A'):
     return "".join(THREE_TO_ONE.get(res.get_resname(), 'X') for res in chain if res.id[0] == ' ')
 
 
-def extract_all_sequences(pdb_path):
-    """Extracts all chain sequences from a PDB file as a dict {chain_id: sequence}."""
-    if not os.path.exists(pdb_path):
-        return {}
-    structure = PDBParser(QUIET=True).get_structure("struct", pdb_path)
-    sequences = {}
-    for chain in structure[0].get_chains():
-        seq = "".join(THREE_TO_ONE.get(res.get_resname(), 'X') for res in chain if res.id[0] == ' ')
-        if seq:
-            sequences[chain.id] = seq
-    return sequences
-
-
 # --------------------------------------------------------------------------- #
 # MSA handling
 # --------------------------------------------------------------------------- #
@@ -95,10 +81,6 @@ def read_a3m(path):
     if header is not None:
         records.append((header, "".join(chunks)))
     return records
-
-
-def _match_len(a3m_seq):
-    return sum(1 for c in a3m_seq if not c.islower())
 
 
 def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_path,
