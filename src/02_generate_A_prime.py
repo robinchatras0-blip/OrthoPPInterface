@@ -8,7 +8,7 @@ import sys
 from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import collect_pdbs, load_config, std_residues, strip_nan_lines
+from design_utils import collect_pdbs, load_config, save_structure, std_residues, strip_nan_lines
 
 
 def main():
@@ -20,6 +20,7 @@ def main():
 
     config = load_config(args.config)
     pcfg, lcfg = config['pipeline'], config.get('ligandmpnn', {})
+    chain_A_id = pcfg.get('chain_A', 'A')
     os.makedirs(args.out_dir, exist_ok=True)
 
     # 1. RFD3 (Foundry): sample backbones with the interface segments of A regenerated de novo
@@ -55,9 +56,18 @@ def main():
         os.makedirs(mpnn_out, exist_ok=True)
 
         structure = PDBParser(QUIET=True).get_structure("rfd", rfd_pdb)
+        mpnn_input = rfd_pdb
+        if lcfg.get('rupture_apo_design', True):
+            # Design A' alone. With B_WT in the structure LigandMPNN packs A' against B_WT (a positive design for the
+            # wild-type partner), which defeats the rupture (measured: iPTM(A'.B_WT) 0.38 vs 0.23 without B).
+            for ch in [c for c in structure[0] if c.id != chain_A_id]:
+                structure[0].detach_child(ch.id)
+            mpnn_input = os.path.join(args.out_dir, 'mpnn_in', f"cand_{idx}.pdb")
+            os.makedirs(os.path.dirname(mpnn_input), exist_ok=True)
+            save_structure(structure, mpnn_input)
         existing = {f"{ch.id}{r.id[1]}" for ch in structure[0] for r in std_residues(ch)}
         mpnn_cmd = mpnn_bin.split() + [
-            "--structure_path", rfd_pdb.replace('\\', '/'),
+            "--structure_path", mpnn_input.replace('\\', '/'),
             "--out_directory", mpnn_out,
             "--model_type", lcfg.get('model_type', 'ligand_mpnn'),
             "--checkpoint_path", checkpoint.replace('\\', '/'),

@@ -183,6 +183,26 @@ def load_chain(pdb_path, chain_id):
     return list(model.get_chains())[0]
 
 
+def residue_columns(pdb_path, chain_id, resids):
+    """0-based alignment columns of the given residue ids (robust to numbering that does not start at 1)."""
+    wanted = set(resids)
+    return [i for i, r in enumerate(std_residues(load_chain(pdb_path, chain_id))) if r.id[1] in wanted]
+
+
+def interface_columns(wt_pdb, chain_A, chain_B, mapping, fixed_b_ids=None):
+    """Alignment columns of the interface of each chain -> (columns_A, columns_B).
+
+    Uses `interface_ids_A/B` written by Module 1. Mappings written before these keys existed fall back to the
+    residues of B that were left mutable for B' (= the B interface).
+    """
+    ids_A = mapping.get('interface_ids_A') or [r['resseq'] for r in mapping['residues_A'] if r['is_interface']]
+    ids_B = mapping.get('interface_ids_B')
+    if ids_B is None:
+        fixed = set(fixed_b_ids or [])
+        ids_B = [r.id[1] for r in std_residues(load_chain(wt_pdb, chain_B)) if r.id[1] not in fixed]
+    return residue_columns(wt_pdb, chain_A, ids_A), residue_columns(wt_pdb, chain_B, ids_B)
+
+
 def match_residues(ref_chain, mob_chain):
     """Pairs residues of two chains: by residue id when they overlap well, otherwise by order
     (only if the chains have identical length). Returns [(ref_res, mob_res), ...]."""

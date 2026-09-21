@@ -237,6 +237,8 @@ def main():
         ],
         "hotspot_ids": hotspot_ids,
         "neighborhood_ids": neighborhood_ids,
+        "interface_ids_A": interface_ids,
+        "interface_ids_B": neighborhood_ids_B,
         "fixed_ids_A": fixed_ids_A,
         "crop_min_B": min_B,
         "crop_max_B": max_B

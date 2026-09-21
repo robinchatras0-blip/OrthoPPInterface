@@ -145,28 +145,35 @@ def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_
 
 
 def prepare_msa(wt_a3m, target_sequence, out_path, config, modified_indices=None,
-                reference_sequence=None):
+                reference_sequence=None, interface_columns=None):
     """Regime-aware MSA preparation driven by config['folding'].
 
-    msa_mask_scope: 'diff'    -> mask only positions that really differ from WT (recommended),
-                    'mutable' -> mask every position in `modified_indices` (legacy behaviour).
+    msa_mask_scope: 'interface' -> mask the interface columns (`interface_columns`) plus every position that differs
+                                   from WT: the alignment cannot vouch for the interface, whichever sequence is folded
+                                   (default; WT and designs are compared in the same information regime),
+                    'diff'      -> mask only positions that really differ from WT,
+                    'mutable'   -> mask every position in `modified_indices` (legacy).
     msa_mask_mode : 'gap' | 'substitute' | 'keep'.
     `reference_sequence` lets the caller mask the columns where ANOTHER design differs (used to
     put a WT chain in the same information regime as its designed counterpart).
     """
     fcfg = config.get('folding', {})
     mode = fcfg.get('msa_mask_mode', 'gap')
-    scope = fcfg.get('msa_mask_scope', 'diff')
+    scope = fcfg.get('msa_mask_scope', 'interface')
+    if scope not in ('interface', 'diff', 'mutable'):
+        raise ValueError(f"Unknown folding.msa_mask_scope: {scope}")
     if not fcfg.get('use_msa', True):
         with open(out_path, 'w') as f:
             f.write(f">query\n{target_sequence}\n")
         return {"fallback": True, "mode": "none", "n_masked": 0, "frac_masked": 0.0, "n_rows": 1}
-    if reference_sequence is not None:
-        wt_seq = _a3m_query(wt_a3m) or target_sequence
-        cols = diff_positions(wt_seq, reference_sequence) if len(wt_seq) == len(reference_sequence) else []
-    elif scope == 'diff' or modified_indices is None:
-        cols = None                                # derived from the a3m query inside build_hybrid_msa
-    else:
+    wt_seq = _a3m_query(wt_a3m) or target_sequence
+    ref = target_sequence if reference_sequence is None else reference_sequence
+    cols = diff_positions(wt_seq, ref) if len(wt_seq) == len(ref) else []
+    if scope == 'interface':
+        if interface_columns is None:
+            raise ValueError("folding.msa_mask_scope 'interface' requires the interface columns of the chain")
+        cols = sorted(set(cols) | set(interface_columns))
+    elif scope == 'mutable' and modified_indices is not None and reference_sequence is None:
         cols = modified_indices
     return build_hybrid_msa(wt_a3m, target_sequence, cols, out_path, mode=mode,
                             strict=fcfg.get('strict_msa', True))

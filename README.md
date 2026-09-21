@@ -50,11 +50,13 @@ $$
 ### 3. Local MSAs and the information regime (RF3)
 RF3 (Foundry, RoseTTAFold-3 All-Atom) receives **one unpaired `.a3m` per chain**; there is no inter-chain pairing. For a designed chain, the WT alignment is adapted so that no evolutionary information is claimed where the sequence was redesigned: the query is replaced by the designed sequence and the alignment columns of mutated positions are handled according to `folding.msa_mask_mode`.
 
+**Why `interface` by default.** A conserved interface in the alignment tells RF3 that a binding site exists, whatever the designed sequence: the MSA then inflates the affinity of any design that keeps the WT shape and of WT partners (`iptm(A'·B_WT)` of one design dropped from 0.57 to 0.21 once the interface of B_WT was masked). Masking the interface columns of both chains removes that evolutionary evidence but keeps the framework signal that stabilises the fold. On the reference system the native complex gives iPTM 0.87 with full MSAs, **0.56** with the interface masked (36 + 41 columns) and 0.26 when the whole 10 Å neighbourhood is masked (too little signal left): the interface-masked WT/WT value is the ceiling to compare designs with. The MSA is kept everywhere else because it makes the framework fold reliably and keeps the predictions cheap. iPTM is never the only criterion: it varies by ±0.05–0.1 between runs and should be complemented by physical interface metrics.
+
 The three orthogonality tests (`A'+B'`, `A_WT+B'`, `A'+B_WT`) must be scored under the **same information regime**, otherwise $F_{\text{ortho}}$ measures MSA asymmetry rather than binding. Key options in `config.yaml → folding`:
 
 | Key | Values | Meaning |
 | :--- | :--- | :--- |
-| `msa_mask_scope` | `diff` (default) / `mutable` | mask only columns that really differ from WT / every redesignable column |
+| `msa_mask_scope` | `interface` (default) / `diff` / `mutable` | mask the interface columns of both chains **and** the mutated ones (WT and designs alike) / mutated columns only / every redesignable column (legacy) |
 | `msa_mask_mode` | `gap` (default) / `substitute` / `keep` | homolog rows get `-` / the designed residue / are left untouched (WT-biased) |
 | `negative_msa_regime` | `matched` (default) / `native` | WT partner masked like its designed counterpart / full WT MSA |
 | `wt_ceiling_control` | `true` | folds WT/WT under the same masks → `iptm_ceiling`, the best iPTM achievable in that regime |
@@ -74,19 +76,19 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 ## 🏗️ Pipeline Architecture (Modules 1–5)
 
 ### [Module 1: Interface & Hotspot Analysis](src/01_analyze_interface.py)
-- Interface residues of chain A: heavy-atom distance to chain B $\le$ `interface_distance_threshold_angstroms` (6.0 Å); mutable neighbourhood within `neighborhood_radius_angstroms` (10.0 Å) of the interface.
+- Interface residues of chain A: heavy-atom distance to chain B $\le$ `interface_distance_threshold_angstroms` (6.0 Å); redesignable neighbourhood within `neighborhood_radius_angstroms` (6.0 Å) of the interface residues (on the reference system: 36 interface + 51 neighbouring residues = 87 of 224; 10 Å would make half of the protein redesignable, including residues that can never touch B).
 - Selects hotspots (charged/polar contact residues), defines mutable vs frozen positions for LigandMPNN.
 - Crops chain B to the residues within `crop_chain_B_distance_angstroms` (15.0 Å) of the interface to keep RFD3 within GPU memory.
 - Generates the RFD3 contigs (`inputs.json` for the rupture, `inputs_rescue.json` for the rescue), the rupture bias (`mpnn_bias.json`), the fixed-position files and `index_mapping.json`.
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
 - RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
-- LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; chain B and non-interface residues of A are frozen. LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone).
+- LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; the framework of A is frozen. **A' is designed alone** (`ligandmpnn.rupture_apo_design`, default `true`): when B_WT is present in the structure LigandMPNN packs A' against it, a positive design for the wild-type partner (measured `iptm(A'·B_WT)`: 0.38 on average with B present, 0.23 without). LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone).
 
 ### [Module 3: Fail-Fast Screening](src/03_filter_A_prime.py)
-- **Sanity check**: folds the native complex with full MSAs (`wt_control.json`); a warning is raised if RF3 does not recognise it (iPTM < 0.6).
-- **Gate 1 (monomer)**: folds $A'$ alone (MSA masked where $A'$ differs from WT) → pLDDT and $C_\alpha$ RMSD vs WT.
-- **Gate 2 (rupture)**: folds $A' \cdot B_{\text{WT}}$ (full WT MSA for B) → iPTM $\le$ `iptm_rupture_max`.
+- **Sanity checks** (`wt_control.json`): the native complex with full MSAs must be recognised (iPTM ≥ 0.6), and the WT/WT iPTM in the configured MSA regime is recorded as the ceiling for designs (warning if < 0.4).
+- **Gate 1 (monomer)**: folds $A'$ alone (MSA masked according to `msa_mask_scope`) → pLDDT and $C_\alpha$ RMSD vs WT.
+- **Gate 2 (rupture)**: folds $A' \cdot B_{\text{WT}}$ (interface of B_WT masked in the default regime) → iPTM $\le$ `iptm_rupture_max`.
 - Writes `metrics_<candidate>.json` and `passed_candidates.txt` (stops after `max_passing_candidates`).
 
 ### [Module 4: $B'$ Rescue Design](src/04_generate_B_prime.py)
@@ -198,6 +200,7 @@ ligandmpnn:
   temperature_rupture: 0.2
   temperature_rescue: 0.15
   rescue_coadaptation: true
+  rupture_apo_design: true             # design A' without B in the LigandMPNN input
   samples_per_scaffold: 60             # LigandMPNN samples per scaffold (min 15 after splitting)
   top_k_per_motif: 6                   # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3          # hard filter on LigandMPNN outputs
@@ -206,7 +209,7 @@ folding:                               # see "Local MSAs and the information reg
   rf3_bin: /home/<user>/miniforge3/envs/foundry_env/bin/rf3
   rf3_ckpt: /home/<user>/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
-  msa_mask_scope: diff
+  msa_mask_scope: interface
   msa_mask_mode: gap
   negative_msa_regime: matched
   wt_ceiling_control: true
@@ -215,7 +218,7 @@ folding:                               # see "Local MSAs and the information reg
   # n_recycles: 10 | num_steps: 200 | wsl_distro: Ubuntu | use_wsl: true   (optional RF3/WSL overrides)
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
-  neighborhood_radius_angstroms: 10.0
+  neighborhood_radius_angstroms: 6.0
   crop_chain_B_distance_angstroms: 15.0
   max_hotspot_mutations: 3
 thresholds:

@@ -37,7 +37,8 @@ def workspace(tmp_path, monkeypatch):
     ana = tmp_path / "run" / "01_analysis"
     ana.mkdir(parents=True)
     json.dump({"crop_min_B": 5, "crop_max_B": 15, "neighborhood_ids": list(range(1, 11)),
-               "fixed_ids_A": list(range(11, 21)),
+               "fixed_ids_A": list(range(11, 21)), "interface_ids_A": list(range(1, 7)),
+               "interface_ids_B": sorted(B_MUTABLE),
                "residues_A": [{"sequential_index": i + 1, "is_interface": i < 6, "is_neighborhood": i < 10}
                               for i in range(20)]}, open(ana / "index_mapping.json", "w"))
     json.dump({"A": list(range(1, 21)), "B": [i for i in range(1, 21) if i not in B_MUTABLE]},
@@ -68,7 +69,7 @@ def workspace(tmp_path, monkeypatch):
                      "max_rescue_scaffolds": 3, "include_native_scaffold": False},
         "diversity_selection": {"enabled": True, "max_a_prime_motifs": 2},
         "ligandmpnn": {"samples_per_scaffold": 15, "top_k_per_motif": 5, "temperature_rescue": 0.2},
-        "folding": {"use_msa": True, "msa_mask_scope": "diff", "msa_mask_mode": "gap",
+        "folding": {"use_msa": True, "msa_mask_scope": "interface", "msa_mask_mode": "gap",
                     "negative_msa_regime": "matched", "wt_ceiling_control": True},
         "structural_constraints": {"interface_distance_threshold_angstroms": 6.0, "neighborhood_radius_angstroms": 10.0,
                                    "crop_chain_B_distance_angstroms": 15.0, "max_hotspot_mutations": 3},
@@ -195,7 +196,7 @@ def test_module3_filters_and_writes_metrics(workspace, monkeypatch):
     passed = open(os.path.join(out3, "passed_candidates.txt")).read().split()
     assert len(passed) == 2
     m = json.load(open(os.path.join(out3, "metrics_A_prime_candidate_00.json")))
-    assert m["passed"] and m["n_masked_columns"] == 2            # only the 2 real mutations are masked
+    assert m["passed"] and m["n_masked_columns"] == 6            # 2 mutations + the 6 interface columns (2 and 3 overlap)
 
 
 def test_calibration_script_runs(workspace, monkeypatch):
@@ -206,14 +207,15 @@ def test_calibration_script_runs(workspace, monkeypatch):
     run_main(cal, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--out_dir", out,
                    "--n_controls", "2", "--n_pos_mut", "3", "--n_neg_mut", "5"], monkeypatch)
     df = pd.read_csv(os.path.join(out, "calibration_summary.csv"))
-    assert len(df) == 4 and {"gap", "iptm_pos_mean", "iptm_neg_mean"} <= set(df.columns)
+    assert len(df) == 6 and {"gap", "iptm_pos_mean", "iptm_neg_mean"} <= set(df.columns)   # 6 regimes
 
 
-def fake_mpnn_cif_only(cmd, n_mutations=3):
+def fake_mpnn_cif_only(cmd, n_mutations=3, expect_chain_b=False):
     """LigandMPNN (Foundry) writes CIF files only; the designed sequence differs from the input backbone."""
     from Bio.PDB import MMCIFIO
     get = lambda flag: cmd[cmd.index(flag) + 1]  # noqa: E731
     st = PDBParser(QUIET=True).get_structure("s", get("--structure_path"))
+    assert ("B" in st[0]) == expect_chain_b, "chain B must be absent from the A' design input unless rupture_apo_design is off"
     for r in [r for r in st[0]["A"] if r.id[1] in (2, 3, 4)][:n_mutations]:
         r.resname = "TRP"
     io = MMCIFIO()
@@ -230,6 +232,7 @@ def test_module1_writes_all_analysis_files(workspace, monkeypatch):
         assert os.path.exists(os.path.join(out, name)), name
     mapping = json.load(open(os.path.join(out, "index_mapping.json")))
     assert mapping["neighborhood_ids"] and len(mapping["residues_A"]) == 20
+    assert mapping["interface_ids_A"] and mapping["interface_ids_B"]                   # used by the MSA regime
 
 
 def test_module2_uses_mpnn_design_not_raw_rfd3_backbone(workspace, monkeypatch):
@@ -274,3 +277,26 @@ def test_module2_fails_loudly_when_mpnn_writes_nothing(workspace, monkeypatch):
     with pytest.raises(RuntimeError, match="LigandMPNN wrote no structure"):
         run_main(m2, ["--config", workspace["cfg"], "--analysis_dir", workspace["ana"],
                       "--out_dir", str(workspace["root"] / "run" / "02_empty")], monkeypatch)
+
+
+def test_module2_can_keep_chain_b_in_the_mpnn_context(workspace, monkeypatch):
+    m2 = load_module("02_generate_A_prime.py")
+    cfg = yaml.safe_load(open(workspace["cfg"]))
+    cfg["ligandmpnn"]["rupture_apo_design"] = False
+    yaml.safe_dump(cfg, open(workspace["cfg"], "w"))
+    wt = workspace["wt"]
+
+    def run(cmd, **kw):
+        if any(str(c).startswith("inputs=") for c in cmd):
+            out = [c.split("=", 1)[1] for c in cmd if str(c).startswith("out_dir=")][0]
+            shutil.copy(wt, os.path.join(out, "inputs_design_0_model_0.pdb"))
+        else:
+            fake_mpnn_cif_only(cmd, expect_chain_b=True)
+
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(m2.subprocess, "run", run)
+    run_main(m2, ["--config", workspace["cfg"], "--analysis_dir", workspace["ana"],
+                  "--out_dir", str(workspace["root"] / "run" / "02_holo")], monkeypatch)

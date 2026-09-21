@@ -77,7 +77,7 @@ def read_a3m_rows(p):
 
 
 def test_prepare_msa_reference_masks_where_the_other_design_differs(a3m, tmp_path):
-    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap"}}
+    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap", "msa_mask_scope": "diff"}}
     out = str(tmp_path / "wtmatched.a3m")
     fe.prepare_msa(a3m, WT, out, cfg, reference_sequence="AAAEFGHIKL")   # design differs at cols 1,2
     rows = read_rows(out)
@@ -213,3 +213,32 @@ def test_rf3_top_level_summary_does_not_double_count_best_sample(tmp_path):
     _, m = fe._collect_metrics(str(tmp_path))
     assert m["n_samples"] == 3 and m["iptm"] == 0.9
     assert m["iptm_mean"] == pytest.approx(0.5)
+
+
+def test_interface_scope_masks_interface_columns_for_wt_and_designs(a3m, tmp_path):
+    cfg = {"folding": {"use_msa": True, "msa_mask_mode": "gap", "msa_mask_scope": "interface"}}
+    out = str(tmp_path / "o.a3m")
+    st = fe.prepare_msa(a3m, WT, out, cfg, interface_columns=[0, 5])          # WT chain: interface only
+    assert st["n_masked"] == 2 and read_rows(out)[0] == WT and read_rows(out)[1] == "-CDEF-HIKL"
+    st = fe.prepare_msa(a3m, "ACWEFGHIKL", out, cfg, interface_columns=[5])   # design: mutated column + interface
+    assert st["n_masked"] == 2 and read_rows(out)[1] == "AC-EF-HIKL"
+    st = fe.prepare_msa(a3m, WT, out, cfg, reference_sequence="AAAEFGHIKL", interface_columns=[5])
+    assert st["n_masked"] == 3                                                # matched regime: columns 1, 2 and 5
+
+
+def test_interface_scope_requires_columns_and_scope_is_validated(a3m, tmp_path):
+    out = str(tmp_path / "o.a3m")
+    with pytest.raises(ValueError, match="interface columns"):
+        fe.prepare_msa(a3m, WT, out, {"folding": {"msa_mask_scope": "interface"}})
+    with pytest.raises(ValueError, match="Unknown folding.msa_mask_scope"):
+        fe.prepare_msa(a3m, WT, out, {"folding": {"msa_mask_scope": "everything"}})
+
+
+def test_interface_columns_fall_back_for_mappings_without_the_new_keys(helix_pair):
+    from design_utils import interface_columns
+    path, _, _ = helix_pair
+    old_mapping = {"residues_A": [{"resseq": i, "is_interface": i <= 3} for i in range(1, 21)]}
+    cols_a, cols_b = interface_columns(path, "A", "B", old_mapping, fixed_b_ids=list(range(1, 17)))
+    assert cols_a == [0, 1, 2] and cols_b == [16, 17, 18, 19]                 # B interface = residues left mutable
+    new_mapping = {"residues_A": [], "interface_ids_A": [5], "interface_ids_B": [2, 3]}
+    assert interface_columns(path, "A", "B", new_mapping) == ([4], [1, 2])

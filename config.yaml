@@ -26,6 +26,7 @@ ligandmpnn:
   temperature_rupture: 0.2
   temperature_rescue: 0.15
   rescue_coadaptation: true
+  rupture_apo_design: true            # design A' alone: with B_WT visible, MPNN packs A' against B_WT and defeats the rupture
   samples_per_scaffold: 60
   top_k_per_motif: 6                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
@@ -34,7 +35,7 @@ folding:
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
   # --- MSA regime (see src/calibrate_predictor.py to choose empirically) ---
-  msa_mask_scope: diff                # diff = mask only columns that really differ from WT | mutable = all redesignable columns
+  msa_mask_scope: interface           # interface = mask the interface columns + mutated ones (default) | diff = mutated only | mutable = all redesignable
   msa_mask_mode: gap                  # gap | substitute | keep
   negative_msa_regime: matched        # matched = WT partner masked like its designed counterpart | native = full WT MSA
   wt_ceiling_control: true            # fold WT/WT under the same masks -> best achievable iPTM in this regime
@@ -46,7 +47,7 @@ folding:
   # use_wsl: true                     # default: true on Windows, false elsewhere
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
-  neighborhood_radius_angstroms: 10.0
+  neighborhood_radius_angstroms: 6.0   # LigandMPNN may change interface residues + those within this radius (6 A: 87/224 on the reference A chain; 10 A: 113)
   crop_chain_B_distance_angstroms: 15.0
   max_hotspot_mutations: 3
 thresholds:

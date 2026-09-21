@@ -10,17 +10,10 @@ import glob
 sys.path.append(os.path.dirname(__file__))
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
 from dockq import calculate_dockq
-from design_utils import (diff_positions, load_chain, load_config, match_residues, interface_stats,
-                          ligand_rmsd_after_receptor_fit, std_residues)
+from design_utils import (diff_positions, interface_columns, load_chain, load_config, match_residues, interface_stats,
+                          ligand_rmsd_after_receptor_fit, residue_columns, std_residues)
 
 NAN = float('nan')
-
-
-def wt_columns(pdb, chain_id, mutable_resids):
-    """0-based alignment columns for a set of PDB residue ids (robust to numbering offsets)."""
-    ids = [r.id[1] for r in std_residues(load_chain(pdb, chain_id))]
-    s = set(mutable_resids)
-    return [i for i, rid in enumerate(ids) if rid in s]
 
 
 def self_consistency(design_pdb, pred_pdb, chain_A, chain_B):
@@ -76,13 +69,12 @@ def main():
     # Redesign-allowed residue ids (used only when msa_mask_scope == 'mutable')
     with open(os.path.join(args.analysis_dir, 'index_mapping.json')) as f:
         mapping = json.load(f)
-    cols_A = wt_columns(wt_pdb, chain_A_id, mapping.get('neighborhood_ids', [])) if os.path.exists(wt_pdb) else []
-    cols_B = []
     fixed_b_path = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
-    if os.path.exists(fixed_b_path) and os.path.exists(wt_pdb):
-        fixed_b = set(json.load(open(fixed_b_path)).get(chain_B_id, []))
-        ids_B = [r.id[1] for r in std_residues(load_chain(wt_pdb, chain_B_id))]
-        cols_B = [i for i, rid in enumerate(ids_B) if rid not in fixed_b]
+    fixed_b = set(json.load(open(fixed_b_path)).get(chain_B_id, [])) if os.path.exists(fixed_b_path) else set()
+    iface_A, iface_B = interface_columns(wt_pdb, chain_A_id, chain_B_id, mapping, fixed_b)
+    # legacy 'mutable' scope: every position that was left redesignable
+    cols_A = residue_columns(wt_pdb, chain_A_id, mapping.get('neighborhood_ids', []))
+    cols_B = [i for i, r in enumerate(std_residues(load_chain(wt_pdb, chain_B_id))) if r.id[1] not in fixed_b]
 
     seq_A_wt = get_chain_sequence(wt_pdb, chain_id=chain_A_id)
     seq_B_wt = get_chain_sequence(wt_pdb, chain_id=chain_B_id)
@@ -132,8 +124,8 @@ def main():
         # MSAs: each designed chain is masked where IT differs from WT
         msa_A_prime = os.path.join(pos_out, f"{design_id}_A.a3m")
         msa_B_prime = os.path.join(pos_out, f"{design_id}_B.a3m")
-        st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A_prime, config, modified_indices=cols_A)
-        st_b = prepare_msa(wt_a3m_B, seq_B_prime, msa_B_prime, config, modified_indices=cols_B)
+        st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A_prime, config, modified_indices=cols_A, interface_columns=iface_A)
+        st_b = prepare_msa(wt_a3m_B, seq_B_prime, msa_B_prime, config, modified_indices=cols_B, interface_columns=iface_B)
         print(f"  Mutations vs WT: A'={n_mut_A}, B'={n_mut_B} | masked cols: A={st_a['n_masked']}, B={st_b['n_masked']}")
 
         # 2. Positive design: A' + B'
@@ -150,7 +142,7 @@ def main():
             # 3. Negative design A_WT + B' (same information regime as the positive test when 'matched')
             if neg_regime == 'matched':
                 msa_A_wt = os.path.join(neg_out, f"{design_id}_Awt_matched.a3m")
-                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=seq_A_prime)
+                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
             else:
                 msa_A_wt = wt_a3m_A
             m_neg = predict_structure([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', seq_B_prime, msa_B_prime)], neg_out, config)
@@ -159,7 +151,7 @@ def main():
             # 4. Rupture A' + B_WT (recomputed here so it shares the regime of the other tests)
             if neg_regime == 'matched':
                 msa_B_wt = os.path.join(rup_out, f"{design_id}_Bwt_matched.a3m")
-                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime)
+                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
             else:
                 msa_B_wt = wt_a3m_B
             m_rup = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)], rup_out, config)
@@ -169,8 +161,8 @@ def main():
             if do_ceiling:
                 msa_A_c = os.path.join(ctl_out, f"{design_id}_Awt_ceiling.a3m")
                 msa_B_c = os.path.join(ctl_out, f"{design_id}_Bwt_ceiling.a3m")
-                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime)
-                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime)
+                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
+                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
                 m_ctl = predict_structure([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], ctl_out, config)
                 iptm_ceiling = m_ctl.get("iptm", NAN)
 

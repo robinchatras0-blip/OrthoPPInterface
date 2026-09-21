@@ -18,7 +18,7 @@ import sys
 import pandas as pd
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import load_config  # noqa: E402
+from design_utils import interface_columns, load_config  # noqa: E402
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure  # noqa: E402
 
 CONSERVATIVE = {'I': 'V', 'V': 'I', 'L': 'I', 'M': 'L', 'K': 'R', 'R': 'K', 'D': 'E', 'E': 'D',
@@ -62,7 +62,9 @@ def main():
         controls.append((f"pos_{i}", 1, mutate(seq_A, rng.sample(iface, args.n_pos_mut), CONSERVATIVE)))
         controls.append((f"neg_{i}", 0, mutate(seq_A, rng.sample(iface, args.n_neg_mut), DISRUPTIVE)))
 
-    regimes = [("gap", "diff"), ("substitute", "diff"), ("keep", "diff"), ("gap", "mutable")]
+    fixed_b = json.load(open(os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json'))).get(chB, [])
+    iface_A, iface_B = interface_columns(wt_pdb, chA, chB, mapping, fixed_b)
+    regimes = [("gap", "interface"), ("substitute", "interface"), ("gap", "diff"), ("substitute", "diff"), ("keep", "diff"), ("gap", "mutable")]
     rows = []
     for mode, scope in regimes:
         cfg = copy.deepcopy(config)
@@ -71,8 +73,10 @@ def main():
             d = os.path.join(args.out_dir, f"{mode}_{scope}", name)
             os.makedirs(d, exist_ok=True)
             msa_a = os.path.join(d, "A.a3m")
-            prepare_msa(a3m_A, seq, msa_a, cfg, modified_indices=sorted(neigh))
-            m = predict_structure([('A_var', seq, msa_a), ('B_wt', seq_B, a3m_B)], d, cfg)
+            prepare_msa(a3m_A, seq, msa_a, cfg, modified_indices=sorted(neigh), interface_columns=iface_A)
+            msa_b = os.path.join(d, "B.a3m")
+            prepare_msa(a3m_B, seq_B, msa_b, cfg, interface_columns=iface_B)
+            m = predict_structure([('A_var', seq, msa_a), ('B_wt', seq_B, msa_b)], d, cfg)
             rows.append({"mode": mode, "scope": scope, "control": name, "expected_binder": label,
                          "iptm": m["iptm"], "ptm": m["ptm"], "plddt": m["plddt"]})
             print(f"  {mode:10s}/{scope:7s} {name:6s} iPTM={m['iptm']:.3f}")

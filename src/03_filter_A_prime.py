@@ -5,7 +5,7 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import load_chain, load_config, std_residues
+from design_utils import interface_columns, load_chain, load_config, std_residues
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
 
 
@@ -44,15 +44,29 @@ def main():
     neighborhood = set(mapping.get('neighborhood_ids', []))
     modified_cols = [i for i, r in enumerate(std_residues(load_chain(wt_pdb, chain_A_id))) if r.id[1] in neighborhood]
 
-    # Sanity check of the predictor itself: the native complex with full MSAs must be recognised.
+    with open(os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')) as f:
+        fixed_b_ids = json.load(f).get(chain_B_id, [])
+    cols_A, cols_B = interface_columns(wt_pdb, chain_A_id, chain_B_id, mapping, fixed_b_ids)
+
+    # Sanity checks of the predictor: the native complex must be recognised with full MSAs, and we record the
+    # ceiling of the configured MSA regime (WT/WT with the interface masked), the best any design can reach there.
     m_ctrl = predict_structure([('A_wt', seq_A_wt, wt_a3m_A), ('B_wt', seq_B_wt, wt_a3m_B)],
                                os.path.join(args.out_dir, "wt_control_full_msa"), config)
+    reg_dir = os.path.join(args.out_dir, "wt_control_regime")
+    os.makedirs(reg_dir, exist_ok=True)
+    msa_A_reg, msa_B_reg = os.path.join(reg_dir, "A.a3m"), os.path.join(reg_dir, "B.a3m")
+    prepare_msa(wt_a3m_A, seq_A_wt, msa_A_reg, config, interface_columns=cols_A)
+    prepare_msa(wt_a3m_B, seq_B_wt, msa_B_reg, config, interface_columns=cols_B)
+    m_reg = predict_structure([('A_wt', seq_A_wt, msa_A_reg), ('B_wt', seq_B_wt, msa_B_reg)], reg_dir, config)
     with open(os.path.join(args.out_dir, "wt_control.json"), 'w') as f:
-        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "plddt": m_ctrl.get("plddt")}, f, indent=2)
-    print(f"  WT control (A_wt + B_wt, full MSA): iPTM = {m_ctrl.get('iptm', 0.0):.3f}")
+        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "plddt": m_ctrl.get("plddt")}, f, indent=2)
+    print(f"  WT control (A_wt + B_wt): iPTM = {m_ctrl.get('iptm', 0.0):.3f} with full MSAs, "
+          f"{m_reg.get('iptm', 0.0):.3f} in the configured MSA regime (= ceiling for designs)")
     if m_ctrl.get("iptm", 0.0) < 0.6:
         print("  WARNING: the predictor does not recognise the native complex even with full MSAs "
               "-> check MSA files / chain order / RF3 install before trusting any downstream score.")
+    if m_reg.get("iptm", 0.0) < 0.4:
+        print("  WARNING: the MSA regime leaves too little signal (WT ceiling < 0.4): iPTM cannot discriminate designs.")
 
     design_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "A_prime_candidate_*.pdb")))
     if not design_pdbs:
@@ -74,7 +88,8 @@ def main():
         monomer_out = os.path.join(args.out_dir, "monomer", cand_name)
         os.makedirs(monomer_out, exist_ok=True)
         monomer_a3m = os.path.join(monomer_out, f"{basename}.a3m")
-        msa_stats = prepare_msa(wt_a3m_A, seq_A_prime, monomer_a3m, config, modified_indices=modified_cols)
+        msa_stats = prepare_msa(wt_a3m_A, seq_A_prime, monomer_a3m, config, modified_indices=modified_cols,
+                                interface_columns=cols_A)
         print(f"  MSA: {msa_stats['n_masked']} columns re-designed "
               f"({msa_stats['frac_masked']:.0%}) mode={msa_stats['mode']}, rows={msa_stats['n_rows']}")
 
@@ -94,7 +109,10 @@ def main():
 
         # 2. Rupture test: A' + B_WT must not bind
         rupture_out = os.path.join(args.out_dir, "complex_rupture", cand_name)
-        metrics_rupture = predict_structure([('A_prime', seq_A_prime, monomer_a3m), ('B_wt', seq_B_wt, wt_a3m_B)],
+        os.makedirs(rupture_out, exist_ok=True)
+        msa_B_wt = os.path.join(rupture_out, "Bwt.a3m")
+        prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, interface_columns=cols_B)
+        metrics_rupture = predict_structure([('A_prime', seq_A_prime, monomer_a3m), ('B_wt', seq_B_wt, msa_B_wt)],
                                             rupture_out, config)
         iptm_rupture = metrics_rupture.get("iptm", 1.0)
         print(f"  Rupture iPTM: {iptm_rupture:.2f} (max {iptm_rupture_max})")
