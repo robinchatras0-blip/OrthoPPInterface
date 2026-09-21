@@ -13,6 +13,10 @@ pipeline:
   foundry_diffusion_batch_size: 1
   rescue_diffusion_n_batches: 15
   max_rescue_scaffolds: 4
+  include_native_scaffold: false      # true = also design on the rigid WT backbone (control scaffold)
+  scaffold_max_clashes: 5             # RFD3 backbone vs A' heavy-atom clashes tolerated
+  scaffold_max_framework_rmsd: 1.5    # RFD3 must not distort the fixed framework of B (A)
+  scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
   local_rfdiffusion: bash OrthoIntRob/bin/rfd3
   local_ligandmpnn: bash OrthoIntRob/bin/mpnn
   apptainer_rfdiffusion: containers/rfdiffusion.sif
@@ -33,11 +37,24 @@ ligandmpnn:
   rescue_n_batches: 60
   samples_per_scaffold: 60
   top_k_per_scaffold: 3
+  top_k_per_motif: 6                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
+  max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
 folding:
   engine: rf3
   rf3_bin: /home/ommearo/miniforge3/envs/foundry_env/bin/rf3
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
+  # --- MSA regime (see src/calibrate_predictor.py to choose empirically) ---
+  msa_mask_scope: diff                # diff = mask only columns that really differ from WT | mutable = all redesignable columns
+  msa_mask_mode: gap                  # gap | substitute | keep
+  negative_msa_regime: matched        # matched = WT partner masked like its designed counterpart | native = full WT MSA
+  wt_ceiling_control: true            # fold WT/WT under the same masks -> best achievable iPTM in this regime
+  strict_msa: true                    # raise if MSA width != sequence length
+  diffusion_batch_size: 5             # RF3 samples per prediction; best-ranked one is reported, iPTM mean/std logged
+  # n_recycles: 10
+  # num_steps: 200                    # RF3 docs: 50 steps show no deterioration (~4x faster)
+  # wsl_distro: Ubuntu
+  # use_wsl: true                     # default: true on Windows, false elsewhere
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 10.0
@@ -51,6 +68,13 @@ thresholds:
     iptm_rupture_max: 0.35
   positive_design_rescue:
     iptm_rescue_min: 0.75
+    relative_to_ceiling: 0.85         # effective min = min(0.75, 0.85 * WT ceiling iPTM of the same regime)
+  negative_design_orthogonality:
+    iptm_negative_max: 0.35
+  orthogonality:
+    f_ortho_min: 0.30
+  early_exit:
+    rescue_iptm_floor: 0.0            # e.g. 0.3: skip negative/rupture/ceiling folds when rescue iPTM is below it
   fail_fast:
     max_passing_candidates: 12
 slurm_defaults:

@@ -8,7 +8,12 @@ import shutil
 
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
-from folding_engine import get_chain_sequence, build_hybrid_msa, predict_structure, calculate_ca_rmsd
+from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
+
+def get_wt_residues(pdb_path, chain_id):
+    from design_utils import load_chain, std_residues
+    return std_residues(load_chain(pdb_path, chain_id))
+
 
 def main():
     parser = argparse.ArgumentParser(description="Module 3: Fail-Fast Filtering (A' Validation via RoseTTAFold-3)")
@@ -46,10 +51,29 @@ def main():
             modified_indices = mapping_data.get('neighborhood_ids', [])
             fixed_ids = mapping_data.get('fixed_ids_A', [])
 
-    # Get WT sequence of Chain B
+    # Get WT sequences (no silent dummy fallback outside mock mode)
+    seq_A_wt = get_chain_sequence(wt_pdb, chain_id=chain_A_id)
     seq_B_wt = get_chain_sequence(wt_pdb, chain_id=chain_B_id)
-    if not seq_B_wt:
-        seq_B_wt = "M" * 50  # Fallback dummy sequence if file absent in mock
+    if not seq_B_wt or not seq_A_wt:
+        if execution_mode != 'mock':
+            print(f"Error: could not read WT sequences from {wt_pdb}")
+            sys.exit(1)
+        seq_A_wt, seq_B_wt = seq_A_wt or "M" * 50, seq_B_wt or "M" * 50
+
+    # Resid -> 0-based alignment column (robust to PDB numbering that does not start at 1)
+    wt_ids_A = [r.id[1] for r in get_wt_residues(wt_pdb, chain_A_id)]
+    modified_cols = [i for i, rid in enumerate(wt_ids_A) if rid in set(modified_indices)]
+
+    # Sanity check of the predictor itself: the native complex with full MSAs must be recognised.
+    control_out = os.path.join(args.out_dir, "wt_control_full_msa")
+    m_ctrl = predict_structure(input_pdb=wt_pdb, out_dir=control_out, msa_path=None, config=config,
+                               fasta_sequences=[('A_wt', seq_A_wt, wt_a3m_A), ('B_wt', seq_B_wt, wt_a3m_B)])
+    with open(os.path.join(args.out_dir, "wt_control.json"), 'w') as f:
+        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "plddt": m_ctrl.get("plddt")}, f, indent=2)
+    print(f"  WT control (A_wt + B_wt, full MSA): iPTM = {m_ctrl.get('iptm', 0.0):.3f}")
+    if execution_mode != 'mock' and m_ctrl.get("iptm", 0.0) < 0.6:
+        print("  WARNING: the predictor does not recognise the native complex even with full MSAs "
+              "-> check MSA files / chain order / RF3 install before trusting any downstream score.")
 
     design_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "A_prime_candidate_*.pdb")))
     if not design_pdbs:
@@ -76,14 +100,18 @@ def main():
         # Extract actual sequence of redesigned Chain A from PDB
         seq_A_prime = get_chain_sequence(design_pdb, chain_id=chain_A_id)
         if not seq_A_prime:
+            if execution_mode != 'mock':
+                print(f"  Skipping {basename}: no chain {chain_A_id} sequence.")
+                continue
             seq_A_prime = "M" * 50
 
         # 1. Monomer Hybrid MSA & Stability Filter (A')
         monomer_out = os.path.join(args.out_dir, "monomer", cand_name)
         os.makedirs(monomer_out, exist_ok=True)
         monomer_a3m = os.path.join(monomer_out, f"{basename}.a3m")
-        if not os.path.exists(monomer_a3m):
-            build_hybrid_msa(wt_a3m_A, seq_A_prime, modified_indices, monomer_a3m)
+        msa_stats = prepare_msa(wt_a3m_A, seq_A_prime, monomer_a3m, config, modified_indices=modified_cols)
+        print(f"  MSA: {msa_stats['n_masked']} columns re-designed "
+              f"({msa_stats['frac_masked']:.0%}) mode={msa_stats['mode']}, rows={msa_stats['n_rows']}")
 
         metrics_monomer = predict_structure(
             input_pdb=design_pdb,
@@ -130,6 +158,8 @@ def main():
                 "rmsd_monomer": rmsd_monomer,
                 "rmsd_framework": rmsd_framework,
                 "iptm_rupture": iptm_rupture,
+                "iptm_rupture_mean": metrics_rupture.get("iptm_mean"),
+                "n_masked_columns": msa_stats["n_masked"],
                 "passed": bool(iptm_rupture <= iptm_rupture_max and rmsd_monomer <= rmsd_max)
             }, f, indent=2)
 

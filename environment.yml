@@ -12,3 +12,5 @@ dependencies:
   - numpy
   - scipy
   - sqlite
+  - openpyxl
+  - pytest
