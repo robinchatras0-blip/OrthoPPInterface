@@ -63,7 +63,8 @@ The three orthogonality tests (`A'+B'`, `A_WT+B'`, `A'+B_WT`) must be scored und
 | `msa_mask_scope` | `interface` (default) / `diff` / `mutable` | mask the interface columns of both chains **and** the mutated ones (WT and designs alike) / mutated columns only / every redesignable column (legacy) |
 | `msa_mask_mode` | `gap` (default) / `substitute` / `keep` | homolog rows get `-` / the designed residue / are left untouched (WT-biased) |
 | `negative_msa_regime` | `matched` (default) / `native` | WT partner masked like its designed counterpart / full WT MSA |
-| `wt_ceiling_control` | `true` | folds WT/WT under the same masks → `iptm_ceiling`, the best iPTM achievable in that regime |
+| `wt_ceiling_control` | `global` / `per_design` / `off` | WT/WT iPTM in the same regime = `iptm_ceiling`: computed once by module 3 and reused (default), or one fold per design |
+| `reuse_module3_rupture` | `true` | A'·B_WT does not depend on B': module 3's iPTM is reused when it was measured in the same MSA regime |
 | `strict_msa` | `true` | raise if the alignment width does not match the sequence length |
 | `diffusion_batch_size` | `5` | RF3 samples per prediction; the best-ranked one is reported, iPTM mean/std are logged |
 
@@ -108,11 +109,11 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 
 ### [Module 5: Final Evaluation & Database Export](src/05_eval_final.py)
 For every designed pair, all four folds are run under the same MSA regime:
-- **Rescue** $A' \cdot B'$, **cross-rupture** $A_{\text{WT}} \cdot B'$, **rupture** $A' \cdot B_{\text{WT}}$ (recomputed here, never reused from another candidate) and the **WT ceiling** $A_{\text{WT}} \cdot B_{\text{WT}}$ with the same masked columns.
+- **Rescue** $A' \cdot B'$ and **cross-rupture** $A_{\text{WT}} \cdot B'$ are folded for every design. **Rupture** $A' \cdot B_{\text{WT}}$ and the **WT ceiling** $A_{\text{WT}} \cdot B_{\text{WT}}$ do not depend on B': they are reused from module 3 (same MSA regime), or computed once, instead of once per design.
 - **Interface energy (PyRosetta)**, one parallel batch after the RF3 loop: the designed complex $A'B'$ and the two rigid recombinations $A_{\text{WT}}B'$ and $A'B_{\text{WT}}$ (same frame), plus the native complex once, all with the *same* protocol (FastRelax constrained to the start coordinates, then InterfaceAnalyzer). Reported: `dG_*`, binding fractions `b_*`, energy gaps, `dsasa_rescue`, `unsat_hb_rescue`, `f_energy`.
 - **Coherence report** (`coherence.json`): rank correlation between RF3 and energy for the three pairs and for the two margins, sign agreement, and the designs where they disagree most. Energy is noisy (relaxation is stochastic; measured std of $F_{\text{energy}}$ ≈ 0.05 across seeds against a spread of 0.22 across designs), so use it for ranking and shortlist repeats, not on single small differences.
 - Geometry: $C_\alpha$ RMSD of A' and B' vs WT, DockQ vs the WT crystal and vs the *designed* complex, ligand-RMSD self-consistency of the RF3 prediction vs the design.
-- Missing values are `NaN`, never substituted by defaults. Optional early exit (`thresholds.early_exit.rescue_iptm_floor`) skips the other folds for hopeless rescues.
+- Missing values are `NaN`, never substituted by defaults. **Early exit** (`thresholds.early_exit.rescue_iptm_floor`, default 0.30): a design whose rescue iPTM is at RF3's "no binding" level cannot pass, so it gets no cross/rupture fold and no energy (set 0 to evaluate everything, e.g. to calibrate thresholds).
 - Exports `orthogonality_scores.csv`, `results.db`, and (if `openpyxl` is installed) styled `.xlsx` / `.html` reports.
 
 ---
@@ -219,7 +220,8 @@ folding:                               # see "Local MSAs and the information reg
   msa_mask_scope: interface
   msa_mask_mode: gap
   negative_msa_regime: matched
-  wt_ceiling_control: true
+  wt_ceiling_control: global
+  reuse_module3_rupture: true
   strict_msa: true
   diffusion_batch_size: 5
   # n_recycles: 10 | num_steps: 200 | wsl_distro: Ubuntu | use_wsl: true   (optional RF3/WSL overrides)
@@ -246,7 +248,7 @@ thresholds:
     iptm_rescue_min: 0.75
     relative_to_ceiling: 0.85          # effective min = min(0.75, 0.85 × WT ceiling of the same regime)
   orthogonality: {f_ortho_min: 0.30}
-  early_exit: {rescue_iptm_floor: 0.0} # e.g. 0.3: skip the other folds when the rescue iPTM is below it
+  early_exit: {rescue_iptm_floor: 0.30} # rescue iPTM below this: no cross/rupture fold, no energy (0 = evaluate everything)
   fail_fast: {max_passing_candidates: 12}
 ```
 

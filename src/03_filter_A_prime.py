@@ -19,6 +19,7 @@ def main():
 
     config = load_config(args.config)
     os.makedirs(args.out_dir, exist_ok=True)
+    scope = config.get('folding', {}).get('msa_mask_scope', 'interface')   # recorded so that Module 5 can reuse results
 
     pcfg = config['pipeline']
     chain_A_id, chain_B_id = pcfg.get('chain_A', 'A'), pcfg.get('chain_B', 'B')
@@ -59,7 +60,8 @@ def main():
     prepare_msa(wt_a3m_B, seq_B_wt, msa_B_reg, config, interface_columns=cols_B)
     m_reg = predict_structure([('A_wt', seq_A_wt, msa_A_reg), ('B_wt', seq_B_wt, msa_B_reg)], reg_dir, config)
     with open(os.path.join(args.out_dir, "wt_control.json"), 'w') as f:
-        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "plddt": m_ctrl.get("plddt")}, f, indent=2)
+        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "plddt": m_ctrl.get("plddt"),
+                   "msa_scope": scope}, f, indent=2)
     print(f"  WT control (A_wt + B_wt): iPTM = {m_ctrl.get('iptm', 0.0):.3f} with full MSAs, "
           f"{m_reg.get('iptm', 0.0):.3f} in the configured MSA regime (= ceiling for designs)")
     if m_ctrl.get("iptm", 0.0) < 0.6:
@@ -127,6 +129,7 @@ def main():
                 "iptm_rupture": iptm_rupture,
                 "iptm_rupture_mean": metrics_rupture.get("iptm_mean"),
                 "n_masked_columns": msa_stats["n_masked"],
+                "msa_scope": scope,
                 "passed": bool(iptm_rupture <= iptm_rupture_max and rmsd_monomer <= rmsd_max)
             }, f, indent=2)
 

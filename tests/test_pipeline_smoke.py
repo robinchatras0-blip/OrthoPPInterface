@@ -198,6 +198,8 @@ def test_module3_filters_and_writes_metrics(workspace, monkeypatch):
     assert len(passed) == 2
     m = json.load(open(os.path.join(out3, "metrics_A_prime_candidate_00.json")))
     assert m["passed"] and m["n_masked_columns"] == 6            # 2 mutations + the 6 interface columns (2 and 3 overlap)
+    assert m["msa_scope"] == "interface"                          # lets Module 5 know which regime it can reuse
+    assert json.load(open(os.path.join(out3, "wt_control.json")))["msa_scope"] == "interface"
 
 
 def test_calibration_script_runs(workspace, monkeypatch):
@@ -412,3 +414,84 @@ def test_module5_energy_can_veto_a_design_that_rf3_likes(workspace, monkeypatch)
     row = pd.read_csv(os.path.join(out5, "orthogonality_scores.csv")).iloc[0]
     assert row["pass_rescue"] and row["pass_rupture"] and row["pass_negative"]        # RF3 alone would accept it
     assert row["f_energy"] < 0 and not row["pass_energy"] and not row["passes"]       # ...the energy does not
+
+
+# --------------------------------------------------------------------------- no repeated work in module 5
+def recording_predict(calls):
+    def predict(fasta_sequences, out_dir, config):
+        calls.append(tuple(x[0] for x in fasta_sequences))
+        return fake_predict(fasta_sequences, out_dir, config)
+    return predict
+
+
+def set_cfg(workspace, **sections):
+    cfg = yaml.safe_load(open(workspace["cfg"]))
+    for k, v in sections.items():
+        cfg.setdefault(k, {}).update(v)
+    yaml.safe_dump(cfg, open(workspace["cfg"], "w"))
+
+
+def run_module5_on_two_designs(workspace, monkeypatch, name, calls):
+    ws = workspace
+    d4 = ws["root"] / "run" / name
+    d4.mkdir()
+    for i in range(2):
+        write_pdb(d4 / f"A_prime_candidate_00_B_cand_{i:02d}.pdb", [make_chain("A", NAMES_A), make_chain("B", NAMES_B, origin=(9, 0, 0))])
+    m5 = load_module("05_eval_final.py")
+    monkeypatch.setattr(m5, "predict_structure", recording_predict(calls))
+    out5 = str(ws["root"] / "run" / (name + "_out"))
+    run_main(m5, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--design_dir", str(d4),
+                  "--filter_dir", ws["d3"], "--out_dir", out5], monkeypatch)
+    return m5, pd.read_csv(os.path.join(out5, "orthogonality_scores.csv"))
+
+
+def test_module5_reuses_module3_rupture_and_ceiling_instead_of_refolding(workspace, monkeypatch):
+    set_cfg(workspace, folding={"wt_ceiling_control": "global", "reuse_module3_rupture": True})
+    json.dump({"plddt_monomer": 88.0, "rmsd_monomer": 0.9, "iptm_rupture": 0.20, "msa_scope": "interface"},
+              open(os.path.join(workspace["d3"], "metrics_A_prime_candidate_00.json"), "w"))
+    json.dump({"iptm_full_msa": 0.86, "iptm_regime": 0.60, "msa_scope": "interface"},
+              open(os.path.join(workspace["d3"], "wt_control.json"), "w"))
+    calls = []
+    _, df = run_module5_on_two_designs(workspace, monkeypatch, "reuse", calls)
+    assert ("A_prime", "B_wt") not in calls and ("A_wt", "B_wt") not in calls              # neither refolded
+    assert calls.count(("A_prime", "B_prime")) == 2 and calls.count(("A_wt", "B_prime")) == 2  # what depends on B' still is
+    assert (df["iptm_rupture"] == 0.20).all() and (df["iptm_ceiling"] == 0.60).all()
+
+
+def test_module5_computes_the_global_ceiling_once_and_only_reuses_a_matching_regime(workspace, monkeypatch):
+    set_cfg(workspace, folding={"wt_ceiling_control": "global", "reuse_module3_rupture": True})
+    json.dump({"plddt_monomer": 88.0, "rmsd_monomer": 0.9, "iptm_rupture": 0.20, "msa_scope": "diff"},      # other regime
+              open(os.path.join(workspace["d3"], "metrics_A_prime_candidate_00.json"), "w"))
+    calls = []
+    _, df = run_module5_on_two_designs(workspace, monkeypatch, "once", calls)
+    assert calls.count(("A_wt", "B_wt")) == 1                       # one ceiling fold for two designs (was one each)
+    assert calls.count(("A_prime", "B_wt")) == 2                    # regime differs -> rupture is recomputed, not reused
+    assert (df["iptm_ceiling"] == 0.85).all() and (df["iptm_rupture"] == 0.25).all()
+
+
+def test_module5_early_exit_spends_neither_folds_nor_energy_on_hopeless_designs(workspace, monkeypatch):
+    with_energy(workspace)
+    set_cfg(workspace, thresholds={"early_exit": {"rescue_iptm_floor": 0.9}})           # fake rescue iPTM is 0.8
+    energy_calls = []
+    calls = []
+    ws = workspace
+    m5_holder = {}
+
+    def fake_energy(jobs, out_json, config):
+        energy_calls.append(jobs)
+        return {}
+
+    real_loader = load_module
+
+    def load_and_patch(name):
+        mod = real_loader(name)
+        if name == "05_eval_final.py":
+            mod.score_interfaces = fake_energy
+            m5_holder["m"] = mod
+        return mod
+
+    monkeypatch.setitem(globals(), "load_module", load_and_patch)
+    _, df = run_module5_on_two_designs(ws, monkeypatch, "early", calls)
+    assert ("A_wt", "B_prime") not in calls and ("A_prime", "B_wt") not in calls        # no cross / rupture fold
+    assert energy_calls == []                                                          # nothing to score, no call at all
+    assert (df["status"] == "early_exit_low_rescue").all() and not df["passes"].any()

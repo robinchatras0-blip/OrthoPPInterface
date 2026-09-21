@@ -38,7 +38,8 @@ folding:
   msa_mask_scope: interface           # interface = mask the interface columns + mutated ones (default) | diff = mutated only | mutable = all redesignable
   msa_mask_mode: gap                  # gap | substitute | keep
   negative_msa_regime: matched        # matched = WT partner masked like its designed counterpart | native = full WT MSA
-  wt_ceiling_control: true            # fold WT/WT under the same masks -> best achievable iPTM in this regime
+  wt_ceiling_control: global          # WT/WT ceiling of the regime: global (once, from module 3) | per_design | off
+  reuse_module3_rupture: true         # A'.B_WT does not depend on B': reuse module 3's value (same regime)
   strict_msa: true                    # raise if MSA width != sequence length
   diffusion_batch_size: 5             # RF3 samples per prediction; best-ranked one is reported, iPTM mean/std logged
   # n_recycles: 10
@@ -74,6 +75,6 @@ thresholds:
   orthogonality:
     f_ortho_min: 0.30
   early_exit:
-    rescue_iptm_floor: 0.0            # e.g. 0.3: skip negative/rupture/ceiling folds when rescue iPTM is below it
+    rescue_iptm_floor: 0.30           # rescue iPTM below this: no cross/rupture fold, no energy (0 = evaluate everything, e.g. to calibrate)
   fail_fast:
     max_passing_candidates: 12

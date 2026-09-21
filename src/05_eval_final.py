@@ -62,7 +62,10 @@ def main():
     fcfg = config.get('folding', {})
     folding_engine = fcfg.get('engine', 'rf3')
     neg_regime = fcfg.get('negative_msa_regime', 'matched')      # 'matched' | 'native'
-    do_ceiling = bool(fcfg.get('wt_ceiling_control', True))
+    ceiling_mode = fcfg.get('wt_ceiling_control', 'global')        # global | per_design | off (legacy booleans accepted)
+    ceiling_mode = {True: 'per_design', False: 'off'}.get(ceiling_mode, ceiling_mode)
+    scope = fcfg.get('msa_mask_scope', 'interface')
+    reuse_rupture = bool(fcfg.get('reuse_module3_rupture', True))
     ecfg = config.get('energy', {})
     energy_on = energy_enabled(config)
     w_iptm = float(ecfg.get('weight_iptm', 0.5))
@@ -72,7 +75,7 @@ def main():
 
     print(f"Module 5: Final validation with {folding_engine.upper()} "
           f"(mask_mode={fcfg.get('msa_mask_mode', 'gap')}, scope={fcfg.get('msa_mask_scope', 'diff')}, "
-          f"negative regime={neg_regime}, ceiling control={do_ceiling}, PyRosetta energy={energy_on})")
+          f"negative regime={neg_regime}, WT ceiling={ceiling_mode}, PyRosetta energy={energy_on})")
 
     # Redesign-allowed residue ids (used only when msa_mask_scope == 'mutable')
     with open(os.path.join(args.analysis_dir, 'index_mapping.json')) as f:
@@ -104,12 +107,34 @@ def main():
     if not os.path.exists(filter_dir):
         filter_dir = "results/03_fail_fast"
 
+    # WT/WT ceiling of the MSA regime: one value for the whole run (per-design values only differ by noise, 0.52-0.56)
+    global_ceiling = NAN
+    if ceiling_mode == 'global':
+        wtc_path = os.path.join(filter_dir, "wt_control.json")
+        if os.path.exists(wtc_path):
+            wtc = json.load(open(wtc_path))
+            if wtc.get("msa_scope") == scope and ok(wtc.get("iptm_regime")):
+                global_ceiling = float(wtc["iptm_regime"])
+                print(f"WT ceiling of the '{scope}' regime reused from Module 3: {global_ceiling:.3f}")
+        if not ok(global_ceiling):
+            cdir = os.path.join(args.out_dir, "wt_ceiling")
+            os.makedirs(cdir, exist_ok=True)
+            msa_A_g, msa_B_g = os.path.join(cdir, "A.a3m"), os.path.join(cdir, "B.a3m")
+            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_g, config, interface_columns=iface_A)
+            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_g, config, interface_columns=iface_B)
+            global_ceiling = predict_structure([('A_wt', seq_A_wt, msa_A_g), ('B_wt', seq_B_wt, msa_B_g)], cdir, config).get("iptm", NAN)
+            print(f"WT ceiling of the '{scope}' regime computed once: {global_ceiling:.3f}")
+
     results_data = []
     for b_prime_pdb in b_prime_pdbs:
         design_id = os.path.splitext(os.path.basename(b_prime_pdb))[0]
         meta = meta_pairs.get(design_id, {})
         parent_a = meta.get("parent_a", "") or (design_id.split("_B_")[0] if "_B_" in design_id else "")
         print(f"\nModule 5: Evaluating {design_id} (parent A' motif: {parent_a or 'primary'})...")
+        m3 = {}                                                   # Module 3 metrics of the parent A' (never invented)
+        pm = os.path.join(filter_dir, f"metrics_{parent_a}.json") if parent_a else None
+        if pm and os.path.exists(pm):
+            m3 = json.load(open(pm))
 
         seq_A_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_A_id)
         seq_B_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_B_id)
@@ -145,7 +170,7 @@ def main():
         status = "ok"
         if iptm_rescue < early_exit:
             status = "early_exit_low_rescue"
-            print(f"  Early exit: rescue iPTM < {early_exit} -> negative/rupture tests skipped.")
+            print(f"  Early exit: rescue iPTM < {early_exit} -> cross/rupture folds and energy skipped.")
         else:
             # 3. Negative design A_WT + B' (same information regime as the positive test when 'matched')
             if neg_regime == 'matched':
@@ -156,31 +181,32 @@ def main():
             m_neg = predict_structure([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', seq_B_prime, msa_B_prime)], neg_out, config)
             iptm_negative = m_neg.get("iptm", NAN)
 
-            # 4. Rupture A' + B_WT (recomputed here so it shares the regime of the other tests)
-            if neg_regime == 'matched':
-                msa_B_wt = os.path.join(rup_out, f"{design_id}_Bwt_matched.a3m")
-                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
+            # 4. Rupture A' + B_WT: independent of B', so Module 3's measurement is reused when it used the same regime
+            if reuse_rupture and m3.get("msa_scope") == scope and ok(m3.get("iptm_rupture")):
+                iptm_rupture = float(m3["iptm_rupture"])
+                print(f"  Rupture iPTM reused from Module 3: {iptm_rupture:.3f}")
             else:
-                msa_B_wt = wt_a3m_B
-            m_rup = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)], rup_out, config)
-            iptm_rupture = m_rup.get("iptm", NAN)
+                if neg_regime == 'matched':
+                    msa_B_wt = os.path.join(rup_out, f"{design_id}_Bwt_matched.a3m")
+                    prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
+                else:
+                    msa_B_wt = wt_a3m_B
+                m_rup = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)], rup_out, config)
+                iptm_rupture = m_rup.get("iptm", NAN)
 
-            # 5. Ceiling: WT complex under the very same masked columns = best achievable iPTM in this regime
-            if do_ceiling:
-                msa_A_c = os.path.join(ctl_out, f"{design_id}_Awt_ceiling.a3m")
-                msa_B_c = os.path.join(ctl_out, f"{design_id}_Bwt_ceiling.a3m")
-                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
-                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
-                m_ctl = predict_structure([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], ctl_out, config)
-                iptm_ceiling = m_ctl.get("iptm", NAN)
+        # 5. Ceiling: WT/WT in the same regime = best achievable iPTM (one global value, or per design)
+        if ceiling_mode == 'global':
+            iptm_ceiling = global_ceiling
+        elif ceiling_mode == 'per_design' and status == "ok":
+            msa_A_c = os.path.join(ctl_out, f"{design_id}_Awt_ceiling.a3m")
+            msa_B_c = os.path.join(ctl_out, f"{design_id}_Bwt_ceiling.a3m")
+            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
+            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
+            m_ctl = predict_structure([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], ctl_out, config)
+            iptm_ceiling = m_ctl.get("iptm", NAN)
 
         # 6. Module 3 monomer metrics for the parent A' (NaN when unavailable - never invented)
-        plddt_a_prime = rmsd_a_prime_m3 = NAN
-        pm = os.path.join(filter_dir, f"metrics_{parent_a}.json") if parent_a else None
-        if pm and os.path.exists(pm):
-            md = json.load(open(pm))
-            plddt_a_prime = md.get("plddt_monomer", NAN)
-            rmsd_a_prime_m3 = md.get("rmsd_monomer", NAN)
+        plddt_a_prime, rmsd_a_prime_m3 = m3.get("plddt_monomer", NAN), m3.get("rmsd_monomer", NAN)
 
         # 7. Geometry
         rmsd_a_prime = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_A_id, chain_pred=chain_A_id)
@@ -191,7 +217,7 @@ def main():
         dockq_des = calculate_dockq(b_prime_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
 
         # 8. Complexes for the interface energy (same frame: A' was fitted onto the WT frame in Module 4)
-        if energy_on:
+        if energy_on and status == "ok":
             edir = os.path.join(args.out_dir, "energy", design_id)
             os.makedirs(edir, exist_ok=True)
             p_awt_bp, p_ap_bwt = os.path.join(edir, "AWT.Bp.pdb"), os.path.join(edir, "Ap.BWT.pdb")
@@ -243,13 +269,14 @@ def main():
     # ---- PyRosetta interface energies (one parallel batch for all designs) and the combined score
     energy_cols = ("dG_rescue", "dG_negative", "dG_rupture", "dG_native", "dsasa_rescue", "unsat_hb_rescue", "b_rescue",
                    "b_negative", "b_rupture", "gap_negative", "gap_rupture", "f_energy")
-    scores = score_interfaces(energy_jobs, os.path.join(args.out_dir, "energy_scores.json"), config) if energy_on else {}
+    run_energy = energy_on and len(energy_jobs) > 1                 # something besides the native complex to score
+    scores = score_interfaces(energy_jobs, os.path.join(args.out_dir, "energy_scores.json"), config) if run_energy else {}
 
     def metric(name, key="dG"):
         return scores.get(name, {}).get(key, NAN)
 
     dG_native = metric("native")
-    if energy_on and not (ok(dG_native) and dG_native < 0):
+    if run_energy and not (ok(dG_native) and dG_native < 0):
         print("  WARNING: the native complex has no binding energy under this protocol -> energy scores are NaN.")
     for row in results_data:
         did = row["design_id"]
