@@ -1,4 +1,4 @@
-﻿import os
+import os
 import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -31,7 +31,7 @@ def generate_styled_excel(csv_path, xlsx_path):
     # Subtitle Banner
     ws1.merge_cells("A2:K2")
     sub_cell = ws1["A2"]
-    sub_cell.value = "Évaluation Haute Résolution AlphaFold-Multimer v3 & Conformité DockQ CAPRI"
+    sub_cell.value = "Évaluation Haute Résolution RoseTTAFold-3 All-Atom (RF3) & Conformité DockQ CAPRI"
     sub_cell.font = Font(name="Segoe UI", size=10, italic=True, color="E2E8F0")
     sub_cell.fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
     sub_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -381,7 +381,7 @@ def generate_interactive_html(csv_path, html_path):
 <body>
     <div class="header">
         <h1>OrthoPPInterface - Matrice d'Orthogonalité Protéine-Protéine</h1>
-        <p>Conception Rationnelle & Évaluation AlphaFold-Multimer v3 All-Atom GPU | Conformité CAPRI DockQ</p>
+        <p>Conception Rationnelle & Évaluation RoseTTAFold-3 All-Atom (RF3) GPU | Conformité CAPRI DockQ</p>
     </div>
 
     <div class="stats-grid">

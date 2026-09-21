@@ -90,12 +90,13 @@ def main():
     parent_dir = os.path.dirname(cand_dir)
 
     for p in raw_lines:
-        if os.path.exists(p):
+        local_cand = os.path.join(parent_dir, "02_rupture_design", os.path.basename(p))
+        if os.path.exists(local_cand):
+            resolved_candidates.append(local_cand)
+        elif os.path.exists(p):
             resolved_candidates.append(p)
         elif os.path.exists(os.path.join(cand_dir, p)):
             resolved_candidates.append(os.path.join(cand_dir, p))
-        elif os.path.exists(os.path.join(parent_dir, "02_rupture_design", os.path.basename(p))):
-            resolved_candidates.append(os.path.join(parent_dir, "02_rupture_design", os.path.basename(p)))
         elif os.path.exists(os.path.join("results/02_rupture_design", os.path.basename(p))):
             resolved_candidates.append(os.path.join("results/02_rupture_design", os.path.basename(p)))
 
@@ -150,6 +151,14 @@ def main():
 
         motif_work_dir = os.path.join(args.out_dir, f"motif_{a_cand_name}")
         os.makedirs(motif_work_dir, exist_ok=True)
+
+        existing_motif_pdbs = sorted(glob.glob(os.path.join(args.out_dir, f"{a_cand_name}_B_cand_*.pdb")))
+        if existing_motif_pdbs:
+            print(f"  [Resume Cache] Found {len(existing_motif_pdbs)} existing B' candidates for {a_cand_name}, skipping re-computation.")
+            for p in existing_motif_pdbs:
+                all_saved_b_pdbs.append(p)
+                metadata_pairs[os.path.splitext(os.path.basename(p))[0]] = {"parent_a": a_cand_name, "pdb": p}
+            continue
 
         parser = PDBParser(QUIET=True)
         struct_A = parser.get_structure("A_prime", in_pdb)
@@ -215,10 +224,11 @@ def main():
 
             rfd_bin = config['pipeline'].get('local_rfdiffusion', 'OrthoIntRob/bin/rfd3') if execution_mode == 'local' else config['pipeline']['colab_rfdiffusion']
             rescue_dir_clean = rfd_rescue_dir.replace('\\', '/')
+            n_rescue_batches = str(config.get('pipeline', {}).get('rescue_diffusion_n_batches', 10))
             rfd_cmd = rfd_bin.split() + [
                 f"inputs={curr_inputs_json}",
                 f"out_dir={rescue_dir_clean}",
-                "n_batches=1",
+                f"n_batches={n_rescue_batches}",
                 "diffusion_batch_size=1"
             ]
             env = os.environ.copy()
@@ -243,208 +253,250 @@ def main():
                     io_c.save(pdb_path)
                     rfd_pdbs.append(pdb_path)
 
-            if rfd_pdbs:
-                rfd_input_pdb = rfd_pdbs[0]
-
-        # Reconstruct full-length Chain B (grafting constant domain tail)
-        if wt_chain_B_res:
-            tail_res = [r for r in wt_chain_B_res if r.id[1] > crop_max_b]
-            if tail_res:
-                p_full = PDBParser(QUIET=True)
-                st_full = p_full.get_structure("assembled", rfd_input_pdb)
-                m_full = st_full[0]
-                
-                mpnn_fixed_pos = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
-                with open(mpnn_fixed_pos) as f:
-                    old_fixed = json.load(f)
-                fixed_b_set = set(old_fixed.get(chain_B_id, []))
-                
-                fixed_crop_ids = set([res.id[1] for res in wt_chain_B_res if crop_min_b <= res.id[1] <= crop_max_b and res.id[1] in fixed_b_set])
-                wt_b_ca = [r['CA'] for r in struct_wt[0][chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
-                rfd_b_ca = [r['CA'] for r in m_full[chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
-                
-                if wt_b_ca and rfd_b_ca:
-                    min_len_b = min(len(wt_b_ca), len(rfd_b_ca))
-                    sup_b = Superimposer()
-                    sup_b.set_atoms(rfd_b_ca[:min_len_b], wt_b_ca[:min_len_b])
-                    sup_b.apply(struct_wt[0][chain_B_id].get_atoms())
-                
-                if chain_B_id in m_full:
-                    for r in struct_wt[0][chain_B_id]:
-                        if r.id[0] == ' ' and r.id[1] > crop_max_b:
-                            m_full[chain_B_id].add(r.copy())
-                assembled_pdb = os.path.join(motif_work_dir, "complex_assembled_full.pdb")
-                io_full = PDBIO()
-                io_full.set_structure(st_full)
-                io_full.save(assembled_pdb)
-                rfd_input_pdb = assembled_pdb
-
-        # Step 2: LigandMPNN Sequence Design
-        mpnn_fixed_pos = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
-        with open(mpnn_fixed_pos) as f:
-            old_fixed = json.load(f)
-        fixed_list = []
-        for chain, res_list in old_fixed.items():
-            fixed_list.extend([f"{chain}{res}" for res in res_list])
-
-        # Filter fixed residues to only those actually present in rfd_input_pdb
-        parser_chk_b = PDBParser(QUIET=True)
-        st_chk_b = parser_chk_b.get_structure("chk_b", rfd_input_pdb)
-        existing_res_b = set(f"{ch.id}{r.id[1]}" for m in st_chk_b for ch in m for r in ch if r.id[0] == ' ')
-        fixed_list = [f for f in fixed_list if f in existing_res_b]
-        fixed_str = ",".join(fixed_list)
-
-        # Compute Complementary Rescue Bias
-        def get_heavy_atoms(res):
-            return [atom for atom in res if not atom.get_name().startswith('H') and atom.element != 'H']
-
-        def min_dist_res(r1, r2):
-            d_min = float('inf')
-            for a1 in get_heavy_atoms(r1):
-                for a2 in get_heavy_atoms(r2):
-                    d = a1 - a2
-                    if d < d_min:
-                        d_min = d
-            return d_min
-
-        model_c = st_chk_b[0]
-        chain_A_res = [r for r in model_c[chain_A_id] if r.id[0] == ' ']
-        chain_B_res = [r for r in model_c[chain_B_id] if r.id[0] == ' ']
-        fixed_b_set = set(old_fixed.get(chain_B_id, []))
-        rescue_bias = {}
-
-        for res_B in chain_B_res:
-            bid = res_B.id[1]
-            if bid in fixed_b_set:
-                continue
-            closest_A = None
-            min_d = float('inf')
-            for res_A in chain_A_res:
-                d = min_dist_res(res_B, res_A)
-                if d < min_d:
-                    min_d = d
-                    closest_A = res_A
-
-            if closest_A is not None and min_d <= 7.5:
-                a_resname = closest_A.get_resname()
-                b_key = f"{chain_B_id}{bid}"
-                if a_resname in {'ARG', 'LYS', 'HIS'}:
-                    b_bias = {"ASP": 5.0, "GLU": 5.0, "ARG": -4.0, "LYS": -4.0}
-                elif a_resname in {'ASP', 'GLU'}:
-                    b_bias = {"ARG": 5.0, "LYS": 5.0, "ASP": -4.0, "GLU": -4.0}
-                elif a_resname in {'PHE', 'TYR', 'TRP'}:
-                    b_bias = {"LEU": 3.0, "ILE": 3.0, "VAL": 3.0, "PHE": 2.0, "TYR": 2.0}
-                elif a_resname in {'ASN', 'GLN', 'SER', 'THR'}:
-                    b_bias = {"GLN": 3.0, "ASN": 3.0, "SER": 2.0, "THR": 2.0, "ARG": 2.0, "GLU": 2.0}
-                else:
-                    b_bias = {"LEU": 2.0, "VAL": 2.0, "ALA": 1.5, "ILE": 2.0}
-                rescue_bias[b_key] = b_bias
-
-        mpnn_out_dir = os.path.join(motif_work_dir, "mpnn_out")
-        os.makedirs(mpnn_out_dir, exist_ok=True)
-
-        if execution_mode == 'mock':
-            for b_idx in range(int(rescue_n_batches)):
-                dest_cand_pdb = os.path.join(args.out_dir, f"{a_cand_name}_B_prime_cand_{b_idx:02d}.pdb")
-                with open(dest_cand_pdb, 'w') as f:
-                    f.write("DUMMY COMPLEX PDB\n")
-                all_saved_b_pdbs.append(dest_cand_pdb)
-                metadata_pairs[os.path.splitext(os.path.basename(dest_cand_pdb))[0]] = {"parent_a": a_cand_name, "pdb": dest_cand_pdb}
+            max_scaffolds = int(config.get('pipeline', {}).get('max_rescue_scaffolds', 4))
+            scaffolds_to_process = [complex_pdb]
+            for p in rfd_pdbs:
+                if len(scaffolds_to_process) >= max_scaffolds:
+                    break
+                if os.path.abspath(p) != os.path.abspath(complex_pdb):
+                    scaffolds_to_process.append(p)
+            print(f"  RFD3 yielded {len(rfd_pdbs)} diffused backbone(s). Exploring {len(scaffolds_to_process)} structural scaffold(s) (including native backbone scaffold 0)...")
         else:
-            mpnn_bin = config['pipeline'].get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn') if execution_mode == 'local' else config['pipeline']['colab_ligandmpnn']
-            mpnn_cmd = mpnn_bin.split() + [
-                "--structure_path", rfd_input_pdb.replace('\\', '/'),
-                "--out_directory", mpnn_out_dir.replace('\\', '/'),
-                "--model_type", model_type,
-                "--checkpoint_path", checkpoint_path.replace('\\', '/'),
-                "--is_legacy_weights", is_legacy,
-                "--batch_size", "1",
-                "--number_of_batches", rescue_n_batches,
-                "--temperature", temp_rescue,
-                "--fixed_residues", fixed_str,
-                "--bias_per_residue", json.dumps(rescue_bias),
-                "--write_structures", "True"
-            ]
-            print(f"  Running LigandMPNN ({rescue_n_batches} variants)...")
-            env = os.environ.copy()
-            subprocess.run(mpnn_cmd, check=True, env=env)
+            scaffolds_to_process = [complex_pdb]
 
-            mpnn_outputs = [f for f in glob.glob(os.path.join(mpnn_out_dir, "**", "*.pdb"), recursive=True) if not f.endswith("B_prime_rfd_mpnn.pdb") and "candidate" not in f]
-            mpnn_cifs = glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif.gz"), recursive=True) + glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif"), recursive=True)
-            mpnn_outputs = [f for f in mpnn_outputs if os.path.abspath(f) != os.path.abspath(rfd_input_pdb)]
-            mpnn_cifs = [f for f in mpnn_cifs if os.path.abspath(f) != os.path.abspath(rfd_input_pdb)]
+        # Process each diffused backbone scaffold
+        motif_all_mpnn_outputs = []
+        samples_per_scaffold_each = max(15, samples_per_scaffold // len(scaffolds_to_process))
 
-            if not mpnn_outputs and mpnn_cifs:
-                cif_parser = MMCIFParser(QUIET=True)
-                converted_pdbs = []
-                for cif_file in sorted(mpnn_cifs):
-                    pdb_file = cif_file.replace(".cif.gz", ".pdb").replace(".cif", ".pdb")
-                    try:
-                        if cif_file.endswith('.gz'):
-                            with gzip.open(cif_file, 'rt') as gz_f:
-                                struct = cif_parser.get_structure("cif_struct", gz_f)
-                        else:
-                            struct = cif_parser.get_structure("cif_struct", cif_file)
-                        io = PDBIO()
-                        io.set_structure(struct)
-                        io.save(pdb_file)
-                        converted_pdbs.append(pdb_file)
-                    except Exception as e:
-                        print(f"Warning: could not convert {cif_file} to PDB: {e}")
-                mpnn_outputs = converted_pdbs
-
-            packed_outputs = [f for f in mpnn_outputs if "packed" in f]
-            if packed_outputs:
-                mpnn_outputs = packed_outputs
-
-            if mpnn_outputs:
-                # If more variants than top_k_selected, filter for maximum chemical/sequence diversity
-                if len(mpnn_outputs) > top_k_selected:
-                    mutable_indices_B = [r.id[1] for r in chain_B_res if r.id[1] not in fixed_b_set]
-                    cand_seqs = []
-                    for p in mpnn_outputs:
-                        seq = extract_interface_sequence(p, chain_B_id, mutable_indices_B)
-                        cand_seqs.append(seq)
+        for sc_idx, raw_scaffold_pdb in enumerate(scaffolds_to_process):
+            curr_scaffold_input = raw_scaffold_pdb
+            # Reconstruct full-length Chain B (grafting constant domain tail if present)
+            if wt_chain_B_res:
+                tail_res = [r for r in wt_chain_B_res if r.id[1] > crop_max_b]
+                if tail_res:
+                    p_full = PDBParser(QUIET=True)
+                    st_full = p_full.get_structure("assembled", curr_scaffold_input)
+                    m_full = st_full[0]
                     
-                    # Farthest point sampling on unique sequence space
-                    selected_indices = [0]
-                    while len(selected_indices) < top_k_selected and len(selected_indices) < len(mpnn_outputs):
-                        best_cand = None
-                        max_min_dist = -1
-                        for cand_idx in range(len(mpnn_outputs)):
-                            if cand_idx in selected_indices:
-                                continue
-                            min_dist = min(sum(1 for a, b in zip(cand_seqs[cand_idx], cand_seqs[s_idx]) if a != b) for s_idx in selected_indices)
-                            if min_dist > max_min_dist:
-                                max_min_dist = min_dist
-                                best_cand = cand_idx
-                        if best_cand is not None:
-                            selected_indices.append(best_cand)
-                        else:
-                            break
-                    print(f"  Selected top {len(selected_indices)} most diverse B' sequence solutions out of {len(mpnn_outputs)} MPNN samples.")
-                    mpnn_outputs = [mpnn_outputs[i] for i in selected_indices]
-                else:
-                    mpnn_outputs = sorted(mpnn_outputs)[:top_k_selected]
+                    mpnn_fixed_pos = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
+                    with open(mpnn_fixed_pos) as f:
+                        old_fixed = json.load(f)
+                    fixed_b_set = set(old_fixed.get(chain_B_id, []))
+                    
+                    fixed_crop_ids = set([res.id[1] for res in wt_chain_B_res if crop_min_b <= res.id[1] <= crop_max_b and res.id[1] in fixed_b_set])
+                    wt_b_ca = [r['CA'] for r in struct_wt[0][chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
+                    rfd_b_ca = [r['CA'] for r in m_full[chain_B_id] if r.id[1] in fixed_crop_ids and 'CA' in r]
+                    
+                    if wt_b_ca and rfd_b_ca:
+                        min_len_b = min(len(wt_b_ca), len(rfd_b_ca))
+                        sup_b = Superimposer()
+                        sup_b.set_atoms(rfd_b_ca[:min_len_b], wt_b_ca[:min_len_b])
+                        sup_b.apply(struct_wt[0][chain_B_id].get_atoms())
+                    
+                    if chain_B_id in m_full:
+                        for r in struct_wt[0][chain_B_id]:
+                            if r.id[0] == ' ' and r.id[1] > crop_max_b:
+                                m_full[chain_B_id].add(r.copy())
+                    assembled_pdb = os.path.join(motif_work_dir, f"complex_assembled_scaffold_{sc_idx}.pdb")
+                    io_full = PDBIO()
+                    io_full.set_structure(st_full)
+                    io_full.save(assembled_pdb)
+                    curr_scaffold_input = assembled_pdb
 
-                for b_idx, cand_pdb in enumerate(mpnn_outputs):
-                    pair_id = f"{a_cand_name}_B_cand_{b_idx:02d}"
-                    dest_cand_pdb = os.path.join(args.out_dir, f"{pair_id}.pdb")
-                    shutil.copy(cand_pdb, dest_cand_pdb)
-                    with open(dest_cand_pdb, 'r') as f:
-                        lines = f.readlines()
+            # Crucial: Always ensure Chain A has full all-atom sidechains from struct_A
+            p_full_a = PDBParser(QUIET=True)
+            st_full_a = p_full_a.get_structure("st_scaffold", curr_scaffold_input)
+            m_full_a = st_full_a[0]
+            if chain_A_id in m_full_a:
+                m_full_a.detach_child(chain_A_id)
+            m_full_a.add(struct_A[0][chain_A_id].copy())
+            scaffold_allatom_pdb = os.path.join(motif_work_dir, f"complex_scaffold_{sc_idx}_allatom.pdb")
+            io_full_a = PDBIO()
+            io_full_a.set_structure(st_full_a)
+            io_full_a.save(scaffold_allatom_pdb)
+            curr_scaffold_input = scaffold_allatom_pdb
+
+            # Step 2: LigandMPNN Sequence Design for this scaffold
+            mpnn_fixed_pos = os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json')
+            with open(mpnn_fixed_pos) as f:
+                old_fixed = json.load(f)
+            fixed_list = []
+            for chain, res_list in old_fixed.items():
+                fixed_list.extend([f"{chain}{res}" for res in res_list])
+
+            parser_chk_b = PDBParser(QUIET=True)
+            st_chk_b = parser_chk_b.get_structure("chk_b", curr_scaffold_input)
+            existing_res_b = set(f"{ch.id}{r.id[1]}" for m in st_chk_b for ch in m for r in ch if r.id[0] == ' ')
+            fixed_list = [f for f in fixed_list if f in existing_res_b]
+            fixed_str = ",".join(fixed_list)
+
+            def get_heavy_atoms(res):
+                return [atom for atom in res if not atom.get_name().startswith('H') and atom.element != 'H']
+
+            def min_dist_res(r1, r2):
+                d_min = float('inf')
+                for a1 in get_heavy_atoms(r1):
+                    for a2 in get_heavy_atoms(r2):
+                        d = a1 - a2
+                        if d < d_min:
+                            d_min = d
+                return d_min
+
+            model_c = st_chk_b[0]
+            chain_A_res = [r for r in model_c[chain_A_id] if r.id[0] == ' ']
+            chain_B_res = [r for r in model_c[chain_B_id] if r.id[0] == ' ']
+            fixed_b_set = set(old_fixed.get(chain_B_id, []))
+            rescue_bias = {}
+
+            for res_B in chain_B_res:
+                bid = res_B.id[1]
+                if bid in fixed_b_set:
+                    continue
+                closest_A = None
+                min_d = float('inf')
+                for res_A in chain_A_res:
+                    d = min_dist_res(res_B, res_A)
+                    if d < min_d:
+                        min_d = d
+                        closest_A = res_A
+
+                if closest_A is not None and min_d <= 7.5:
+                    a_resname = closest_A.get_resname()
+                    b_key = f"{chain_B_id}{bid}"
+                    if a_resname in {'ARG', 'LYS', 'HIS'}:
+                        b_bias = {"ASP": 2.5, "GLU": 2.5, "ARG": -2.0, "LYS": -2.0, "TYR": 1.5}
+                    elif a_resname in {'ASP', 'GLU'}:
+                        b_bias = {"ARG": 2.5, "LYS": 2.5, "ASP": -2.0, "GLU": -2.0, "ASN": 1.5, "GLN": 1.5}
+                    elif a_resname in {'PHE', 'TYR', 'TRP'}:
+                        b_bias = {"LEU": 2.5, "ILE": 2.5, "VAL": 2.5, "PHE": 2.0, "TYR": 2.0}
+                    elif a_resname in {'ASN', 'GLN', 'SER', 'THR'}:
+                        b_bias = {"GLN": 2.0, "ASN": 2.0, "SER": 1.5, "THR": 1.5, "ARG": 1.5, "GLU": 1.5}
+                    else:
+                        b_bias = {"LEU": 2.0, "VAL": 2.0, "ALA": 1.5, "ILE": 2.0}
+                    rescue_bias[b_key] = b_bias
+
+            mpnn_out_dir = os.path.join(motif_work_dir, f"mpnn_out_scaffold_{sc_idx}")
+            os.makedirs(mpnn_out_dir, exist_ok=True)
+
+            if execution_mode == 'mock':
+                for b_idx in range(samples_per_scaffold_each):
+                    dest_cand_pdb = os.path.join(args.out_dir, f"{a_cand_name}_B_prime_cand_{sc_idx}_{b_idx:02d}.pdb")
                     with open(dest_cand_pdb, 'w') as f:
-                        for line in lines:
-                            if 'nan' not in line:
-                                f.write(line)
-                    all_saved_b_pdbs.append(dest_cand_pdb)
-                    metadata_pairs[pair_id] = {"parent_a": a_cand_name, "pdb": dest_cand_pdb}
-                    
-                    # Backward compatibility aliases for primary motif
-                    if a_idx == 0:
-                        shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, f"B_prime_candidate_{b_idx:02d}.pdb"))
-                        if b_idx == 0:
-                            shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb"))
+                        f.write("DUMMY COMPLEX PDB\n")
+                    motif_all_mpnn_outputs.append(dest_cand_pdb)
+            else:
+                mpnn_bin = config['pipeline'].get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn') if execution_mode == 'local' else config['pipeline']['colab_ligandmpnn']
+                mpnn_cmd = mpnn_bin.split() + [
+                    "--structure_path", curr_scaffold_input.replace('\\', '/'),
+                    "--out_directory", mpnn_out_dir.replace('\\', '/'),
+                    "--model_type", model_type,
+                    "--checkpoint_path", checkpoint_path.replace('\\', '/'),
+                    "--is_legacy_weights", is_legacy,
+                    "--batch_size", "1",
+                    "--number_of_batches", str(samples_per_scaffold_each),
+                    "--temperature", temp_rescue,
+                    "--fixed_residues", fixed_str,
+                    "--bias_per_residue", json.dumps(rescue_bias),
+                    "--write_structures", "True"
+                ]
+                print(f"  Running LigandMPNN on scaffold {sc_idx+1}/{len(scaffolds_to_process)} ({samples_per_scaffold_each} variants)...")
+                env = os.environ.copy()
+                subprocess.run(mpnn_cmd, check=True, env=env)
+
+                mpnn_outputs = [f for f in glob.glob(os.path.join(mpnn_out_dir, "**", "*.pdb"), recursive=True) if not f.endswith("B_prime_rfd_mpnn.pdb") and "candidate" not in f]
+                mpnn_cifs = glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif.gz"), recursive=True) + glob.glob(os.path.join(mpnn_out_dir, "**", "*.cif"), recursive=True)
+                mpnn_outputs = [f for f in mpnn_outputs if os.path.abspath(f) != os.path.abspath(curr_scaffold_input)]
+                mpnn_cifs = [f for f in mpnn_cifs if os.path.abspath(f) != os.path.abspath(curr_scaffold_input)]
+
+                if not mpnn_outputs and mpnn_cifs:
+                    cif_parser = MMCIFParser(QUIET=True)
+                    converted_pdbs = []
+                    for cif_file in sorted(mpnn_cifs):
+                        pdb_file = cif_file.replace(".cif.gz", ".pdb").replace(".cif", ".pdb")
+                        try:
+                            if cif_file.endswith('.gz'):
+                                with gzip.open(cif_file, 'rt') as gz_f:
+                                    struct = cif_parser.get_structure("cif_struct", gz_f)
+                            else:
+                                struct = cif_parser.get_structure("cif_struct", cif_file)
+                            io = PDBIO()
+                            io.set_structure(struct)
+                            io.save(pdb_file)
+                            converted_pdbs.append(pdb_file)
+                        except Exception as e:
+                            print(f"Warning: could not convert {cif_file} to PDB: {e}")
+                    mpnn_outputs = converted_pdbs
+
+                packed_outputs = [f for f in mpnn_outputs if "packed" in f]
+                if packed_outputs:
+                    mpnn_outputs = packed_outputs
+
+                motif_all_mpnn_outputs.extend(mpnn_outputs)
+
+        # Select diverse candidates from across all scaffolds for this A' motif
+        if motif_all_mpnn_outputs:
+            target_k = min(top_k_selected, len(motif_all_mpnn_outputs))
+            mutable_indices_B = [r.id[1] for r in chain_B_res if r.id[1] not in fixed_b_set]
+            cand_seqs = []
+            for p in motif_all_mpnn_outputs:
+                seq = extract_interface_sequence(p, chain_B_id, mutable_indices_B)
+                cand_seqs.append(seq)
+            
+            selected_indices = [0]
+            while len(selected_indices) < target_k and len(selected_indices) < len(motif_all_mpnn_outputs):
+                best_cand = None
+                max_min_dist = -1
+                for cand_idx in range(len(motif_all_mpnn_outputs)):
+                    if cand_idx in selected_indices:
+                        continue
+                    min_dist = min(sum(1 for a, b in zip(cand_seqs[cand_idx], cand_seqs[s_idx]) if a != b) for s_idx in selected_indices)
+                    if min_dist > max_min_dist:
+                        max_min_dist = min_dist
+                        best_cand = cand_idx
+                if best_cand is not None:
+                    selected_indices.append(best_cand)
+                else:
+                    break
+
+            final_mpnn_outputs = [motif_all_mpnn_outputs[i] for i in selected_indices]
+            print(f"  Selected {len(final_mpnn_outputs)} diverse B' solutions across {len(scaffolds_to_process)} diffused scaffolds for {a_cand_name}.")
+
+            for b_idx, cand_pdb in enumerate(final_mpnn_outputs):
+                pair_id = f"{a_cand_name}_B_cand_{b_idx:02d}"
+                dest_cand_pdb = os.path.join(args.out_dir, f"{pair_id}.pdb")
+
+                # Build final complex with full all-atom Chain A and designed Chain B
+                p_c = PDBParser(QUIET=True)
+                st_c = p_c.get_structure("cand", cand_pdb)
+                pair_struct = Structure.Structure(pair_id)
+                pair_model = Model.Model(0)
+                pair_struct.add(pair_model)
+                pair_model.add(struct_A[0][chain_A_id].copy())
+                if chain_B_id in st_c[0]:
+                    pair_model.add(st_c[0][chain_B_id].copy())
+                else:
+                    ch_b_cand = list(st_c[0].get_chains())[1]
+                    ch_b_cand.id = chain_B_id
+                    pair_model.add(ch_b_cand.copy())
+
+                io_p = PDBIO()
+                io_p.set_structure(pair_struct)
+                io_p.save(dest_cand_pdb)
+
+                with open(dest_cand_pdb, 'r') as f:
+                    lines = f.readlines()
+                with open(dest_cand_pdb, 'w') as f:
+                    for line in lines:
+                        if 'nan' not in line:
+                            f.write(line)
+                all_saved_b_pdbs.append(dest_cand_pdb)
+                metadata_pairs[pair_id] = {"parent_a": a_cand_name, "pdb": dest_cand_pdb}
+                
+                # Backward compatibility aliases for primary motif
+                if a_idx == 0:
+                    shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, f"B_prime_candidate_{b_idx:02d}.pdb"))
+                    if b_idx == 0:
+                        shutil.copy(dest_cand_pdb, os.path.join(args.out_dir, "B_prime_rfd_mpnn.pdb"))
 
     # Save metadata dictionary for Module 5
     metadata_json_path = os.path.join(args.out_dir, "diversity_pairs_metadata.json")

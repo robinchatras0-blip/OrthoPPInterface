@@ -8,10 +8,10 @@ import shutil
 
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
-from folding_engine import get_chain_sequence, build_hybrid_msa, build_unpaired_complex_a3m, predict_structure, calculate_ca_rmsd
+from folding_engine import get_chain_sequence, build_hybrid_msa, predict_structure, calculate_ca_rmsd
 
 def main():
-    parser = argparse.ArgumentParser(description="Module 3: Fail-Fast Filtering (A' Validation via AF2 / AF3)")
+    parser = argparse.ArgumentParser(description="Module 3: Fail-Fast Filtering (A' Validation via RoseTTAFold-3)")
     parser.add_argument('--config', default='config.yaml')
     parser.add_argument('--design_dir', default='results/02_rupture_design')
     parser.add_argument('--analysis_dir', default='results/01_analysis')
@@ -32,7 +32,8 @@ def main():
     plddt_min = config['thresholds']['monomer_stability']['plddt_min']
     rmsd_max = config.get('thresholds', {}).get('monomer_stability', {}).get('rmsd_max', 2.0)
     iptm_rupture_max = config['thresholds']['negative_design_rupture']['iptm_rupture_max']
-    folding_engine = config.get('folding', {}).get('engine', 'af3')
+    max_passing = config.get('thresholds', {}).get('fail_fast', {}).get('max_passing_candidates', None)
+    folding_engine = config.get('folding', {}).get('engine', 'rf3')
 
     print(f"Module 3: Initializing Fail-Fast Filtering using folding engine: {folding_engine.upper()}")
 
@@ -79,15 +80,14 @@ def main():
 
         # 1. Monomer Hybrid MSA & Stability Filter (A')
         monomer_out = os.path.join(args.out_dir, "monomer", cand_name)
-        if os.path.exists(monomer_out):
-            shutil.rmtree(monomer_out)
         os.makedirs(monomer_out, exist_ok=True)
         monomer_a3m = os.path.join(monomer_out, f"{basename}.a3m")
-        build_hybrid_msa(wt_a3m_A, seq_A_prime, modified_indices, monomer_a3m)
+        if not os.path.exists(monomer_a3m):
+            build_hybrid_msa(wt_a3m_A, seq_A_prime, modified_indices, monomer_a3m)
 
         metrics_monomer = predict_structure(
             input_pdb=design_pdb,
-            fasta_sequences=[('A_prime', seq_A_prime)],
+            fasta_sequences=[('A_prime', seq_A_prime, monomer_a3m)],
             out_dir=monomer_out,
             msa_path=monomer_a3m,
             config=config
@@ -108,17 +108,13 @@ def main():
 
         # 2. Complex Rupture Test (A' + WT B heterodimer)
         rupture_out = os.path.join(args.out_dir, "complex_rupture", cand_name)
-        if os.path.exists(rupture_out):
-            shutil.rmtree(rupture_out)
         os.makedirs(rupture_out, exist_ok=True)
-        complex_a3m = os.path.join(rupture_out, f"{cand_name}_complex.a3m")
-        build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_prime, seq_B_wt, modified_indices, complex_a3m)
 
         metrics_rupture = predict_structure(
             input_pdb=design_pdb,
-            fasta_sequences=[('A_prime', seq_A_prime), ('B_wt', seq_B_wt)],
+            fasta_sequences=[('A_prime', seq_A_prime, monomer_a3m), ('B_wt', seq_B_wt, wt_a3m_B)],
             out_dir=rupture_out,
-            msa_path=complex_a3m,
+            msa_path=None,
             config=config
         )
 
@@ -143,6 +139,10 @@ def main():
 
         print(f"  SUCCESS: Candidate {basename} passed Fail-Fast validation!")
         passed_candidates.append(design_pdb)
+
+        if max_passing and len(passed_candidates) >= int(max_passing):
+            print(f"\nModule 3: Target of {max_passing} validated passing candidate(s) reached. Concluding screening early.")
+            break
 
     passed_file = os.path.join(args.out_dir, "passed_candidates.txt")
     with open(passed_file, 'w') as f:

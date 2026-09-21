@@ -1,5 +1,5 @@
 pipeline:
-  run_name: run_production_100A_10B
+  run_name: run_rf3_deep_search
   runs_dir: runs
   execution_mode: local
   python_bin: python
@@ -11,6 +11,8 @@ pipeline:
   chain_B: B
   foundry_n_batches: 100
   foundry_diffusion_batch_size: 1
+  rescue_diffusion_n_batches: 15
+  max_rescue_scaffolds: 4
   local_rfdiffusion: bash OrthoIntRob/bin/rfd3
   local_ligandmpnn: bash OrthoIntRob/bin/mpnn
   apptainer_rfdiffusion: containers/rfdiffusion.sif
@@ -19,25 +21,23 @@ pipeline:
   colab_ligandmpnn: mpnn
 diversity_selection:
   enabled: true
-  max_a_prime_motifs: 10
+  max_a_prime_motifs: 8
 ligandmpnn:
   checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
   model_type: ligand_mpnn
   is_legacy_weights: 'True'
   pack_side_chains: 1
   temperature_rupture: 0.2
-  temperature_rescue: 0.2
+  temperature_rescue: 0.15
   rescue_coadaptation: true
-  rescue_n_batches: 30
-  samples_per_scaffold: 30
-  top_k_per_scaffold: 2
+  rescue_n_batches: 60
+  samples_per_scaffold: 60
+  top_k_per_scaffold: 3
 folding:
-  engine: af2
-  colabfold_cmd: bash OrthoIntRob/bin/colabfold_batch
-  colabfold_num_recycle: 3
-  colabfold_model_type: alphafold2_multimer_v3
-  colabfold_pair_mode: unpaired
-  af3_cmd: alphafold3
+  engine: rf3
+  rf3_bin: /home/ommearo/miniforge3/envs/foundry_env/bin/rf3
+  rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
+  use_msa: true
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 10.0
@@ -51,6 +51,8 @@ thresholds:
     iptm_rupture_max: 0.35
   positive_design_rescue:
     iptm_rescue_min: 0.75
+  fail_fast:
+    max_passing_candidates: 12
 slurm_defaults:
   partition: gpu
   cpus_per_task: 8

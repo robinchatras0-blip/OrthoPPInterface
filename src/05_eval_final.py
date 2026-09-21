@@ -9,11 +9,11 @@ import glob
 
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
-from folding_engine import get_chain_sequence, build_unpaired_complex_a3m, predict_structure, calculate_ca_rmsd
+from folding_engine import get_chain_sequence, build_hybrid_msa, predict_structure, calculate_ca_rmsd
 from dockq import calculate_dockq
 
 def main():
-    parser = argparse.ArgumentParser(description="Module 5: Final Validation & Orthogonality Scoring via AF2 / AF3")
+    parser = argparse.ArgumentParser(description="Module 5: Final Validation & Orthogonality Scoring via RoseTTAFold-3")
     parser.add_argument('--config', default='config.yaml')
     parser.add_argument('--analysis_dir', default='results/01_analysis')
     parser.add_argument('--design_dir', default='results/04_rescue_design')
@@ -32,7 +32,7 @@ def main():
     wt_a3m_A = config.get('pipeline', {}).get('input_msa_A', config.get('pipeline', {}).get('input_msa', 'data/inputs/S1_chain_A.a3m'))
     wt_a3m_B = config.get('pipeline', {}).get('input_msa_B', 'data/inputs/S2_chain_B.a3m')
     iptm_rescue_min = config['thresholds']['positive_design_rescue']['iptm_rescue_min']
-    folding_engine = config.get('folding', {}).get('engine', 'af3')
+    folding_engine = config.get('folding', {}).get('engine', 'rf3')
 
     print(f"Module 5: Initializing Final Validation using folding engine: {folding_engine.upper()}")
 
@@ -42,7 +42,7 @@ def main():
     if os.path.exists(mapping_file):
         with open(mapping_file, 'r') as f:
             mapping_data = json.load(f)
-            modified_indices_A = mapping_data.get('neighborhood_ids', [])
+            modified_indices_A = [i - 1 for i in mapping_data.get('neighborhood_ids', []) if i > 0]
 
     # Extract WT sequences
     seq_A_wt = get_chain_sequence(wt_pdb, chain_id=chain_A_id)
@@ -58,7 +58,7 @@ def main():
         with open(mpnn_fixed_b, 'r') as f:
             fixed_data = json.load(f)
             fixed_b = set(fixed_data.get(chain_B_id, []))
-            modified_indices_B = [i for i in range(1, len(seq_B_wt) + 1) if i not in fixed_b]
+            modified_indices_B = [i - 1 for i in range(1, len(seq_B_wt) + 1) if i not in fixed_b]
 
     # 1. Glob all designed complex pairs (Multi-A' motifs and B' candidates)
     b_prime_pdbs = sorted(glob.glob(os.path.join(args.design_dir, "*_B_cand_*.pdb")))
@@ -107,15 +107,18 @@ def main():
         # 1. Positive Design Evaluation (A' + B')
         pos_out = os.path.join(args.out_dir, "complex_rescue", design_id)
         os.makedirs(pos_out, exist_ok=True)
-        rescue_a3m = os.path.join(pos_out, f"{design_id}_rescue.a3m")
-        if not os.path.exists(rescue_a3m):
-            build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_prime, seq_B_prime, modified_indices_A, rescue_a3m, modified_indices_B=modified_indices_B)
+        msa_A_prime = os.path.join(pos_out, f"{design_id}_A.a3m")
+        msa_B_prime = os.path.join(pos_out, f"{design_id}_B.a3m")
+        if not os.path.exists(msa_A_prime):
+            build_hybrid_msa(wt_a3m_A, seq_A_prime, modified_indices_A, msa_A_prime)
+        if not os.path.exists(msa_B_prime):
+            build_hybrid_msa(wt_a3m_B, seq_B_prime, modified_indices_B, msa_B_prime)
 
         metrics_pos = predict_structure(
             input_pdb=b_prime_pdb,
-            fasta_sequences=[('A_prime', seq_A_prime), ('B_prime', seq_B_prime)],
+            fasta_sequences=[('A_prime', seq_A_prime, msa_A_prime), ('B_prime', seq_B_prime, msa_B_prime)],
             out_dir=pos_out,
-            msa_path=rescue_a3m,
+            msa_path=None,
             config=config
         )
 
@@ -128,17 +131,12 @@ def main():
         # 2. Negative Design Evaluation (A_WT + B')
         neg_out = os.path.join(args.out_dir, "complex_negative", design_id)
         os.makedirs(neg_out, exist_ok=True)
-        neg_a3m = os.path.join(neg_out, f"{design_id}_negative.a3m")
-        if not os.path.exists(neg_a3m):
-            build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_wt, seq_B_prime, [], neg_a3m, modified_indices_B=modified_indices_B)
-        neg_a3m = os.path.join(neg_out, f"{design_id}_negative.a3m")
-        build_unpaired_complex_a3m(wt_a3m_A, wt_a3m_B, seq_A_wt, seq_B_prime, [], neg_a3m, modified_indices_B=modified_indices_B)
 
         metrics_neg = predict_structure(
             input_pdb=b_prime_pdb,
-            fasta_sequences=[('A_wt', seq_A_wt), ('B_prime', seq_B_prime)],
+            fasta_sequences=[('A_wt', seq_A_wt, wt_a3m_A), ('B_prime', seq_B_prime, msa_B_prime)],
             out_dir=neg_out,
-            msa_path=neg_a3m,
+            msa_path=None,
             config=config
         )
 

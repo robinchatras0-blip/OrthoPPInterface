@@ -3,7 +3,29 @@ import sys
 import json
 import glob
 import subprocess
-from Bio.PDB import PDBParser
+from Bio.PDB import PDBParser, MMCIFParser, PDBIO
+
+def to_wsl_path(path):
+    """Converts a Windows absolute or relative path to a WSL compatible path."""
+    abs_path = os.path.abspath(path).replace('\\', '/')
+    if len(abs_path) > 1 and abs_path[1] == ':':
+        drive = abs_path[0].lower()
+        return f"/mnt/{drive}{abs_path[2:]}"
+    return abs_path
+
+def convert_cif_to_pdb(cif_path, pdb_path):
+    """Converts a CIF format file to standard PDB format using BioPython."""
+    try:
+        cif_parser = MMCIFParser(QUIET=True)
+        struct = cif_parser.get_structure("cif_model", cif_path)
+        io = PDBIO()
+        io.set_structure(struct)
+        io.save(pdb_path)
+        return True
+    except Exception as e:
+        print(f"Warning: Could not convert {cif_path} to PDB: {e}")
+        return False
+
 
 THREE_TO_ONE = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
@@ -91,255 +113,134 @@ def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_
     with open(output_a3m_path, 'w') as f:
         f.writelines(output_lines)
 
-def build_unpaired_complex_a3m(a3m_A_path, a3m_B_path, seq_A, seq_B, modified_indices_A, output_a3m_path, modified_indices_B=None, max_seqs=500):
+def run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=None, execution_mode="local"):
     """
-    Builds a multi-chain unpaired ColabFold .a3m file from local A and B MSAs.
-    - Chains A and B have modified positions masked with gaps ('-').
-    - Sequences are placed in block-diagonal (unpaired) format.
-    - ColabFold uses this local MSA directly and completely skips MMseqs2 server lookup.
+    Runs RoseTTAFold-3 / All-Atom (Foundry RF3) for de novo complex or monomer structure prediction.
+    Uses individual monomer MSAs for internal chain folding, bypassing cross-chain covariance bias.
     """
-    len_A = len(seq_A)
-    len_B = len(seq_B)
-    modified_set_A = set(modified_indices_A) if modified_indices_A else set()
-    modified_set_B = set(modified_indices_B) if modified_indices_B else set()
-    out_lines = []
-
-    # ColabFold multi-chain header
-    out_lines.append(f"#{len_A},{len_B}\t1,1\n")
-    out_lines.append(">101\t102\n")
-    out_lines.append(f"{seq_A}\t{seq_B}\n")
-
-    # Process Chain A sequences (block 1: A aligned, B padded with gaps)
-    if a3m_A_path and os.path.exists(a3m_A_path):
-        with open(a3m_A_path, 'r') as f:
-            lines_A = f.readlines()
-        count_A = 0
-        is_query = True
-        curr_hdr = None
-        for line in lines_A:
-            l = line.strip()
-            if not l:
-                continue
-            if l.startswith(">"):
-                curr_hdr = l
-            else:
-                if is_query:
-                    is_query = False
-                    continue
-                if count_A >= max_seqs:
-                    break
-                # Apply column masking for modified positions
-                new_chars = []
-                match_col_idx = 0
-                for char in l:
-                    if char.isupper() or char == '-':
-                        if match_col_idx in modified_set_A:
-                            new_chars.append('-')
-                        else:
-                            new_chars.append(char)
-                        match_col_idx += 1
-                    else:
-                        if match_col_idx in modified_set_A:
-                            continue
-                        else:
-                            new_chars.append(char)
-                aln_A = "".join(new_chars)
-                out_lines.append(f"{curr_hdr}\t102\n")
-                out_lines.append(f"{aln_A}\t" + "-" * len_B + "\n")
-                count_A += 1
-
-    # Process Chain B sequences (block 2: A padded with gaps, B aligned)
-    if a3m_B_path and os.path.exists(a3m_B_path):
-        with open(a3m_B_path, 'r') as f:
-            lines_B = f.readlines()
-        count_B = 0
-        is_query = True
-        curr_hdr = None
-        for line in lines_B:
-            l = line.strip()
-            if not l:
-                continue
-            if l.startswith(">"):
-                curr_hdr = l
-            else:
-                if is_query:
-                    is_query = False
-                    continue
-                if count_B >= max_seqs:
-                    break
-                new_chars_B = []
-                match_col_idx = 0
-                for char in l:
-                    if char.isupper() or char == '-':
-                        if match_col_idx in modified_set_B:
-                            new_chars_B.append('-')
-                        else:
-                            new_chars_B.append(char)
-                        match_col_idx += 1
-                    else:
-                        if match_col_idx in modified_set_B:
-                            continue
-                        else:
-                            new_chars_B.append(char)
-                aln_B = "".join(new_chars_B)
-                out_lines.append(f">101\t{curr_hdr[1:]}\n")
-                out_lines.append("-" * len_A + f"\t{aln_B}\n")
-                count_B += 1
-
-    with open(output_a3m_path, 'w') as f:
-        f.writelines(out_lines)
-
-def run_colabfold_prediction(fasta_path, out_dir, config, execution_mode):
-    """Runs ColabFold (AlphaFold 2) and extracts pLDDT, iPTM, and ranking score."""
     os.makedirs(out_dir, exist_ok=True)
-    fasta_path = fasta_path.replace('\\', '/')
-    out_dir = out_dir.replace('\\', '/')
-    colabfold_cfg = config.get('folding', {})
-    colabfold_cmd = colabfold_cfg.get('colabfold_cmd', 'colabfold_batch')
-    num_recycle = str(colabfold_cfg.get('colabfold_num_recycle', 3))
-    model_type = str(colabfold_cfg.get('colabfold_model_type', 'alphafold2_multimer_v3'))
-    pair_mode = str(colabfold_cfg.get('colabfold_pair_mode', 'paired'))
+    tag = os.path.basename(out_dir)
 
     # Check if prediction is already completed and cached
-    score_files = sorted(glob.glob(os.path.join(out_dir, "*scores*.json")))
-    rank_pdb_files = glob.glob(os.path.join(out_dir, "*_unrelaxed_rank_*.pdb")) + glob.glob(os.path.join(out_dir, "*_relaxed_rank_*.pdb")) + glob.glob(os.path.join(out_dir, "*_model_1_*.pdb"))
-    if score_files and rank_pdb_files:
-        print(f"  [AF2/ColabFold] Found cached prediction in {out_dir}, skipping re-computation.")
-        with open(score_files[0], 'r') as f:
+    summary_files = sorted(glob.glob(os.path.join(out_dir, "**/*_summary_confidences.json"), recursive=True))
+    rank_pdb_files = sorted(glob.glob(os.path.join(out_dir, "*rank_001*.pdb"))) + sorted(glob.glob(os.path.join(out_dir, "*_predicted.pdb")))
+
+    if summary_files and rank_pdb_files:
+        print(f"  [Foundry RF3] Found cached prediction in {out_dir}, skipping re-computation.")
+        with open(summary_files[0], 'r') as f:
             data = json.load(f)
-            plddt_list = data.get("plddt", [85.0])
-            mean_plddt = sum(plddt_list) / len(plddt_list) if isinstance(plddt_list, list) and plddt_list else float(plddt_list)
-            iptm = float(data.get("iptm", data.get("ptm", 0.0)))
+            overall_plddt = float(data.get("overall_plddt", 0.0))
+            plddt = overall_plddt * 100.0 if overall_plddt <= 1.0 else float(overall_plddt)
+            iptm = float(data.get("iptm", 0.0))
             ptm = float(data.get("ptm", 0.0))
-            ranking_score = float(data.get("ranking_confidence", data.get("multimer", iptm)))
+            ranking_score = float(data.get("ranking_score", iptm))
             return {
-                "plddt": mean_plddt,
+                "plddt": plddt,
                 "iptm": iptm,
                 "ptm": ptm,
                 "ranking_score": ranking_score
             }
 
-    if execution_mode == 'mock':
-        mock_script = "data/mock_tools/mock_alphafold3.py"
-        cmd = [sys.executable, mock_script, "--input", fasta_path, "--out_dir", out_dir]
-    else:
-        cmd = colabfold_cmd.split() + [
-            fasta_path, out_dir,
-            "--num-recycle", num_recycle,
-            "--model-type", model_type,
-            "--pair-mode", pair_mode
-        ]
+    use_msa = config.get('folding', {}).get('use_msa', True)
+    default_msa_B = config.get('pipeline', {}).get('input_msa_B', None)
 
-    print(f"  [AF2/ColabFold] Running: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+    # Build components list from fasta_sequences: [('A_prime', seq_A), ('B_prime', seq_B)]
+    # Each item can be (name, seq) or (name, seq, msa_path)
+    components = []
+    chain_ids = ['A', 'B', 'C', 'D']
+    for idx, item in enumerate(fasta_sequences):
+        label = item[0]
+        seq = item[1]
+        msa_p = item[2] if len(item) > 2 else None
 
-    # Parse ColabFold output JSONs
-    # In mock mode: *_metrics.json
-    mock_metrics_files = glob.glob(os.path.join(out_dir, "*_metrics.json"))
-    if mock_metrics_files and execution_mode == 'mock':
-        with open(mock_metrics_files[0], 'r') as f:
-            data = json.load(f)
-            return {
-                "plddt": data.get("plddt", 85.0),
-                "iptm": data.get("iptm", 0.8),
-                "ptm": data.get("ptm", 0.8),
-                "ranking_score": data.get("ranking_score", 0.8)
-            }
+        if not msa_p and use_msa:
+            if idx == 0 and msa_path and os.path.exists(msa_path):
+                msa_p = msa_path
+            elif idx == 1 and default_msa_B and os.path.exists(default_msa_B):
+                msa_p = default_msa_B
 
-    # In real ColabFold: look for *scores_rank_001*.json or *scores*.json
-    score_files = sorted(glob.glob(os.path.join(out_dir, "*scores*.json")))
-    if score_files:
-        with open(score_files[0], 'r') as f:
-            data = json.load(f)
-            plddt_list = data.get("plddt", [85.0])
-            mean_plddt = sum(plddt_list) / len(plddt_list) if isinstance(plddt_list, list) and plddt_list else float(plddt_list)
-            iptm = float(data.get("iptm", data.get("ptm", 0.0)))
-            ptm = float(data.get("ptm", 0.0))
-            ranking_score = float(data.get("ranking_confidence", data.get("multimer", iptm)))
-            return {
-                "plddt": mean_plddt,
-                "iptm": iptm,
-                "ptm": ptm,
-                "ranking_score": ranking_score
-            }
+        ch = chain_ids[idx] if idx < len(chain_ids) else chr(ord('A') + idx)
+        comp = {"seq": seq, "chain_id": ch}
+        if use_msa and msa_p and os.path.exists(msa_p) and os.path.getsize(msa_p) > 0:
+            comp["msa_path"] = to_wsl_path(msa_p)
+        components.append(comp)
 
-    return {"plddt": 85.0, "iptm": 0.5, "ptm": 0.5, "ranking_score": 0.5}
+    manifest_data = [{
+        "name": tag,
+        "components": components
+    }]
 
-def run_af3_prediction(pdb_or_json, out_dir, msa_path, config, execution_mode):
-    """Runs AlphaFold 3 and extracts pLDDT, iPTM, and ranking score."""
-    os.makedirs(out_dir, exist_ok=True)
-    pdb_or_json = pdb_or_json.replace('\\', '/')
-    out_dir = out_dir.replace('\\', '/')
-    if msa_path:
-        msa_path = msa_path.replace('\\', '/')
-    af3_cfg = config.get('folding', {})
-    af3_cmd = af3_cfg.get('af3_cmd', config.get('pipeline', {}).get('af3_cmd', 'alphafold3'))
+    manifest_path = os.path.join(out_dir, f"{tag}_rf3_input.json")
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f, indent=2)
 
     if execution_mode == 'mock':
-        mock_script = "data/mock_tools/mock_alphafold3.py"
-        cmd = [sys.executable, mock_script, "--predict", pdb_or_json, "--out_dir", out_dir]
-        if msa_path:
-            cmd.extend(["--msa", msa_path])
+        return {
+            "plddt": 85.0,
+            "iptm": 0.82,
+            "ptm": 0.80,
+            "ranking_score": 0.82
+        }
+
+    rf3_cfg = config.get('folding', {})
+    rf3_bin = rf3_cfg.get('rf3_bin', '/home/ommearo/miniforge3/envs/foundry_env/bin/rf3')
+    rf3_ckpt = rf3_cfg.get('rf3_ckpt', '/home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
+
+    wsl_manifest = to_wsl_path(manifest_path)
+    wsl_out = to_wsl_path(out_dir)
+
+    summary_files = sorted(glob.glob(os.path.join(out_dir, "**/*_summary_confidences.json"), recursive=True))
+    if summary_files:
+        print(f"  [Foundry RF3 Resume Cache] Found existing RF3 prediction in {out_dir}, skipping invocation.")
     else:
-        cmd = af3_cmd.split() + ["--input", pdb_or_json, "--out_dir", out_dir]
-        if msa_path:
-            cmd.extend(["--msa", msa_path])
+        cmd = f"wsl -d Ubuntu -- {rf3_bin} fold inputs={wsl_manifest} out_dir={wsl_out} ckpt_path={rf3_ckpt}"
+        print(f"  [Foundry RF3 GPU Invoc] {cmd}")
 
-    print(f"  [AF3] Running: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"  [Foundry RF3 Error]: {res.stderr[:400] if res.stderr else res.stdout[:400]}")
+            raise RuntimeError(f"RF3 execution failed with code {res.returncode}: {res.stderr[:300]}")
 
-    basename = os.path.basename(pdb_or_json)
-    metrics_file = os.path.join(out_dir, f"{basename}_metrics.json")
-    if not os.path.exists(metrics_file):
-        # Fallback search for any metrics json in out_dir
-        metrics_candidates = glob.glob(os.path.join(out_dir, "*_metrics.json")) + glob.glob(os.path.join(out_dir, "*summary_confidences*.json"))
-        if metrics_candidates:
-            metrics_file = metrics_candidates[0]
+    # Parse output
+    summary_files = sorted(glob.glob(os.path.join(out_dir, "**/*_summary_confidences.json"), recursive=True))
+    if not summary_files:
+        raise RuntimeError(f"RF3 output _summary_confidences.json not found in {out_dir}")
 
-    if os.path.exists(metrics_file):
-        with open(metrics_file, 'r') as f:
-            data = json.load(f)
-            return {
-                "plddt": float(data.get("plddt", data.get("summary_confidences", {}).get("plddt", 85.0))),
-                "iptm": float(data.get("iptm", data.get("summary_confidences", {}).get("iptm", 0.5))),
-                "ptm": float(data.get("ptm", 0.5)),
-                "ranking_score": float(data.get("ranking_score", 0.5))
-            }
+    with open(summary_files[0], 'r') as f:
+        data = json.load(f)
+        overall_plddt = float(data.get("overall_plddt", 0.0))
+        plddt = overall_plddt * 100.0 if overall_plddt <= 1.0 else float(overall_plddt)
+        iptm = float(data.get("iptm", 0.0))
+        ptm = float(data.get("ptm", 0.0))
+        ranking_score = float(data.get("ranking_score", iptm))
 
-    return {"plddt": 85.0, "iptm": 0.5, "ptm": 0.5, "ranking_score": 0.5}
+    # Find top predicted CIF model and convert to rank_001_predicted.pdb
+    cif_files = sorted(glob.glob(os.path.join(out_dir, f"**/{tag}_model.cif"), recursive=True))
+    if not cif_files:
+        cif_files = sorted(glob.glob(os.path.join(out_dir, "**/*_model.cif"), recursive=True))
+    if not cif_files:
+        cif_files = sorted(glob.glob(os.path.join(out_dir, "**/*.cif"), recursive=True))
+
+    if cif_files:
+        top_cif = cif_files[0]
+        out_pdb = os.path.join(out_dir, f"{tag}_unrelaxed_rank_001.pdb")
+        convert_cif_to_pdb(top_cif, out_pdb)
+        print(f"  [Foundry RF3] Converted {os.path.basename(top_cif)} -> {os.path.basename(out_pdb)}")
+
+    return {
+        "plddt": plddt,
+        "iptm": iptm,
+        "ptm": ptm,
+        "ranking_score": ranking_score
+    }
 
 def predict_structure(input_pdb, fasta_sequences, out_dir, msa_path, config):
     """
-    Unified folding prediction dispatching to either AlphaFold 3 or AlphaFold 2 (ColabFold)
-    based on config['folding']['engine'].
-    
+    Unified folding prediction dispatching to RoseTTAFold-3 (RF3).
     fasta_sequences: list of tuples [('A_prime', 'SEQUENCE_A'), ('B', 'SEQUENCE_B')]
     """
-    folding_cfg = config.get('folding', {})
-    engine = folding_cfg.get('engine', 'af3').lower()
-    execution_mode = config.get('pipeline', {}).get('execution_mode', 'mock')
-
-    os.makedirs(out_dir, exist_ok=True)
-
-    if engine in ['af2', 'colabfold']:
-        # If a hybrid .a3m MSA is available, pass it directly to ColabFold to skip web search
-        if msa_path and os.path.exists(msa_path) and os.path.getsize(msa_path) > 0:
-            target_input = msa_path
-        else:
-            # Create multi-sequence FASTA file for ColabFold
-            fasta_path = os.path.join(out_dir, "input.fasta")
-            with open(fasta_path, 'w') as f:
-                header = ":".join([name for name, _ in fasta_sequences])
-                seq = ":".join([seq for _, seq in fasta_sequences])
-                f.write(f">{header}\n{seq}\n")
-            target_input = fasta_path
-
-        metrics = run_colabfold_prediction(target_input, out_dir, config, execution_mode)
-    else:
-        # Default AlphaFold 3
-        metrics = run_af3_prediction(input_pdb, out_dir, msa_path, config, execution_mode)
-
-    return metrics
+    execution_mode = config.get('pipeline', {}).get('execution_mode', 'local')
+    return run_rf3_prediction(input_pdb, fasta_sequences, out_dir, config, msa_path=msa_path, execution_mode=execution_mode)
 
 def calculate_ca_rmsd(ref_pdb, pred_pdb_or_dir, chain_ref='A', chain_pred=None, subset_res_ids=None):
     """

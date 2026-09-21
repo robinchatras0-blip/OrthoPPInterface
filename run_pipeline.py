@@ -83,7 +83,7 @@ def main():
     # Module 3: Fail-Fast Filter
     if 3 in steps_to_run:
         print("\n" + "#" * 60)
-        print(f"  [STEP 3/5] MODULE 3: FAIL-FAST SCREENING (AF2 / AF3)")
+        print(f"  [STEP 3/5] MODULE 3: FAIL-FAST SCREENING (RoseTTAFold-3)")
         print("#" * 60)
         cmd_3 = [python_exe, "src/03_filter_A_prime.py", "--config", config_copy_path, "--design_dir", dir_02, "--analysis_dir", dir_01, "--out_dir", dir_03]
         subprocess.run(cmd_3, check=True)
@@ -91,7 +91,7 @@ def main():
     # Module 4: B' Rescue Generation
     if 4 in steps_to_run:
         print("\n" + "#" * 60)
-        print(f"  [STEP 4/5] MODULE 4: B' RESCUE DESIGN (RFD3 + LigandMPNN)")
+        print(f"  [STEP 4/5] MODULE 4: B' RESCUE DESIGN (RFD3 Multi-Batch + LigandMPNN)")
         print("#" * 60)
         passed_txt = os.path.join(dir_03, "passed_candidates.txt")
         cmd_4 = [python_exe, "src/04_generate_B_prime.py", "--config", config_copy_path, "--analysis_dir", dir_01, "--passed_candidates", passed_txt, "--out_dir", dir_04]
@@ -100,7 +100,7 @@ def main():
     # Module 5: Final Evaluation & Orthogonality Scoring
     if 5 in steps_to_run:
         print("\n" + "#" * 60)
-        print(f"  [STEP 5/5] MODULE 5: FINAL EVALUATION & ORTHOGONALITY MATRIX")
+        print(f"  [STEP 5/5] MODULE 5: FINAL EVALUATION & ORTHOGONALITY MATRIX (RoseTTAFold-3)")
         print("#" * 60)
         cmd_5 = [python_exe, "src/05_eval_final.py", "--config", config_copy_path, "--analysis_dir", dir_01, "--design_dir", dir_04, "--filter_dir", dir_03, "--out_dir", dir_05]
         subprocess.run(cmd_5, check=True)
@@ -117,10 +117,14 @@ def main():
             f.write(f"# OrthoPPInterface Experiment Summary: `{run_name}`\n\n")
             f.write(f"- **Execution Date**: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"- **Execution Mode**: `{config.get('pipeline', {}).get('execution_mode', 'local')}`\n")
-            f.write(f"- **Folding Engine**: `{config.get('folding', {}).get('engine', 'af2')}`\n")
-            f.write(f"- **RFD3 Batches**: `{config.get('pipeline', {}).get('foundry_n_batches', 5)}`\n\n")
+            f.write(f"- **RFD3 Rupture Batches**: `{config.get('pipeline', {}).get('foundry_n_batches', 100)}`\n")
+            f.write(f"- **RFD3 Rescue Batches**: `{config.get('pipeline', {}).get('rescue_diffusion_n_batches', 10)}`\n\n")
             f.write("## 📊 Orthogonality Scores Table\n\n")
-            f.write(df.to_markdown(index=False) + "\n\n")
+            try:
+                table_md = df.to_markdown(index=False)
+            except Exception:
+                table_md = df.to_string(index=False)
+            f.write(table_md + "\n\n")
             f.write("## 🧬 Artifacts\n\n")
             f.write(f"- Interactive HTML Dashboard: [`SUMMARY.html`](file:///{os.path.abspath(summary_html_path)})\n")
             f.write(f"- Styled Excel Spreadsheet: [`SUMMARY.xlsx`](file:///{os.path.abspath(summary_xlsx_path)})\n")
