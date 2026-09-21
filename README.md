@@ -45,7 +45,11 @@ F_{\text{ortho}} = \text{iPTM}(A' \cdot B') - \max\Big(\text{iPTM}(A' \cdot B_{\
 $$
 
 - $F_{\text{ortho}} > 0$: favourable selectivity over both wild-type cross-reactions.
-- A design **passes** when rescue, rupture and cross-rupture criteria are met and $F_{\text{ortho}} \ge$ `f_ortho_min` (default 0.30).
+- The score has **two components of the same shape** (rescue minus the best wild-type cross-reaction), each normalised so that the native complex is 1:
+  - $F_{\text{iptm}} = \big(\text{iPTM}(A'B') - \max(\text{iPTM}(A'B_{\text{WT}}), \text{iPTM}(A_{\text{WT}}B'))\big) / \text{iPTM}_{\text{ceiling}}$ (RF3, ceiling = WT/WT under the same MSA masks),
+  - $F_{\text{energy}} = b(A'B') - \max\big(b(A'B_{\text{WT}}), b(A_{\text{WT}}B')\big)$ with $b = \Delta G / \Delta G_{\text{native}}$ (PyRosetta interface energy of the *designed* pose),
+  - **$F_{\text{ortho}} = w\,F_{\text{iptm}} + (1-w)\,F_{\text{energy}}$** (`energy.weight_iptm`, default 0.5; $F_{\text{iptm}}$ alone when the energy stage is disabled). The raw iPTM margin is kept as `f_ortho_iptm`.
+- A design **passes** when rescue, rupture and cross-rupture criteria are met, the energy criteria hold (`min_binding_fraction`: $b(A'B') \ge 0.5$ and `f_energy_min`: $F_{\text{energy}} \ge 0$, both **provisional** until calibrated) and $F_{\text{ortho}} \ge$ `f_ortho_min` (default 0.30). The RF3 and energy measures fail differently, so a design must satisfy both.
 
 ### 3. Local MSAs and the information regime (RF3)
 RF3 (Foundry, RoseTTAFold-3 All-Atom) receives **one unpaired `.a3m` per chain**; there is no inter-chain pairing. For a designed chain, the WT alignment is adapted so that no evolutionary information is claimed where the sequence was redesigned: the query is replaced by the designed sequence and the alignment columns of mutated positions are handled according to `folding.msa_mask_mode`.
@@ -83,7 +87,7 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
 - RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
-- LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; the framework of A is frozen. **A' is designed alone** (`ligandmpnn.rupture_apo_design`, default `true`): when B_WT is present in the structure LigandMPNN packs A' against it, a positive design for the wild-type partner (measured `iptm(A'·B_WT)`: 0.38 on average with B present, 0.23 without). LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone).
+- LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; the framework of A is frozen. **A' is designed alone** (`ligandmpnn.rupture_apo_design`, default `true`): when B_WT is present in the structure LigandMPNN packs A' against it, a positive design for the wild-type partner (measured `iptm(A'·B_WT)`: 0.38 on average with B present, 0.23 without). LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone). LigandMPNN also writes **no side chain for the residues it redesigns**, so the A' designs are then packed with PyRosetta (`energy.pack_designs`); without it, geometric measures and visualisations only see backbones at the interface.
 
 ### [Module 3: Fail-Fast Screening](src/03_filter_A_prime.py)
 - **Sanity checks** (`wt_control.json`): the native complex with full MSAs must be recognised (iPTM ≥ 0.6), and the WT/WT iPTM in the configured MSA regime is recorded as the ceiling for designs (warning if < 0.4).
@@ -98,12 +102,15 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 4. **Scaffold selection**: scaffolds are filtered (heavy-atom clashes with A', distortion of the fixed framework of B) and de-duplicated (loop backbones must differ by at least `scaffold_min_flex_rmsd`). The rigid native backbone is only used if `include_native_scaffold: true` or as a fallback when nothing passes.
 5. **Grafting**: the WT residues of B outside the RFD3 crop (N-terminal head and C-terminal tail) are re-attached after fitting a copy of WT B on the scaffold framework.
 6. **Specificity-by-difference bias** for LigandMPNN: at each mutable B position, residues complementary to the *new* A' residue are favoured and those complementary to the *WT* A residue penalised (charge swap, knob/hole). Positions where A' kept the WT residue get a mild generic complementarity bias.
-7. **Sampling and selection**: `samples_per_scaffold` sequences per scaffold; designs with more than `max_clashes_with_a_prime` clashes are dropped; the rest are ranked by a rigid proxy (contacts kept with A', contacts lost with $A_{\text{WT}}$) plus the LigandMPNN confidence when it can be read, then `top_k_per_motif` designs are chosen by farthest-point selection **with at least one design per scaffold**.
+7. **Side-chain packing (PyRosetta)**: every LigandMPNN output is assembled with the fixed A' and its B' side chains are rebuilt against A' (repack + chi minimisation) before anything is measured; the final designs are these packed complexes.
+8. **Sampling and selection**: `samples_per_scaffold` sequences per scaffold; designs with more than `max_clashes_with_a_prime` clashes are dropped; the rest are ranked by a rigid proxy (contacts kept with A', contacts lost with $A_{\text{WT}}$) plus the LigandMPNN confidence when it can be read, then `top_k_per_motif` designs are chosen by farthest-point selection **with at least one design per scaffold**.
 - Outputs `<A'>_B_cand_NN.pdb` complexes and `diversity_pairs_metadata.json` (parent A', scaffold index, scaffold loop movement, proxy metrics). Cached per motif; use `--force` to recompute.
 
 ### [Module 5: Final Evaluation & Database Export](src/05_eval_final.py)
 For every designed pair, all four folds are run under the same MSA regime:
 - **Rescue** $A' \cdot B'$, **cross-rupture** $A_{\text{WT}} \cdot B'$, **rupture** $A' \cdot B_{\text{WT}}$ (recomputed here, never reused from another candidate) and the **WT ceiling** $A_{\text{WT}} \cdot B_{\text{WT}}$ with the same masked columns.
+- **Interface energy (PyRosetta)**, one parallel batch after the RF3 loop: the designed complex $A'B'$ and the two rigid recombinations $A_{\text{WT}}B'$ and $A'B_{\text{WT}}$ (same frame), plus the native complex once, all with the *same* protocol (FastRelax constrained to the start coordinates, then InterfaceAnalyzer). Reported: `dG_*`, binding fractions `b_*`, energy gaps, `dsasa_rescue`, `unsat_hb_rescue`, `f_energy`.
+- **Coherence report** (`coherence.json`): rank correlation between RF3 and energy for the three pairs and for the two margins, sign agreement, and the designs where they disagree most. Energy is noisy (relaxation is stochastic; measured std of $F_{\text{energy}}$ ≈ 0.05 across seeds against a spread of 0.22 across designs), so use it for ranking and shortlist repeats, not on single small differences.
 - Geometry: $C_\alpha$ RMSD of A' and B' vs WT, DockQ vs the WT crystal and vs the *designed* complex, ligand-RMSD self-consistency of the RF3 prediction vs the design.
 - Missing values are `NaN`, never substituted by defaults. Optional early exit (`thresholds.early_exit.rescue_iptm_floor`) skips the other folds for hopeless rescues.
 - Exports `orthogonality_scores.csv`, `results.db`, and (if `openpyxl` is installed) styled `.xlsx` / `.html` reports.
@@ -216,6 +223,16 @@ folding:                               # see "Local MSAs and the information reg
   strict_msa: true
   diffusion_batch_size: 5
   # n_recycles: 10 | num_steps: 200 | wsl_distro: Ubuntu | use_wsl: true   (optional RF3/WSL overrides)
+energy:                                # PyRosetta (runs in its own environment, called like RF3)
+  enabled: true
+  python: /home/<user>/miniforge3/envs/orthoppinterface/bin/python
+  n_procs: 16
+  pack_designs: true                   # rebuild the side chains LigandMPNN does not write (modules 2 and 4)
+  relax_repeats: 1
+  seed: 1
+  weight_iptm: 0.5                     # F_ortho = w * F_iptm(rel) + (1 - w) * F_energy
+  min_binding_fraction: 0.5            # provisional
+  f_energy_min: 0.0                    # provisional
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 6.0
@@ -250,7 +267,12 @@ The configuration file is read as UTF-8 (a BOM is tolerated) and missing `pipeli
 | `iptm_rupture` | iPTM of $A' \cdot B_{\text{WT}}$ |
 | `iptm_negative` | iPTM of $A_{\text{WT}} \cdot B'$ |
 | `iptm_ceiling`, `iptm_rescue_rel` | iPTM of WT/WT under the same masks; `iptm_rescue / iptm_ceiling` |
-| `f_ortho` | $\text{iPTM}_{\text{rescue}} - \max(\text{iPTM}_{\text{rupture}}, \text{iPTM}_{\text{neg}})$ |
+| `f_ortho` | **Combined score** $w F_{\text{iptm}} + (1-w) F_{\text{energy}}$ (native = 1 scale) |
+| `f_ortho_iptm`, `f_iptm_rel` | Raw iPTM margin $\text{iPTM}_{\text{rescue}} - \max(\text{iPTM}_{\text{rupture}}, \text{iPTM}_{\text{neg}})$ / the same divided by `iptm_ceiling` |
+| `dG_rescue`, `dG_negative`, `dG_rupture`, `dG_native` | PyRosetta interface energy (REU) of $A'B'$, $A_{\text{WT}}B'$, $A'B_{\text{WT}}$ and the native complex |
+| `b_rescue`, `b_negative`, `b_rupture` | Binding fractions $\Delta G / \Delta G_{\text{native}}$ |
+| `f_energy`, `gap_negative`, `gap_rupture`, `pass_energy` | Energy margin, energy gaps $\Delta G(A'B') - \Delta G(\text{cross})$ in REU (negative = designed pair binds better), energy criteria met |
+| `dsasa_rescue`, `unsat_hb_rescue` | Buried surface (Å²) and unsatisfied interface hydrogen bonds of $A'B'$ |
 | `iptm_rescue_mean`, `iptm_rescue_std` | Mean / std of the iPTM over the RF3 samples |
 | `pae_min_rescue`, `has_clash`, `ranking_score` | RF3 interface PAE minimum (if reported), clash flag, ranking score |
 | `plddt_rescue`, `plddt_a_prime` | Mean pLDDT of the rescue complex / monomer pLDDT of A' (Module 3) |

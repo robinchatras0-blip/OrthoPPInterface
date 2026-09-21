@@ -1,4 +1,5 @@
 import argparse
+import glob
 import json
 import os
 import shutil
@@ -9,6 +10,7 @@ from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import collect_pdbs, load_config, save_structure, std_residues, strip_nan_lines
+from energy_engine import enabled as energy_enabled, pack_structures
 
 
 def main():
@@ -90,6 +92,16 @@ def main():
         final_pdb = os.path.join(args.out_dir, f"A_prime_candidate_{idx:02d}.pdb")
         shutil.copy(outputs[0], final_pdb)
         strip_nan_lines(final_pdb)
+
+    # LigandMPNN writes no side chain for the residues it redesigns: rebuild them (PyRosetta) so that every
+    # downstream geometric measure and every visualisation sees complete residues.
+    if energy_enabled(config) and config['energy'].get('pack_designs', True):
+        cands = sorted(glob.glob(os.path.join(args.out_dir, "A_prime_candidate_*.pdb")))
+        print(f"Module 2: packing the side chains of {len(cands)} A' designs (PyRosetta)...")
+        pack_structures([{"name": os.path.basename(c)[:-4], "pdb": c, "out": c} for c in cands], config,
+                        os.path.join(args.out_dir, "pack_status.json"))
+    else:
+        print("Module 2: WARNING - side-chain packing disabled (energy.enabled): redesigned residues have no side chain.")
 
     print(f"Module 2 Complete: {len(rfd_pdbs)} A' rupture designs generated.")
 

@@ -45,6 +45,16 @@ folding:
   # num_steps: 200                    # RF3 docs: 50 steps show no deterioration (~4x faster)
   # wsl_distro: Ubuntu
   # use_wsl: true                     # default: true on Windows, false elsewhere
+energy:                                # PyRosetta: packs the side chains of designs and scores interface energies
+  enabled: true
+  python: /home/ommearo/miniforge3/envs/orthoppinterface/bin/python
+  n_procs: 16
+  pack_designs: true                   # rebuild the side chains LigandMPNN does not write (modules 2 and 4)
+  relax_repeats: 1                     # FastRelax repeats (constrained to the start coordinates) before scoring
+  seed: 1
+  weight_iptm: 0.5                     # F_ortho = w * F_iptm(rel) + (1 - w) * F_energy
+  min_binding_fraction: 0.5            # PROVISIONAL: dG(A'.B') / dG(native) must be at least this
+  f_energy_min: 0.0                    # PROVISIONAL: A'.B' must bind better than both wild-type cross pairs
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 6.0   # LigandMPNN may change interface residues + those within this radius (6 A: 87/224 on the reference A chain; 10 A: 113)

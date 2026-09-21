@@ -9,9 +9,11 @@ import glob
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
 from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
+from energy_engine import enabled as energy_enabled, score_interfaces
+from scoring import combined_f_ortho, coherence_report, energy_fields, f_iptm_rel, iptm_margin, ok
 from dockq import calculate_dockq
 from design_utils import (diff_positions, interface_columns, load_chain, load_config, match_residues, interface_stats,
-                          ligand_rmsd_after_receptor_fit, residue_columns, std_residues)
+                          ligand_rmsd_after_receptor_fit, residue_columns, std_residues, write_complex)
 
 NAN = float('nan')
 
@@ -61,10 +63,16 @@ def main():
     folding_engine = fcfg.get('engine', 'rf3')
     neg_regime = fcfg.get('negative_msa_regime', 'matched')      # 'matched' | 'native'
     do_ceiling = bool(fcfg.get('wt_ceiling_control', True))
+    ecfg = config.get('energy', {})
+    energy_on = energy_enabled(config)
+    w_iptm = float(ecfg.get('weight_iptm', 0.5))
+    min_binding = float(ecfg.get('min_binding_fraction', 0.5))
+    f_energy_min = float(ecfg.get('f_energy_min', 0.0))
+    energy_jobs = [{"name": "native", "pdb": wt_pdb}] if energy_on else []
 
     print(f"Module 5: Final validation with {folding_engine.upper()} "
           f"(mask_mode={fcfg.get('msa_mask_mode', 'gap')}, scope={fcfg.get('msa_mask_scope', 'diff')}, "
-          f"negative regime={neg_regime}, ceiling control={do_ceiling})")
+          f"negative regime={neg_regime}, ceiling control={do_ceiling}, PyRosetta energy={energy_on})")
 
     # Redesign-allowed residue ids (used only when msa_mask_scope == 'mutable')
     with open(os.path.join(args.analysis_dir, 'index_mapping.json')) as f:
@@ -182,8 +190,19 @@ def main():
         dockq_res = calculate_dockq(wt_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
         dockq_des = calculate_dockq(b_prime_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
 
-        f_ortho = (iptm_rescue - max(iptm_rupture, iptm_negative)
-                   if status == "ok" else NAN)
+        # 8. Complexes for the interface energy (same frame: A' was fitted onto the WT frame in Module 4)
+        if energy_on:
+            edir = os.path.join(args.out_dir, "energy", design_id)
+            os.makedirs(edir, exist_ok=True)
+            p_awt_bp, p_ap_bwt = os.path.join(edir, "AWT.Bp.pdb"), os.path.join(edir, "Ap.BWT.pdb")
+            write_complex(wt_pdb, b_prime_pdb, p_awt_bp, chain_A_id, chain_B_id)
+            write_complex(b_prime_pdb, wt_pdb, p_ap_bwt, chain_A_id, chain_B_id)
+            energy_jobs += [{"name": f"{design_id}__Ap.Bp", "pdb": b_prime_pdb},
+                            {"name": f"{design_id}__AWT.Bp", "pdb": p_awt_bp},
+                            {"name": f"{design_id}__Ap.BWT", "pdb": p_ap_bwt}]
+
+        f_raw = iptm_margin(iptm_rescue, iptm_rupture, iptm_negative)
+        f_rel = f_iptm_rel(iptm_rescue, iptm_rupture, iptm_negative, iptm_ceiling)
         rel = (iptm_rescue / iptm_ceiling) if iptm_ceiling and iptm_ceiling == iptm_ceiling and iptm_ceiling > 0 else NAN
         rescue_thr = iptm_rescue_min
         if rescue_rel and iptm_ceiling == iptm_ceiling:
@@ -191,18 +210,17 @@ def main():
         pass_rescue = bool(iptm_rescue >= rescue_thr)
         pass_rupture = bool(iptm_rupture <= iptm_rupture_max) if iptm_rupture == iptm_rupture else False
         pass_negative = bool(iptm_negative <= iptm_negative_max) if iptm_negative == iptm_negative else False
-        passes = bool(status == "ok" and pass_rescue and pass_rupture and pass_negative and f_ortho >= f_ortho_min)
 
-        print(f"  --> rescue {iptm_rescue:.3f} | rupture {iptm_rupture:.3f} | negative {iptm_negative:.3f} | "
-              f"ceiling {iptm_ceiling:.3f} | F_ortho {f_ortho:.3f} | PASS={passes}")
+        print(f"  --> RF3: rescue {iptm_rescue:.3f} | rupture {iptm_rupture:.3f} | negative {iptm_negative:.3f} | "
+              f"ceiling {iptm_ceiling:.3f} | F_iptm(rel) {f_rel:.3f}")
         print(f"  --> B' RMSD vs WT {rmsd_b_prime:.2f} A | self-consistency L-RMSD {sc_lrms:.2f} A | "
               f"DockQ(WT) {dockq_res['dockq']:.3f} ({dockq_res['quality']}) DockQ(design) {dockq_des['dockq']:.3f}")
 
         results_data.append({
             "design_id": design_id, "parent_a_motif": parent_a or "primary", "folding_engine": folding_engine,
-            "status": status, "passes": passes,
+            "status": status,
             "iptm_rescue": iptm_rescue, "iptm_rupture": iptm_rupture, "iptm_negative": iptm_negative,
-            "iptm_ceiling": iptm_ceiling, "iptm_rescue_rel": rel, "f_ortho": f_ortho,
+            "iptm_ceiling": iptm_ceiling, "iptm_rescue_rel": rel, "f_ortho_iptm": f_raw, "f_iptm_rel": f_rel,
             "pass_rescue": pass_rescue, "pass_rupture": pass_rupture, "pass_negative": pass_negative,
             "iptm_rescue_mean": m_pos.get("iptm_mean", NAN), "iptm_rescue_std": m_pos.get("iptm_std", NAN),
             "pae_min_rescue": m_pos.get("chain_pair_pae_min") if m_pos.get("chain_pair_pae_min") is not None else NAN,
@@ -222,6 +240,34 @@ def main():
         print("Module 5: No design pairs could be evaluated.")
         sys.exit(0)
 
+    # ---- PyRosetta interface energies (one parallel batch for all designs) and the combined score
+    energy_cols = ("dG_rescue", "dG_negative", "dG_rupture", "dG_native", "dsasa_rescue", "unsat_hb_rescue", "b_rescue",
+                   "b_negative", "b_rupture", "gap_negative", "gap_rupture", "f_energy")
+    scores = score_interfaces(energy_jobs, os.path.join(args.out_dir, "energy_scores.json"), config) if energy_on else {}
+
+    def metric(name, key="dG"):
+        return scores.get(name, {}).get(key, NAN)
+
+    dG_native = metric("native")
+    if energy_on and not (ok(dG_native) and dG_native < 0):
+        print("  WARNING: the native complex has no binding energy under this protocol -> energy scores are NaN.")
+    for row in results_data:
+        did = row["design_id"]
+        for k in energy_cols:
+            row[k] = NAN
+        row["pass_energy"] = NAN
+        if energy_on:
+            row.update(dG_rescue=metric(f"{did}__Ap.Bp"), dG_negative=metric(f"{did}__AWT.Bp"), dG_rupture=metric(f"{did}__Ap.BWT"),
+                       dG_native=dG_native, dsasa_rescue=metric(f"{did}__Ap.Bp", "dSASA"), unsat_hb_rescue=metric(f"{did}__Ap.Bp", "unsat_hb"))
+            row.update(energy_fields(row["dG_rescue"], row["dG_negative"], row["dG_rupture"], dG_native))
+            row["pass_energy"] = bool(ok(row["b_rescue"], row["f_energy"]) and row["b_rescue"] >= min_binding and row["f_energy"] >= f_energy_min)
+        f_i = row["f_iptm_rel"] if ok(row["f_iptm_rel"]) else row["f_ortho_iptm"]
+        row["f_ortho"] = combined_f_ortho(f_i, row["f_energy"], w_iptm, energy_on)
+        energy_ok = row["pass_energy"] if energy_on else True
+        row["passes"] = bool(row["status"] == "ok" and row["pass_rescue"] and row["pass_rupture"] and row["pass_negative"]
+                             and energy_ok and ok(row["f_ortho"]) and row["f_ortho"] >= f_ortho_min)
+        print(f"  {did}: F_iptm(rel) {row['f_iptm_rel']:.3f} | F_energy {row['f_energy']:.3f} | F_ortho {row['f_ortho']:.3f} | PASS={row['passes']}")
+
     df = pd.DataFrame(results_data).sort_values(by=["passes", "f_ortho"], ascending=[False, False], na_position='last')
 
     ceilings = df["iptm_ceiling"].dropna()
@@ -229,6 +275,17 @@ def main():
         print(f"\n!! DIAGNOSTIC: median WT ceiling iPTM is {ceilings.median():.2f}. Even the NATIVE complex is not "
               f"recognised under this MSA regime -> absolute iPTM thresholds are unreachable; "
               f"try msa_mask_scope: diff / msa_mask_mode: substitute, or rely on rescue_rel & structural metrics.")
+
+    if energy_on:
+        coh = coherence_report(df)
+        with open(os.path.join(args.out_dir, "coherence.json"), 'w') as f:
+            json.dump(coh, f, indent=2)
+        print("\nRF3 vs PyRosetta coherence over %d designs (Spearman): rescue %s | cross %s | rupture %s | margins %s | sign agreement %s" % (
+            coh["n_designs"], *(("%.2f" % coh[k]) if coh[k] is not None else "n/a" for k in (
+                "spearman_rescue_iptm_vs_binding", "spearman_negative_iptm_vs_binding", "spearman_rupture_iptm_vs_binding",
+                "spearman_margins", "margin_sign_agreement"))))
+        if coh["disagreements"]:
+            print("  designs where the two measures disagree most:", ", ".join(coh["disagreements"]))
 
     csv_path = os.path.join(args.out_dir, "orthogonality_scores.csv")
     df.to_csv(csv_path, index=False)

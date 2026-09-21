@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import glob
+import shutil
 import subprocess
 import sys
 from Bio.PDB import PDBParser, Superimposer, Structure, Model, Chain
@@ -12,6 +13,7 @@ from design_utils import (  # noqa: E402
     ca_rmsd_after_fit, build_rescue_bias, candidate_specificity_score, parse_mpnn_confidence,
     load_chain, load_config, collect_pdbs, save_structure, strip_nan_lines,
 )
+from energy_engine import enabled as energy_enabled, pack_structures
 
 
 def align_scaffolds(pdbs, ref_a_chain, chain_A_id, out_dir):
@@ -302,7 +304,7 @@ def main():
             json.dump([{"pdb": p, "native": n, **m} for p, n, m in scaffolds], f, indent=2)
 
         # ---- Step 2: LigandMPNN on every scaffold, with specificity-by-difference bias
-        pool = []
+        raw_outs = []
         per_scaffold = max(15, samples_per_scaffold // max(1, len(scaffolds)))
         for sc_idx, (sc_pdb, is_native, sc_m) in enumerate(scaffolds):
             assembled = os.path.join(motif_work_dir, f"complex_scaffold_{sc_idx}_allatom.pdb")
@@ -344,23 +346,51 @@ def main():
             outs = packed or outs
 
             mutable_ids = {r.id[1] for r in std_residues(b_scaffold) if r.id[1] not in fixed_b_ids}
-            for p in outs:
-                try:
-                    st = PDBParser(QUIET=True).get_structure("o", p)[0]
-                    ch_b = st[chain_B_id] if chain_B_id in st else list(st.get_chains())[1]
-                except Exception as e:
-                    print(f"    Warning: unreadable MPNN output {os.path.basename(p)}: {e}")
-                    continue
-                spec = candidate_specificity_score(a_chain, wt_A_chain, ch_b)
-                seq_mut = "".join(THREE_TO_ONE.get(r.get_resname(), 'X') for r in std_residues(ch_b)
-                                  if r.id[1] in mutable_ids)
-                pool.append({"path": p, "scaffold": sc_idx, "native": is_native, "seq": seq_mut,
-                             "conf": parse_mpnn_confidence(p), "spec": spec,
-                             "scaffold_flex_rmsd": sc_m.get("flex_rmsd")})
+            raw_outs.extend((sc_idx, is_native, sc_m, p, mutable_ids) for p in outs)
 
-        if not pool:
+        if not raw_outs:
             print(f"  WARNING: no LigandMPNN candidates produced for {a_cand_name}.")
             continue
+
+        # LigandMPNN writes no side chain for the residues it redesigns. Build A' + B' complexes and pack the
+        # side chains of B' against the fixed A' before measuring anything (contacts, clashes, energy).
+        pool_dir = os.path.join(motif_work_dir, "pool")
+        os.makedirs(pool_dir, exist_ok=True)
+        pool, pack_jobs = [], []
+        for k, (sc_idx, is_native, sc_m, p, mutable_ids) in enumerate(raw_outs):
+            try:
+                st = PDBParser(QUIET=True).get_structure("o", p)[0]
+                ch_b = st[chain_B_id] if chain_B_id in st else list(st.get_chains())[1]
+            except Exception as e:
+                print(f"    Warning: unreadable MPNN output {os.path.basename(p)}: {e}")
+                continue
+            ch_b = ch_b.copy()
+            ch_b.id = chain_B_id
+            pair = os.path.join(pool_dir, f"pool_{k:03d}.pdb")
+            ps = Structure.Structure(f"pool_{k:03d}")
+            pm = Model.Model(0)
+            ps.add(pm)
+            pm.add(a_chain.copy())
+            pm.add(ch_b)
+            save_structure(ps, pair)
+            pack_jobs.append({"name": f"{a_cand_name}_pool_{k:03d}", "pdb": pair, "out": pair, "fixed_chains": [chain_A_id]})
+            pool.append({"pair": pair, "path": p, "scaffold": sc_idx, "native": is_native, "mutable_ids": mutable_ids,
+                         "scaffold_flex_rmsd": sc_m.get("flex_rmsd")})
+        if not pool:
+            continue
+        if energy_enabled(config):
+            print(f"  Packing the side chains of {len(pool)} designs (PyRosetta)...")
+            pack_structures(pack_jobs, config, os.path.join(motif_work_dir, "pack_status.json"))
+        else:
+            print("  WARNING: side-chain packing disabled (energy.enabled): redesigned B' residues have no side chain.")
+            for c in pool:
+                strip_nan_lines(c["pair"])
+        for c in pool:
+            ch_b = load_chain(c["pair"], chain_B_id)
+            c["spec"] = candidate_specificity_score(a_chain, wt_A_chain, ch_b)
+            c["seq"] = "".join(THREE_TO_ONE.get(r.get_resname(), 'X') for r in std_residues(ch_b)
+                               if r.id[1] in c["mutable_ids"])
+            c["conf"] = parse_mpnn_confidence(c["path"])
 
         # ---- Step 3: rank (negative-design proxy + LigandMPNN confidence) then diversify
         ok = [c for c in pool if c["spec"]["clashes_a_prime"] <= max_clash_a] or pool
@@ -380,17 +410,7 @@ def main():
         for b_idx, cand in enumerate(final):
             pair_id = f"{a_cand_name}_B_cand_{b_idx:02d}"
             dest = os.path.join(args.out_dir, f"{pair_id}.pdb")
-            st_c = PDBParser(QUIET=True).get_structure("cand", cand["path"])[0]
-            ch_b = st_c[chain_B_id] if chain_B_id in st_c else list(st_c.get_chains())[1]
-            ch_b = ch_b.copy()
-            ch_b.id = chain_B_id
-            ps = Structure.Structure(pair_id)
-            pm = Model.Model(0)
-            ps.add(pm)
-            pm.add(a_chain.copy())
-            pm.add(ch_b)
-            save_structure(ps, dest)
-            strip_nan_lines(dest)
+            shutil.copy(cand["pair"], dest)                     # packed A' + B' complex
             all_saved_b_pdbs.append(dest)
             metadata_pairs[pair_id] = {
                 "parent_a": a_cand_name, "pdb": dest, "scaffold_idx": cand["scaffold"],
