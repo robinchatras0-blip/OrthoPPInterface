@@ -72,7 +72,7 @@ def workspace(tmp_path, monkeypatch):
         "folding": {"use_msa": True, "msa_mask_scope": "interface", "msa_mask_mode": "gap",
                     "negative_msa_regime": "matched", "wt_ceiling_control": True},
         "structural_constraints": {"interface_distance_threshold_angstroms": 6.0, "neighborhood_radius_angstroms": 10.0,
-                                   "crop_chain_B_distance_angstroms": 15.0, "max_hotspot_mutations": 3},
+                                   "crop_chain_B_distance_angstroms": 15.0},
         "thresholds": {"monomer_stability": {"plddt_min": 80, "rmsd_max": 2.0},
                        "negative_design_rupture": {"iptm_rupture_max": 0.35},
                        "positive_design_rescue": {"iptm_rescue_min": 0.75, "relative_to_ceiling": 0.85},
@@ -241,6 +241,30 @@ def test_module1_writes_all_analysis_files(workspace, monkeypatch):
     mapping = json.load(open(os.path.join(out, "index_mapping.json")))
     assert mapping["neighborhood_ids"] and len(mapping["residues_A"]) == 20
     assert mapping["interface_ids_A"] and mapping["interface_ids_B"]                   # used by the MSA regime
+
+
+def test_rescue_diffusion_gets_ppi_hotspots_but_rupture_does_not(workspace, monkeypatch):
+    """Without hotspots RFD3 starts every diffused atom at the COM of the fixed motif, which is buried
+    inside chain A, and the B loops interpenetrate it. Hotspots move that origin outside the surface.
+    The rupture design must NOT get them: they are a positive-design signal."""
+    m1 = load_module("01_analyze_interface.py")
+    out = str(workspace["root"] / "analysis_hotspots")
+    run_main(m1, ["--config", workspace["cfg"], "--out_dir", out], monkeypatch)
+
+    rescue = json.load(open(os.path.join(out, "inputs_rescue.json")))["design"]
+    assert rescue["infer_ori_strategy"] == "hotspots"
+    hotspots = rescue["select_hotspots"].split(",")
+    assert hotspots and all(h.startswith("A") for h in hotspots)
+
+    mapping = json.load(open(os.path.join(out, "index_mapping.json")))
+    ids = mapping["rescue_hotspot_ids_A"]
+    assert [f"A{i}" for i in ids] == hotspots
+    assert set(ids) <= set(mapping["interface_ids_A"])                                 # hotspots are interface residues
+    counts = {int(k): v for k, v in mapping["interface_contacts_A"].items()}
+    assert min(counts[i] for i in ids) >= max(counts[i] for i in counts if i not in ids)   # contact-ranked
+
+    rupture = json.load(open(os.path.join(out, "inputs.json")))["design"]
+    assert "select_hotspots" not in rupture and "infer_ori_strategy" not in rupture
 
 
 def test_module2_uses_mpnn_design_not_raw_rfd3_backbone(workspace, monkeypatch):

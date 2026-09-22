@@ -23,7 +23,6 @@ def main():
     chain_B_id = config['pipeline']['chain_B']
     dist_thresh = config['structural_constraints']['interface_distance_threshold_angstroms']
     neighborhood_radius = config['structural_constraints']['neighborhood_radius_angstroms']
-    max_hotspots = config['structural_constraints']['max_hotspot_mutations']
     crop_dist = config['structural_constraints'].get('crop_chain_B_distance_angstroms', 15.0)
 
     if not os.path.exists(pdb_file):
@@ -43,25 +42,18 @@ def main():
     residues_A = [res for res in chain_A if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
     residues_B = [res for res in chain_B if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
 
-    # Calculate interface residues on Chain A
-    interface_A = []
+    # Interface residues of chain A, with the number of B residues each one contacts (the count ranks the
+    # PPI hotspots handed to RFD3 for the rescue diffusion below, so it is not just a boolean test).
+    interface_A, contacts_A = [], {}
     for res_A in residues_A:
-        for res_B in residues_B:
-            if min_residue_distance(res_A, res_B) <= dist_thresh:
-                interface_A.append(res_A)
-                break
+        n_contacts = sum(1 for res_B in residues_B if min_residue_distance(res_A, res_B) <= dist_thresh)
+        if n_contacts:
+            interface_A.append(res_A)
+            contacts_A[res_A.id[1]] = n_contacts
 
     if not interface_A:
         print("Warning: No interface residues found with current distance threshold. Using first 3 residues.")
         interface_A = residues_A[:3]
-
-    # Select hotspots (charged/polar contact residues)
-    charged_polar = ['ARG', 'LYS', 'ASP', 'GLU', 'HIS', 'ASN', 'GLN', 'SER', 'THR', 'TYR']
-    hotspots = [res for res in interface_A if res.get_resname() in charged_polar]
-    if not hotspots:
-        hotspots = interface_A
-    hotspots = hotspots[:max_hotspots]
-    hotspot_ids = [res.id[1] for res in hotspots]
 
     # Define mutable residues on Chain A (ALL interface residues + immediate spatial neighbors)
     mutable_A = set(interface_A)
@@ -75,8 +67,7 @@ def main():
 
     # Fixed positions for LigandMPNN (freeze everything EXCEPT mutable interface residues)
     fixed_ids_A = [res.id[1] for res in residues_A if res.id[1] not in neighborhood_ids]
-    fixed_ids_B = [res.id[1] for res in residues_B]
-    
+
     # Mutable residues on B (for B' rescue design: all residues of B contacting interface_A)
     mutable_B = set()
     for res_B in residues_B:
@@ -212,6 +203,8 @@ def main():
         
     print(f"Generated RFD3 contigs: {contig_str}")
     
+    # No PPI hotspots here on purpose: hotspots are a *positive* design signal ("engage these residues"),
+    # which is the opposite of the rupture objective for A'.
     rfd3_inputs = {
         "design": {
             "input": os.path.relpath(pdb_file, args.out_dir).replace("\\", "/"),
@@ -230,15 +223,14 @@ def main():
                 "resname": res.get_resname(),
                 "one_letter": THREE_TO_ONE.get(res.get_resname(), 'X'),
                 "is_interface": res in interface_A,
-                "is_hotspot": res in hotspots,
                 "is_neighborhood": res in mutable_A
             }
             for idx, res in enumerate(residues_A)
         ],
-        "hotspot_ids": hotspot_ids,
         "neighborhood_ids": neighborhood_ids,
         "interface_ids_A": interface_ids,
         "interface_ids_B": neighborhood_ids_B,
+        "interface_contacts_A": contacts_A,
         "fixed_ids_A": fixed_ids_A,
         "crop_min_B": min_B,
         "crop_max_B": max_B
@@ -274,12 +266,33 @@ def main():
     contig_rescue_str = f"{chain_A_id}{res_ids_A[0]}-{res_ids_A[-1]},/0," + ",".join(contig_parts_B)
     print(f"Generated RFD3 Rescue contigs: {contig_rescue_str}")
 
+    # PPI hotspots: the residues of A' that the diffused loops of B' must engage, ranked by how many B
+    # residues they contact in the native complex.
+    # RFD3 initialises EVERY diffused atom at the origin token, and with no strategy that origin defaults to
+    # the centre of mass of the fixed motif (rfd3.utils.inference.set_com) - measured 1.9 A from the nearest
+    # chain-A atom, i.e. buried inside A, with 25 chain-A atoms within 5 A. The B loops then have to diffuse
+    # out through the target, and interpenetrate it: 0/10 and 0/5 usable scaffolds on two of three A' motifs.
+    # `infer_ori_strategy: hotspots` instead places the origin 10 A above the hotspot centroid along the
+    # outward normal (measured on the same input: 5.5 A from the nearest chain-A atom, none within 5 A).
+    n_hotspots = int(config['pipeline'].get('rescue_ppi_hotspots', 8))
+    hotspot_ids_A = sorted(sorted(contacts_A, key=lambda rid: (-contacts_A[rid], rid))[:n_hotspots])
     rfd3_rescue_inputs = {
         "design": {
             "input": os.path.relpath(pdb_file, args.out_dir).replace("\\", "/"),
-            "contig": contig_rescue_str
+            "contig": contig_rescue_str,
+            "select_hotspots": ",".join(f"{chain_A_id}{rid}" for rid in hotspot_ids_A),
+            "infer_ori_strategy": "hotspots",
         }
     }
+    partial_t = config['pipeline'].get('rescue_partial_t')
+    if partial_t:
+        # Partial diffusion re-denoises the EXISTING B loops instead of rebuilding them from the origin.
+        # RFD3 then centres on the COM and ignores infer_ori_strategy; the hotspot conditioning still applies.
+        rfd3_rescue_inputs["design"]["partial_t"] = float(partial_t)
+    index_mapping["rescue_hotspot_ids_A"] = hotspot_ids_A
+    print(f"Rescue PPI hotspots on chain {chain_A_id} (contact-ranked): "
+          f"{hotspot_ids_A} (contacts {[contacts_A[r] for r in hotspot_ids_A]})"
+          + (f", partial diffusion t={partial_t} A" if partial_t else ""))
 
     # Save outputs
     with open(os.path.join(args.out_dir, "inputs.json"), 'w') as f:
@@ -300,7 +313,8 @@ def main():
     with open(os.path.join(args.out_dir, "index_mapping.json"), 'w') as f:
         json.dump(index_mapping, f, indent=2)
 
-    print(f"Module 1 Complete: Identified {len(hotspots)} hotspots and {len(neighborhood_ids)} neighborhood residues on Chain {chain_A_id}.")
+    print(f"Module 1 Complete: {len(interface_ids)} interface and {len(neighborhood_ids)} redesignable residues on chain "
+          f"{chain_A_id}, {len(neighborhood_ids_B)} redesignable on chain {chain_B_id}.")
 
 if __name__ == "__main__":
     main()

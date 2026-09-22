@@ -9,6 +9,14 @@ pipeline:
   foundry_n_batches: 100
   foundry_diffusion_batch_size: 1
   rescue_diffusion_n_batches: 15
+  # PPI hotspots handed to RFD3 for the rescue diffusion: the N most-contacting A' interface residues.
+  # They also move the diffusion origin out of chain A (see src/01_analyze_interface.py). RFD3 was trained
+  # with sparse hotspot sets (<= 20% revealed), so keep this small: 5-10 out of ~36 interface residues.
+  rescue_ppi_hotspots: 8
+  # Optional: partial diffusion for the rescue step. Re-denoises the existing B loops instead of rebuilding
+  # them from scratch, so B' stays close to a backbone that already fits A'. In angstroms of added noise,
+  # <= 15 recommended by RFD3; null disables it (full de-novo loop diffusion).
+  rescue_partial_t: null
   max_rescue_scaffolds: 4
   include_native_scaffold: false      # true = also design on the rigid WT backbone (control scaffold)
   scaffold_max_clashes: 5             # RFD3 backbone vs A' heavy-atom clashes tolerated
@@ -60,7 +68,6 @@ structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 6.0   # LigandMPNN may change interface residues + those within this radius (6 A: 87/224 on the reference A chain; 10 A: 113)
   crop_chain_B_distance_angstroms: 15.0
-  max_hotspot_mutations: 3
 thresholds:
   monomer_stability:
     plddt_min: 80.0

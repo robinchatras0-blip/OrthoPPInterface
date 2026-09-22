@@ -94,7 +94,7 @@ def generate_styled_excel(csv_path, xlsx_path):
         dockq_val = row.get('dockq', 0.0)
         dockq_q = row.get('dockq_quality', 'N/A')
         fnat_val = row.get('fnat', 0.0)
-        plddt_val = row.get('plddt_rescue', row.get('plddt_protein', 0.0))
+        plddt_val = row.get('plddt_rescue', 0.0)
 
         status_text = "CHAMPION ORTHOGONAL" if is_champ else ("ORTHOGONAL" if is_ortho else "NON ORTHOGONAL")
 
@@ -171,7 +171,7 @@ def generate_interactive_html(csv_path, html_path):
         dockq_val = row.get('dockq', 0.0)
         dockq_q = row.get('dockq_quality', 'N/A')
         f_nat = float(row.get('fnat', 0.0)) if pd.notnull(row.get('fnat')) else 0.0
-        plddt = float(row.get('plddt_rescue', row.get('plddt_protein', 0.0)))
+        plddt = float(row.get('plddt_rescue', 0.0))
 
         is_champ = f_ortho >= 0.20
         is_ortho = f_ortho > 0.0

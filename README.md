@@ -82,9 +82,10 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 
 ### [Module 1: Interface & Hotspot Analysis](src/01_analyze_interface.py)
 - Interface residues of chain A: heavy-atom distance to chain B $\le$ `interface_distance_threshold_angstroms` (6.0 Å); redesignable neighbourhood within `neighborhood_radius_angstroms` (6.0 Å) of the interface residues (on the reference system: 36 interface + 51 neighbouring residues = 87 of 224; 10 Å would make half of the protein redesignable, including residues that can never touch B).
-- Selects hotspots (charged/polar contact residues), defines mutable vs frozen positions for LigandMPNN.
+- Defines mutable vs frozen positions for LigandMPNN.
 - Crops chain B to the residues within `crop_chain_B_distance_angstroms` (15.0 Å) of the interface to keep RFD3 within GPU memory.
 - Generates the RFD3 contigs (`inputs.json` for the rupture, `inputs_rescue.json` for the rescue), the rupture bias (`mpnn_bias.json`), the fixed-position files and `index_mapping.json`.
+- **PPI hotspots for the rescue diffusion** (`rescue_ppi_hotspots`, default 8): the A' interface residues that B' must engage, ranked by how many B residues they contact in the native complex. They are written to `inputs_rescue.json` as `select_hotspots` together with `infer_ori_strategy: hotspots`, and **not** to `inputs.json` — a hotspot is a positive-design signal, the opposite of the rupture objective. See the note on the diffusion origin in Module 4.
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
 - RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
@@ -101,6 +102,8 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 1. **A' motif selection**: farthest-point selection on the interface sequence (Hamming distance) keeps `max_a_prime_motifs` distinct A' designs.
 2. **Frame alignment**: A' is fitted onto the WT frame using the unchanged framework of A.
 3. **Backbone co-adaptation**: RFD3 redesigns the interface loops of B around the frozen A'. RFD3 **re-centres its output** (≈70 Å shift observed), so every diffused scaffold is re-fitted onto A' (chain A is identical in all outputs) before any scoring.
+   **Diffusion origin**: RFD3 initialises every diffused atom at the origin token, and with no strategy that origin is the centre of mass of the fixed motif — on the reference system, 1.9 Å from the nearest chain-A atom (25 chain-A atoms within 5 Å), i.e. *buried inside the target*. The B loops then had to diffuse out through A' and interpenetrated it: 0/10 and 0/5 usable scaffolds on two of three A' motifs, all rejected on backbone clashes, silently falling back to the native WT backbone. The PPI hotspots written by Module 1 switch RFD3 to `infer_ori_strategy: hotspots`, which places the origin 10 Å above the hotspot centroid along the outward normal (same input: 5.5 Å from the nearest chain-A atom, none within 5 Å).
+   Set `rescue_partial_t` (≤ 15 Å) to switch to **partial diffusion** instead: the existing B loops are re-denoised rather than rebuilt from the origin, so B' stays close to a backbone that already fits A'. RFD3 then centres on the COM and ignores the origin strategy; the hotspot conditioning still applies.
 4. **Scaffold selection**: scaffolds are filtered (heavy-atom clashes with A', distortion of the fixed framework of B) and de-duplicated (loop backbones must differ by at least `scaffold_min_flex_rmsd`). The rigid native backbone is only used if `include_native_scaffold: true` or as a fallback when nothing passes.
 5. **Grafting**: the WT residues of B outside the RFD3 crop (N-terminal head and C-terminal tail) are re-attached after fitting a copy of WT B on the scaffold framework.
 6. **Specificity-by-difference bias** for LigandMPNN: at each mutable B position, residues complementary to the *new* A' residue are favoured and those complementary to the *WT* A residue penalised (charge swap, knob/hole). Positions where A' kept the WT residue get a mild generic complementarity bias.
@@ -200,6 +203,8 @@ pipeline:
   chain_B: B
   foundry_n_batches: 100               # RFD3 backbones for the A' rupture design
   rescue_diffusion_n_batches: 15       # RFD3 backbones per A' motif for the B' rescue
+  rescue_ppi_hotspots: 8               # A' residues B' must engage; also moves the diffusion origin out of A (5-10)
+  rescue_partial_t: null               # Å of noise for partial diffusion of the B loops (≤ 15); null = de novo loops
   max_rescue_scaffolds: 4              # scaffolds kept per motif
   local_rfdiffusion: bash OrthoIntRob/bin/rfd3
   local_ligandmpnn: bash OrthoIntRob/bin/mpnn
@@ -247,7 +252,6 @@ structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 6.0
   crop_chain_B_distance_angstroms: 15.0
-  max_hotspot_mutations: 3
 thresholds:
   monomer_stability: {plddt_min: 80.0, rmsd_max: 2.0}
   negative_design_rupture: {iptm_rupture_max: 0.35}          # A' · B_WT
