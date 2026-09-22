@@ -1,0 +1,5 @@
+#!/bin/bash
+# Thin wrapper: runs RFD3 (Foundry) from the consolidated 'orthoppinterface' environment.
+# Checkpoints are resolved from the default ~/.foundry/checkpoints (no FOUNDRY_CHECKPOINT_DIRS needed).
+source "$HOME/miniforge3/bin/activate" orthoppinterface
+exec rfd3 design "$@"

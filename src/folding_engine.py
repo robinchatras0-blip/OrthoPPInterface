@@ -4,11 +4,13 @@ import sys
 import json
 import glob
 import hashlib
+import shutil
 import subprocess
 from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import THREE_TO_ONE, cif_to_pdb, diff_positions  # noqa: E402
+from scoring import ipsae_score  # noqa: E402
 
 
 def _use_wsl(config):
@@ -215,6 +217,24 @@ def _f(data, key, default=0.0):
         return default
 
 
+_IPSAE_NAN = {"ipsae": float('nan'), "ipsae_d0chn": float('nan'), "ipsae_d0dom": float('nan'), "lis": float('nan')}
+
+
+def _load_ipsae(summary_path):
+    """ipSAE (see scoring.ipsae_score) computed for free from the PAE matrix RF3 already writes alongside the
+    summary: no extra fold needed. Best-effort diagnostic, like chain_pair_pae_min below - NaN for a monomer
+    fold (only 2-chain complexes have an interface) or if the confidences file is missing/malformed."""
+    conf_path = summary_path.replace("_summary_confidences.json", "_confidences.json")
+    if not os.path.exists(conf_path):
+        return dict(_IPSAE_NAN)
+    try:
+        with open(conf_path, 'r') as f:
+            conf = json.load(f)
+        return ipsae_score(conf["pae"], conf["token_chain_ids"])
+    except Exception:
+        return dict(_IPSAE_NAN)
+
+
 def _parse_summary(path):
     with open(path, 'r') as f:
         data = json.load(f)
@@ -226,12 +246,14 @@ def _parse_summary(path):
         pae_min = float(pae_min[0][1]) if pae_min else None
     except (TypeError, IndexError, ValueError):
         pae_min = None
-    return {
+    out = {
         "plddt": plddt, "iptm": iptm, "ptm": _f(data, "ptm"),
         "ranking_score": _f(data, "ranking_score", iptm),
         "has_clash": bool(data.get("has_clash", False)),
         "chain_pair_pae_min": pae_min,
     }
+    out.update(_load_ipsae(path))
+    return out
 
 
 def _collect_metrics(out_dir):
@@ -263,67 +285,93 @@ def _find_model(out_dir, tag, summary_path):
     return None
 
 
-def predict_structure(fasta_sequences, out_dir, config):
-    """Runs RoseTTAFold-3 (Foundry RF3) on a monomer or complex.
-
-    fasta_sequences: [(label, sequence, msa_path_or_None), ...], one entry per chain (chain ids A, B, ...).
-    Results are cached in `out_dir` together with a signature of sequences + MSA contents + parameters,
-    so any change of the MSA strategy transparently invalidates stale predictions.
-    Returns the metrics of the best-ranked sample (plus iPTM mean/std over samples and `model_pdb`).
-    """
-    os.makedirs(out_dir, exist_ok=True)
-    tag = os.path.basename(out_dir.rstrip('/\\'))
+def _rf3_settings(config):
     fcfg = config.get('folding', {})
     wsl = _use_wsl(config)
     pth = to_wsl_path if wsl else (lambda p: os.path.abspath(p).replace('\\', '/'))
-    use_msa = fcfg.get('use_msa', True)
-    rf3_params = {k: fcfg[k] for k in ('diffusion_batch_size', 'n_recycles', 'num_steps', 'seed') if k in fcfg}
+    params = {k: fcfg[k] for k in ('diffusion_batch_size', 'n_recycles', 'num_steps', 'seed') if k in fcfg}
+    return fcfg, wsl, pth, params
 
-    raw_components = []
+
+def _prepare_request(fasta_sequences, out_dir, config):
+    """Manifest, signature and cache state of one prediction (nothing is run here)."""
+    os.makedirs(out_dir, exist_ok=True)
+    tag = os.path.basename(out_dir.rstrip('/\\'))
+    fcfg, wsl, pth, params = _rf3_settings(config)
+    use_msa = fcfg.get('use_msa', True)
+    raw = []
     for idx, (_, seq, msa_p) in enumerate(fasta_sequences):
         comp = {"seq": seq, "chain_id": chr(ord('A') + idx)}
         if use_msa and msa_p and os.path.exists(msa_p) and os.path.getsize(msa_p) > 0:
             comp["msa_path"] = msa_p
-        raw_components.append(comp)
-
-    signature = _signature(raw_components, rf3_params)
-    sig_path = os.path.join(out_dir, f"{tag}.signature")
+        raw.append(comp)
+    entry = {"name": tag, "components": [{**c, **({"msa_path": pth(c["msa_path"])} if "msa_path" in c else {})} for c in raw]}
     manifest_path = os.path.join(out_dir, f"{tag}_rf3_input.json")
     with open(manifest_path, 'w') as f:
-        json.dump([{"name": tag, "components": [
-            {**c, **({"msa_path": pth(c["msa_path"])} if "msa_path" in c else {})} for c in raw_components]}],
-            f, indent=2)
-
+        json.dump([entry], f, indent=2)
+    sig_path = os.path.join(out_dir, f"{tag}.signature")
+    signature = _signature(raw, params)
     cached_sig = open(sig_path).read().strip() if os.path.exists(sig_path) else None
-    summary_path, metrics = _collect_metrics(out_dir)
-    if summary_path and cached_sig == signature:
-        print(f"  [Foundry RF3] Cache hit ({tag}).")
-    else:
-        if summary_path:
-            print(f"  [Foundry RF3] Stale cache in {out_dir} (inputs changed) -> recomputing.")
-            for p in glob.glob(os.path.join(out_dir, "**", "*"), recursive=True):
-                if os.path.isfile(p) and not p.endswith(("_rf3_input.json", ".signature", ".a3m")):
-                    os.remove(p)
-        rf3_bin = fcfg.get('rf3_bin', '/home/ommearo/miniforge3/envs/foundry_env/bin/rf3')
-        rf3_ckpt = fcfg.get('rf3_ckpt', '/home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
-        cmd = [rf3_bin, "fold", f"inputs={pth(manifest_path)}", f"out_dir={pth(out_dir)}", f"ckpt_path={rf3_ckpt}"]
-        cmd += [f"{k}={v}" for k, v in rf3_params.items()]
-        if wsl:
-            cmd = ["wsl", "-d", fcfg.get('wsl_distro', 'Ubuntu'), "--"] + cmd
-        print(f"  [Foundry RF3 GPU Invoc] {' '.join(cmd)}")
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            tail = (res.stderr or res.stdout or "")[-600:]
-            raise RuntimeError(f"RF3 execution failed with code {res.returncode}: {tail}")
-        summary_path, metrics = _collect_metrics(out_dir)
-        if not summary_path:
-            raise RuntimeError(f"RF3 output *_summary_confidences.json not found in {out_dir}")
-        with open(sig_path, 'w') as f:
-            f.write(signature)
+    has_output = _collect_metrics(out_dir)[0] is not None
+    return {"out_dir": out_dir, "tag": tag, "entry": entry, "signature": signature, "sig_path": sig_path,
+            "manifest_path": manifest_path, "cached": has_output and cached_sig == signature,
+            "stale": has_output and cached_sig != signature}
 
-    out_pdb = os.path.join(out_dir, f"{tag}_unrelaxed_rank_001.pdb")
+
+def _run_rf3(pending, config):
+    """ONE RF3 process for every prediction that is not cached: the model is loaded once, not once per fold."""
+    fcfg, wsl, pth, params = _rf3_settings(config)
+    for p in pending:
+        if p["stale"]:
+            print(f"  [Foundry RF3] Stale cache in {p['out_dir']} (inputs changed) -> recomputing.")
+            for f in glob.glob(os.path.join(p["out_dir"], "**", "*"), recursive=True):
+                if os.path.isfile(f) and not f.endswith(("_rf3_input.json", ".signature", ".a3m")):
+                    os.remove(f)
+    batch_dir = None
+    if len(pending) == 1:
+        manifest, out = pending[0]["manifest_path"], pending[0]["out_dir"]
+    else:
+        batch_dir = os.path.join(os.path.dirname(os.path.abspath(pending[0]["out_dir"])), f"_rf3_batch_{os.getpid()}")
+        os.makedirs(batch_dir, exist_ok=True)
+        entries = []
+        for k, p in enumerate(pending):
+            p["uname"] = f"{p['tag']}__{k:03d}"                     # tags repeat across folds (rescue / negative of a design)
+            entries.append({**p["entry"], "name": p["uname"]})
+        manifest, out = os.path.join(batch_dir, "batch_rf3_input.json"), batch_dir
+        with open(manifest, 'w') as f:
+            json.dump(entries, f, indent=2)
+    rf3_bin = fcfg.get('rf3_bin', '/home/ommearo/miniforge3/envs/foundry_env/bin/rf3')
+    rf3_ckpt = fcfg.get('rf3_ckpt', '/home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
+    cmd = [rf3_bin, "fold", f"inputs={pth(manifest)}", f"out_dir={pth(out)}", f"ckpt_path={rf3_ckpt}"]
+    cmd += [f"{k}={v}" for k, v in params.items()]
+    if wsl:
+        cmd = ["wsl", "-d", fcfg.get('wsl_distro', 'Ubuntu'), "--"] + cmd
+    print(f"  [Foundry RF3 GPU Invoc] {len(pending)} prediction(s) in one process: {' '.join(cmd[:6])} ...", flush=True)
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        tail = (res.stderr or res.stdout or "")[-600:]
+        raise RuntimeError(f"RF3 execution failed with code {res.returncode}: {tail}")
+    if batch_dir:
+        for p in pending:
+            src, dst = os.path.join(batch_dir, p["uname"]), os.path.join(p["out_dir"], p["uname"])
+            if not os.path.isdir(src):
+                raise RuntimeError(f"RF3 wrote no output for {p['tag']} (batch of {len(pending)}, see {batch_dir})")
+            if os.path.exists(dst):
+                shutil.rmtree(dst)
+            shutil.move(src, dst)
+        shutil.rmtree(batch_dir, ignore_errors=True)
+    for p in pending:
+        if _collect_metrics(p["out_dir"])[0] is None:
+            raise RuntimeError(f"RF3 output *_summary_confidences.json not found in {p['out_dir']}")
+        with open(p["sig_path"], 'w') as f:
+            f.write(p["signature"])
+
+
+def _finalize(p):
+    summary_path, metrics = _collect_metrics(p["out_dir"])
+    out_pdb = os.path.join(p["out_dir"], f"{p['tag']}_unrelaxed_rank_001.pdb")
     if not os.path.exists(out_pdb):
-        cif = _find_model(out_dir, tag, summary_path)
+        cif = _find_model(p["out_dir"], p["tag"], summary_path)
         if cif:
             try:
                 cif_to_pdb(cif, out_pdb)
@@ -332,6 +380,29 @@ def predict_structure(fasta_sequences, out_dir, config):
                 print(f"  Warning: could not convert {cif} to PDB: {e}")
     metrics["model_pdb"] = out_pdb if os.path.exists(out_pdb) else None
     return metrics
+
+
+def predict_structures(requests, config):
+    """Runs RoseTTAFold-3 on many monomers/complexes with ONE RF3 process.
+
+    requests: [(fasta_sequences, out_dir)] with fasta_sequences = [(label, sequence, msa_path_or_None), ...] (chain ids
+    A, B, ...). Each prediction is cached in its own out_dir together with a signature of sequences + MSA contents +
+    parameters, so a change of the MSA strategy invalidates stale results and only missing predictions are run.
+    Returns one metrics dict per request (best-ranked sample, iPTM mean/std over samples, `model_pdb`).
+    """
+    preps = [_prepare_request(fasta, out_dir, config) for fasta, out_dir in requests]
+    for p in preps:
+        if p["cached"]:
+            print(f"  [Foundry RF3] Cache hit ({p['tag']}).")
+    pending = [p for p in preps if not p["cached"]]
+    if pending:
+        _run_rf3(pending, config)
+    return [_finalize(p) for p in preps]
+
+
+def predict_structure(fasta_sequences, out_dir, config):
+    """Single prediction (see predict_structures)."""
+    return predict_structures([(fasta_sequences, out_dir)], config)[0]
 
 
 def calculate_ca_rmsd(ref_pdb, pred_pdb_or_dir, chain_ref='A', chain_pred=None, subset_res_ids=None):

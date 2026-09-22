@@ -9,7 +9,7 @@ import re
 import warnings
 
 import numpy as np
-from Bio.PDB import MMCIFParser, NeighborSearch, PDBIO, PDBParser
+from Bio.PDB import MMCIFParser, Model, NeighborSearch, PDBIO, PDBParser, Structure
 
 THREE_TO_ONE = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
@@ -181,6 +181,16 @@ def load_chain(pdb_path, chain_id):
     if chain_id in model:
         return model[chain_id]
     return list(model.get_chains())[0]
+
+
+def write_complex(a_source_pdb, b_source_pdb, out_path, chain_A='A', chain_B='B'):
+    """Writes a two-chain complex: chain A taken from one file, chain B from another (same frame required)."""
+    st = Structure.Structure("complex")
+    model = Model.Model(0)
+    st.add(model)
+    model.add(load_chain(a_source_pdb, chain_A).copy())
+    model.add(load_chain(b_source_pdb, chain_B).copy())
+    save_structure(st, out_path)
 
 
 def residue_columns(pdb_path, chain_id, resids):

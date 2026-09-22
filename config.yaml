@@ -14,13 +14,13 @@ pipeline:
   scaffold_max_clashes: 5             # RFD3 backbone vs A' heavy-atom clashes tolerated
   scaffold_max_framework_rmsd: 1.5    # RFD3 must not distort the fixed framework of B (A)
   scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
-  local_rfdiffusion: bash OrthoIntRob/bin/rfd3
-  local_ligandmpnn: bash OrthoIntRob/bin/mpnn
+  local_rfdiffusion: bash bin/rfd3
+  local_ligandmpnn: bash bin/mpnn
 diversity_selection:
   enabled: true
   max_a_prime_motifs: 8
 ligandmpnn:
-  checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
+  checkpoint_path: /home/ommearo/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt
   model_type: ligand_mpnn
   is_legacy_weights: 'True'
   temperature_rupture: 0.2
@@ -31,20 +31,31 @@ ligandmpnn:
   top_k_per_motif: 6                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
 folding:
-  rf3_bin: /home/ommearo/miniforge3/envs/foundry_env/bin/rf3
+  rf3_bin: /home/ommearo/miniforge3/envs/orthoppinterface/bin/rf3
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
   # --- MSA regime (see src/calibrate_predictor.py to choose empirically) ---
   msa_mask_scope: interface           # interface = mask the interface columns + mutated ones (default) | diff = mutated only | mutable = all redesignable
   msa_mask_mode: gap                  # gap | substitute | keep
   negative_msa_regime: matched        # matched = WT partner masked like its designed counterpart | native = full WT MSA
-  wt_ceiling_control: true            # fold WT/WT under the same masks -> best achievable iPTM in this regime
+  wt_ceiling_control: global          # WT/WT ceiling of the regime: global (once, from module 3) | per_design | off
+  reuse_module3_rupture: true         # A'.B_WT does not depend on B': reuse module 3's value (same regime)
   strict_msa: true                    # raise if MSA width != sequence length
   diffusion_batch_size: 5             # RF3 samples per prediction; best-ranked one is reported, iPTM mean/std logged
   # n_recycles: 10
   # num_steps: 200                    # RF3 docs: 50 steps show no deterioration (~4x faster)
   # wsl_distro: Ubuntu
   # use_wsl: true                     # default: true on Windows, false elsewhere
+energy:                                # PyRosetta: packs the side chains of designs and scores interface energies
+  enabled: true
+  python: /home/ommearo/miniforge3/envs/orthoppinterface/bin/python
+  n_procs: 16
+  pack_designs: true                   # rebuild the side chains LigandMPNN does not write (modules 2 and 4)
+  relax_repeats: 1                     # FastRelax repeats (constrained to the start coordinates) before scoring
+  seed: 1
+  weight_iptm: 0.5                     # F_ortho = w * F_iptm(rel) + (1 - w) * F_energy
+  min_binding_fraction: 0.5            # PROVISIONAL: dG(A'.B') / dG(native) must be at least this
+  f_energy_min: 0.0                    # PROVISIONAL: A'.B' must bind better than both wild-type cross pairs
 structural_constraints:
   interface_distance_threshold_angstroms: 6.0
   neighborhood_radius_angstroms: 6.0   # LigandMPNN may change interface residues + those within this radius (6 A: 87/224 on the reference A chain; 10 A: 113)
@@ -64,6 +75,6 @@ thresholds:
   orthogonality:
     f_ortho_min: 0.30
   early_exit:
-    rescue_iptm_floor: 0.0            # e.g. 0.3: skip negative/rupture/ceiling folds when rescue iPTM is below it
+    rescue_iptm_floor: 0.30           # rescue iPTM below this: no cross/rupture fold, no energy (0 = evaluate everything, e.g. to calibrate)
   fail_fast:
     max_passing_candidates: 12

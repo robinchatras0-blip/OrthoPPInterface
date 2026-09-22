@@ -1,4 +1,5 @@
 import argparse
+import glob
 import json
 import os
 import shutil
@@ -9,6 +10,7 @@ from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import collect_pdbs, load_config, save_structure, std_residues, strip_nan_lines
+from energy_engine import enabled as energy_enabled, pack_structures
 
 
 def main():
@@ -22,6 +24,29 @@ def main():
     pcfg, lcfg = config['pipeline'], config.get('ligandmpnn', {})
     chain_A_id = pcfg.get('chain_A', 'A')
     os.makedirs(args.out_dir, exist_ok=True)
+
+    # Crash recovery: if a previous run of this exact command already produced every candidate (RFD3 + LigandMPNN +
+    # packing all done), skip straight to Module 3 instead of redoing ~15-20 min of GPU work. Only a fast-path for a
+    # FULLY complete previous attempt: any partial/incomplete state below falls through to a full regeneration, as before.
+    expected_n = int(pcfg.get('foundry_n_batches', 1)) * int(pcfg.get('foundry_diffusion_batch_size', 1))
+    existing_cands = sorted(glob.glob(os.path.join(args.out_dir, "A_prime_candidate_*.pdb")))
+    pack_designs = energy_enabled(config) and config['energy'].get('pack_designs', True)
+    resumed = False
+    if len(existing_cands) == expected_n:
+        if pack_designs:
+            try:
+                pack_status = json.load(open(os.path.join(args.out_dir, "pack_status.json")))
+            except (FileNotFoundError, json.JSONDecodeError):
+                pack_status = {}
+            names = [os.path.basename(c)[:-4] for c in existing_cands]
+            resumed = all(pack_status.get(n, {}).get("ok") for n in names)
+        else:
+            resumed = True
+    if resumed:
+        print(f"Module 2: found {len(existing_cands)} complete A' candidate(s) from a previous run of this exact "
+              f"config - skipping RFD3/LigandMPNN/packing.")
+        print(f"Module 2 Complete: {len(existing_cands)} A' rupture designs generated (resumed).")
+        return
 
     # 1. RFD3 (Foundry): sample backbones with the interface segments of A regenerated de novo
     rfd_output_dir = os.path.join(args.out_dir, 'A_prime_rfd_out').replace('\\', '/')
@@ -90,6 +115,16 @@ def main():
         final_pdb = os.path.join(args.out_dir, f"A_prime_candidate_{idx:02d}.pdb")
         shutil.copy(outputs[0], final_pdb)
         strip_nan_lines(final_pdb)
+
+    # LigandMPNN writes no side chain for the residues it redesigns: rebuild them (PyRosetta) so that every
+    # downstream geometric measure and every visualisation sees complete residues.
+    if energy_enabled(config) and config['energy'].get('pack_designs', True):
+        cands = sorted(glob.glob(os.path.join(args.out_dir, "A_prime_candidate_*.pdb")))
+        print(f"Module 2: packing the side chains of {len(cands)} A' designs (PyRosetta)...")
+        pack_structures([{"name": os.path.basename(c)[:-4], "pdb": c, "out": c} for c in cands], config,
+                        os.path.join(args.out_dir, "pack_status.json"))
+    else:
+        print("Module 2: WARNING - side-chain packing disabled (energy.enabled): redesigned residues have no side chain.")
 
     print(f"Module 2 Complete: {len(rfd_pdbs)} A' rupture designs generated.")
 
