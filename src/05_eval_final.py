@@ -8,7 +8,7 @@ import glob
 
 # Import shared folding engine utilities
 sys.path.append(os.path.dirname(__file__))
-from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
+from folding_engine import get_chain_sequence, prepare_msa, predict_structures, calculate_ca_rmsd
 from energy_engine import enabled as energy_enabled, score_interfaces
 from scoring import combined_f_ortho, coherence_report, energy_fields, f_iptm_rel, iptm_margin, ok
 from dockq import calculate_dockq
@@ -107,8 +107,12 @@ def main():
     if not os.path.exists(filter_dir):
         filter_dir = "results/03_fail_fast"
 
-    # WT/WT ceiling of the MSA regime: one value for the whole run (per-design values only differ by noise, 0.52-0.56)
-    global_ceiling = NAN
+    # WT/WT ceiling of the MSA regime. With masks that do not depend on the design ('interface') one value serves the
+    # whole run (per-design values only differ by noise, 0.52-0.56); other scopes mask design-specific columns.
+    if ceiling_mode == 'global' and scope != 'interface':
+        print(f"NOTE: a global WT ceiling needs design-independent masks (msa_mask_scope 'interface'); with '{scope}' each design gets its own.")
+        ceiling_mode = 'per_design'
+    global_ceiling, ceiling_request = NAN, None
     if ceiling_mode == 'global':
         wtc_path = os.path.join(filter_dir, "wt_control.json")
         if os.path.exists(wtc_path):
@@ -122,101 +126,110 @@ def main():
             msa_A_g, msa_B_g = os.path.join(cdir, "A.a3m"), os.path.join(cdir, "B.a3m")
             prepare_msa(wt_a3m_A, seq_A_wt, msa_A_g, config, interface_columns=iface_A)
             prepare_msa(wt_a3m_B, seq_B_wt, msa_B_g, config, interface_columns=iface_B)
-            global_ceiling = predict_structure([('A_wt', seq_A_wt, msa_A_g), ('B_wt', seq_B_wt, msa_B_g)], cdir, config).get("iptm", NAN)
-            print(f"WT ceiling of the '{scope}' regime computed once: {global_ceiling:.3f}")
+            ceiling_request = ([('A_wt', seq_A_wt, msa_A_g), ('B_wt', seq_B_wt, msa_B_g)], cdir)
 
-    results_data = []
+    # ---- Stage 0: per-design preparation (CPU only)
+    ctxs = []
     for b_prime_pdb in b_prime_pdbs:
         design_id = os.path.splitext(os.path.basename(b_prime_pdb))[0]
         meta = meta_pairs.get(design_id, {})
         parent_a = meta.get("parent_a", "") or (design_id.split("_B_")[0] if "_B_" in design_id else "")
-        print(f"\nModule 5: Evaluating {design_id} (parent A' motif: {parent_a or 'primary'})...")
+        seq_A_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_A_id)
+        seq_B_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_B_id)
+        if not seq_A_prime or not seq_B_prime:
+            print(f"Skipping {design_id}: missing chain sequence(s) in design PDB.")
+            continue
+        if len(seq_A_prime) != len(seq_A_wt) or len(seq_B_prime) != len(seq_B_wt):
+            print(f"  WARNING: {design_id} length differs from WT (A {len(seq_A_prime)}/{len(seq_A_wt)}, "
+                  f"B {len(seq_B_prime)}/{len(seq_B_wt)}); MSA regime may fall back to single-sequence.")
         m3 = {}                                                   # Module 3 metrics of the parent A' (never invented)
         pm = os.path.join(filter_dir, f"metrics_{parent_a}.json") if parent_a else None
         if pm and os.path.exists(pm):
             m3 = json.load(open(pm))
-
-        seq_A_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_A_id)
-        seq_B_prime = get_chain_sequence(b_prime_pdb, chain_id=chain_B_id)
-        if not seq_A_prime or not seq_B_prime:
-            print(f"  Skipping {design_id}: missing chain sequence(s) in design PDB.")
-            continue
-        if len(seq_A_prime) != len(seq_A_wt) or len(seq_B_prime) != len(seq_B_wt):
-            print(f"  WARNING: length differs from WT (A {len(seq_A_prime)}/{len(seq_A_wt)}, "
-                  f"B {len(seq_B_prime)}/{len(seq_B_wt)}); MSA regime may fall back to single-sequence.")
+        out = {k: os.path.join(args.out_dir, sub, design_id) for k, sub in
+               (("pos", "complex_rescue"), ("neg", "complex_negative"), ("ctl", "complex_wt_ceiling"))}
+        out["rup"] = os.path.join(args.out_dir, "complex_rupture", design_id if neg_regime == 'matched' else (parent_a or design_id))
+        for d in out.values():
+            os.makedirs(d, exist_ok=True)
+        # MSAs: each designed chain is masked where IT differs from WT (+ the interface in the default regime)
+        msa_A = os.path.join(out["pos"], f"{design_id}_A.a3m")
+        msa_B = os.path.join(out["pos"], f"{design_id}_B.a3m")
+        st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A, config, modified_indices=cols_A, interface_columns=iface_A)
+        st_b = prepare_msa(wt_a3m_B, seq_B_prime, msa_B, config, modified_indices=cols_B, interface_columns=iface_B)
         n_mut_A = len(diff_positions(seq_A_wt, seq_A_prime)) if len(seq_A_wt) == len(seq_A_prime) else -1
         n_mut_B = len(diff_positions(seq_B_wt, seq_B_prime)) if len(seq_B_wt) == len(seq_B_prime) else -1
+        print(f"  {design_id}: mutations vs WT A'={n_mut_A}, B'={n_mut_B} | masked cols A={st_a['n_masked']}, B={st_b['n_masked']}")
+        ctxs.append({"design_id": design_id, "pdb": b_prime_pdb, "meta": meta, "parent_a": parent_a, "m3": m3, "out": out,
+                     "seq_A": seq_A_prime, "seq_B": seq_B_prime, "msa_A": msa_A, "msa_B": msa_B,
+                     "n_mut_A": n_mut_A, "n_mut_B": n_mut_B, "iptm_negative": NAN, "iptm_rupture": NAN, "iptm_ceiling": NAN})
 
-        pos_out = os.path.join(args.out_dir, "complex_rescue", design_id)
-        neg_out = os.path.join(args.out_dir, "complex_negative", design_id)
-        rup_out = os.path.join(args.out_dir, "complex_rupture", design_id if neg_regime == 'matched' else (parent_a or design_id))
-        ctl_out = os.path.join(args.out_dir, "complex_wt_ceiling", design_id)
-        for d in (pos_out, neg_out, rup_out, ctl_out):
-            os.makedirs(d, exist_ok=True)
+    # ---- Stage 1: rescue folds (and the global ceiling if needed) in ONE RF3 process
+    print(f"\nModule 5: rescue folds for {len(ctxs)} designs...")
+    reqs = [([('A_prime', c["seq_A"], c["msa_A"]), ('B_prime', c["seq_B"], c["msa_B"])], c["out"]["pos"]) for c in ctxs]
+    res = predict_structures(reqs + ([ceiling_request] if ceiling_request else []), config)
+    if ceiling_request:
+        global_ceiling = res[-1].get("iptm", NAN)
+        print(f"WT ceiling of the '{scope}' regime computed once: {global_ceiling:.3f}")
+    for c, m in zip(ctxs, res):
+        c["m_pos"], c["iptm_rescue"] = m, m.get("iptm", NAN)
+        c["status"] = "early_exit_low_rescue" if c["iptm_rescue"] < early_exit else "ok"
+        print(f"  {c['design_id']}: rescue iPTM {c['iptm_rescue']:.3f} (min {iptm_rescue_min})"
+              + ("  -> early exit: no cross/rupture fold, no energy" if c["status"] != "ok" else ""))
 
-        # MSAs: each designed chain is masked where IT differs from WT
-        msa_A_prime = os.path.join(pos_out, f"{design_id}_A.a3m")
-        msa_B_prime = os.path.join(pos_out, f"{design_id}_B.a3m")
-        st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A_prime, config, modified_indices=cols_A, interface_columns=iface_A)
-        st_b = prepare_msa(wt_a3m_B, seq_B_prime, msa_B_prime, config, modified_indices=cols_B, interface_columns=iface_B)
-        print(f"  Mutations vs WT: A'={n_mut_A}, B'={n_mut_B} | masked cols: A={st_a['n_masked']}, B={st_b['n_masked']}")
-
-        # 2. Positive design: A' + B'
-        m_pos = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_prime', seq_B_prime, msa_B_prime)], pos_out, config)
-        iptm_rescue = m_pos.get("iptm", NAN)
-        print(f"  Positive (A'+B') iPTM: {iptm_rescue:.3f}  (min {iptm_rescue_min})")
-
-        iptm_negative = iptm_rupture = iptm_ceiling = NAN
-        status = "ok"
-        if iptm_rescue < early_exit:
-            status = "early_exit_low_rescue"
-            print(f"  Early exit: rescue iPTM < {early_exit} -> cross/rupture folds and energy skipped.")
+    # ---- Stage 2: cross-rupture (+ rupture / per-design ceiling when they cannot be reused) for the survivors, ONE process
+    reqs, slots = [], []
+    for c in ctxs:
+        if c["status"] != "ok":
+            continue
+        if neg_regime == 'matched':                          # A_WT masked like the designed A' -> same information regime
+            msa_A_wt = os.path.join(c["out"]["neg"], f"{c['design_id']}_Awt_matched.a3m")
+            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
         else:
-            # 3. Negative design A_WT + B' (same information regime as the positive test when 'matched')
+            msa_A_wt = wt_a3m_A
+        reqs.append(([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', c["seq_B"], c["msa_B"])], c["out"]["neg"]))
+        slots.append((c, "iptm_negative"))
+        # A'.B_WT does not depend on B': Module 3's measurement is reused when it used the same regime
+        if reuse_rupture and c["m3"].get("msa_scope") == scope and ok(c["m3"].get("iptm_rupture")):
+            c["iptm_rupture"] = float(c["m3"]["iptm_rupture"])
+            print(f"  {c['design_id']}: rupture iPTM reused from Module 3: {c['iptm_rupture']:.3f}")
+        else:
             if neg_regime == 'matched':
-                msa_A_wt = os.path.join(neg_out, f"{design_id}_Awt_matched.a3m")
-                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
+                msa_B_wt = os.path.join(c["out"]["rup"], f"{c['design_id']}_Bwt_matched.a3m")
+                prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=c["seq_B"], interface_columns=iface_B)
             else:
-                msa_A_wt = wt_a3m_A
-            m_neg = predict_structure([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', seq_B_prime, msa_B_prime)], neg_out, config)
-            iptm_negative = m_neg.get("iptm", NAN)
+                msa_B_wt = wt_a3m_B
+            reqs.append(([('A_prime', c["seq_A"], c["msa_A"]), ('B_wt', seq_B_wt, msa_B_wt)], c["out"]["rup"]))
+            slots.append((c, "iptm_rupture"))
+        if ceiling_mode == 'per_design':
+            msa_A_c = os.path.join(c["out"]["ctl"], f"{c['design_id']}_Awt_ceiling.a3m")
+            msa_B_c = os.path.join(c["out"]["ctl"], f"{c['design_id']}_Bwt_ceiling.a3m")
+            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
+            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=c["seq_B"], interface_columns=iface_B)
+            reqs.append(([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], c["out"]["ctl"]))
+            slots.append((c, "iptm_ceiling"))
+    if reqs:
+        print(f"\nModule 5: {len(reqs)} cross / rupture / ceiling folds for the {sum(c['status'] == 'ok' for c in ctxs)} surviving designs...")
+        for (c, key), m in zip(slots, predict_structures(reqs, config)):
+            c[key] = m.get("iptm", NAN)
+    if ceiling_mode == 'global':
+        for c in ctxs:
+            c["iptm_ceiling"] = global_ceiling
 
-            # 4. Rupture A' + B_WT: independent of B', so Module 3's measurement is reused when it used the same regime
-            if reuse_rupture and m3.get("msa_scope") == scope and ok(m3.get("iptm_rupture")):
-                iptm_rupture = float(m3["iptm_rupture"])
-                print(f"  Rupture iPTM reused from Module 3: {iptm_rupture:.3f}")
-            else:
-                if neg_regime == 'matched':
-                    msa_B_wt = os.path.join(rup_out, f"{design_id}_Bwt_matched.a3m")
-                    prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
-                else:
-                    msa_B_wt = wt_a3m_B
-                m_rup = predict_structure([('A_prime', seq_A_prime, msa_A_prime), ('B_wt', seq_B_wt, msa_B_wt)], rup_out, config)
-                iptm_rupture = m_rup.get("iptm", NAN)
-
-        # 5. Ceiling: WT/WT in the same regime = best achievable iPTM (one global value, or per design)
-        if ceiling_mode == 'global':
-            iptm_ceiling = global_ceiling
-        elif ceiling_mode == 'per_design' and status == "ok":
-            msa_A_c = os.path.join(ctl_out, f"{design_id}_Awt_ceiling.a3m")
-            msa_B_c = os.path.join(ctl_out, f"{design_id}_Bwt_ceiling.a3m")
-            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=seq_A_prime, interface_columns=iface_A)
-            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=seq_B_prime, interface_columns=iface_B)
-            m_ctl = predict_structure([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], ctl_out, config)
-            iptm_ceiling = m_ctl.get("iptm", NAN)
-
-        # 6. Module 3 monomer metrics for the parent A' (NaN when unavailable - never invented)
+    # ---- Stage 3: geometry, energy inputs and scores of every design
+    results_data = []
+    for c in ctxs:
+        design_id, b_prime_pdb, meta, m_pos, m3, status = c["design_id"], c["pdb"], c["meta"], c["m_pos"], c["m3"], c["status"]
+        iptm_rescue, iptm_negative, iptm_rupture, iptm_ceiling = c["iptm_rescue"], c["iptm_negative"], c["iptm_rupture"], c["iptm_ceiling"]
+        pos_out = c["out"]["pos"]
         plddt_a_prime, rmsd_a_prime_m3 = m3.get("plddt_monomer", NAN), m3.get("rmsd_monomer", NAN)
 
-        # 7. Geometry
         rmsd_a_prime = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_A_id, chain_pred=chain_A_id)
         rmsd_b_prime = calculate_ca_rmsd(wt_pdb, b_prime_pdb, chain_ref=chain_B_id, chain_pred=chain_B_id)
         sc_lrms, pred_contacts = self_consistency(b_prime_pdb, m_pos.get("model_pdb"), chain_A_id, chain_B_id)
-
         dockq_res = calculate_dockq(wt_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
         dockq_des = calculate_dockq(b_prime_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
 
-        # 8. Complexes for the interface energy (same frame: A' was fitted onto the WT frame in Module 4)
+        # Complexes for the interface energy (same frame: A' was fitted onto the WT frame in Module 4)
         if energy_on and status == "ok":
             edir = os.path.join(args.out_dir, "energy", design_id)
             os.makedirs(edir, exist_ok=True)
@@ -237,13 +250,13 @@ def main():
         pass_rupture = bool(iptm_rupture <= iptm_rupture_max) if iptm_rupture == iptm_rupture else False
         pass_negative = bool(iptm_negative <= iptm_negative_max) if iptm_negative == iptm_negative else False
 
-        print(f"  --> RF3: rescue {iptm_rescue:.3f} | rupture {iptm_rupture:.3f} | negative {iptm_negative:.3f} | "
+        print(f"  {design_id}: RF3 rescue {iptm_rescue:.3f} | rupture {iptm_rupture:.3f} | negative {iptm_negative:.3f} | "
               f"ceiling {iptm_ceiling:.3f} | F_iptm(rel) {f_rel:.3f}")
-        print(f"  --> B' RMSD vs WT {rmsd_b_prime:.2f} A | self-consistency L-RMSD {sc_lrms:.2f} A | "
+        print(f"      B' RMSD vs WT {rmsd_b_prime:.2f} A | self-consistency L-RMSD {sc_lrms:.2f} A | "
               f"DockQ(WT) {dockq_res['dockq']:.3f} ({dockq_res['quality']}) DockQ(design) {dockq_des['dockq']:.3f}")
 
         results_data.append({
-            "design_id": design_id, "parent_a_motif": parent_a or "primary", "folding_engine": folding_engine,
+            "design_id": design_id, "parent_a_motif": c["parent_a"] or "primary", "folding_engine": folding_engine,
             "status": status,
             "iptm_rescue": iptm_rescue, "iptm_rupture": iptm_rupture, "iptm_negative": iptm_negative,
             "iptm_ceiling": iptm_ceiling, "iptm_rescue_rel": rel, "f_ortho_iptm": f_raw, "f_iptm_rel": f_rel,
@@ -256,7 +269,7 @@ def main():
             "selfcons_lrms": sc_lrms, "pred_interface_contacts": pred_contacts,
             "plddt_rescue": m_pos.get("plddt", NAN), "plddt_a_prime": plddt_a_prime,
             "rmsd_a_prime": rmsd_a_prime, "rmsd_b_prime": rmsd_b_prime, "rmsd_a_prime_monomer": rmsd_a_prime_m3,
-            "n_mut_A": n_mut_A, "n_mut_B": n_mut_B,
+            "n_mut_A": c["n_mut_A"], "n_mut_B": c["n_mut_B"],
             "scaffold_idx": meta.get("scaffold_idx", NAN), "scaffold_flex_rmsd": meta.get("scaffold_flex_rmsd", NAN),
             "proxy_contacts_a_wt": meta.get("contacts_a_wt", NAN), "proxy_clashes_a_wt": meta.get("clashes_a_wt", NAN),
             "ranking_score": m_pos.get("ranking_score", NAN),

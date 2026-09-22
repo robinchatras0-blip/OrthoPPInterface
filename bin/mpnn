@@ -1,0 +1,4 @@
+#!/bin/bash
+# Thin wrapper: runs LigandMPNN (Foundry) from the consolidated 'orthoppinterface' environment.
+source "$HOME/miniforge3/bin/activate" orthoppinterface
+exec mpnn "$@"

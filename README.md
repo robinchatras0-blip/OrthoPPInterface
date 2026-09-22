@@ -150,8 +150,14 @@ conda activate orthoppinterface
 > **Windows note:** always *activate* the environment. Calling its `python.exe` directly (without the conda DLL paths on `PATH`) crashes NumPy linear algebra (`0xc06d007f`).
 
 ### 2. Engines
-- **RF3 (Foundry)** and its checkpoint in the WSL/Linux environment; set `folding.rf3_bin` and `folding.rf3_ckpt`.
-- **RFD3 / LigandMPNN**: bundled in `OrthoIntRob` (`bash OrthoIntRob/setup_all.sh` in WSL2). The local wrappers use paths relative to the project root, so launch the pipeline from there.
+- **RF3, RFD3, LigandMPNN and PyRosetta all live in one WSL/Linux conda environment** (`orthoppinterface`): Python 3.12, PyTorch (cu128), `rc-foundry[all]` (provides `rf3`, `rfd3`, `mpnn`) and `pyrosetta` (from the Rosetta Commons channel), e.g.:
+  ```bash
+  mamba create -n orthoppinterface -c https://conda.rosettacommons.org -c conda-forge python=3.12 pyrosetta pip
+  conda activate orthoppinterface
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+  pip install "rc-foundry[all]"
+  ```
+  Checkpoints (RF3, RFD3, LigandMPNN) resolve from `~/.foundry/checkpoints` by default. `bin/rfd3` and `bin/mpnn` are thin wrappers that activate this environment before running the tool; `folding.rf3_bin` and `energy.python` point into it directly.
 
 ---
 

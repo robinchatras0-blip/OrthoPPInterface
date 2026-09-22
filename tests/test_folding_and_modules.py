@@ -242,3 +242,56 @@ def test_interface_columns_fall_back_for_mappings_without_the_new_keys(helix_pai
     assert cols_a == [0, 1, 2] and cols_b == [16, 17, 18, 19]                 # B interface = residues left mutable
     new_mapping = {"residues_A": [], "interface_ids_A": [5], "interface_ids_B": [2, 3]}
     assert interface_columns(path, "A", "B", new_mapping) == ([4], [1, 2])
+
+
+# --------------------------------------------------------------------------- one RF3 process for many predictions
+def _fake_batch_run(calls):
+    class R:
+        returncode, stdout, stderr = 0, "", ""
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        manifest = [c.split("=", 1)[1] for c in cmd if c.startswith("inputs=")][0]
+        out = [c.split("=", 1)[1] for c in cmd if c.startswith("out_dir=")][0]
+        for entry in json.load(open(manifest)):
+            d = os.path.join(out, entry["name"])
+            os.makedirs(os.path.join(d, "seed-0_sample-0"), exist_ok=True)
+            iptm = 0.1 * len(calls) + 0.01 * len(entry["components"][0]["seq"])
+            for path in (os.path.join(d, f"{entry['name']}_summary_confidences.json"),
+                         os.path.join(d, "seed-0_sample-0", f"{entry['name']}_seed-0_sample-0_summary_confidences.json")):
+                json.dump({"iptm": iptm, "ptm": 0.8, "ranking_score": iptm, "overall_plddt": 80}, open(path, "w"))
+        return R()
+    return run
+
+
+def test_many_predictions_share_one_rf3_process_and_keep_their_own_cache(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(fe.subprocess, "run", _fake_batch_run(calls))
+    cfg = {"folding": {"use_wsl": False, "use_msa": True}}
+    msa = write_a3m(tmp_path / "m.a3m", [WT])
+    # two folds of the same design share a tag (rescue / negative): they must not collide inside the batch
+    reqs = [([("A", WT, msa)], str(tmp_path / "rescue" / "d1")), ([("A", WT + "AA", msa)], str(tmp_path / "negative" / "d1")),
+            ([("A", WT + "AAAA", msa)], str(tmp_path / "rescue" / "d2"))]
+    res = fe.predict_structures(reqs, cfg)
+    assert len(calls) == 1                                             # ONE process for three predictions
+    assert [r["iptm"] for r in res] == pytest.approx([0.1 + 0.10, 0.1 + 0.12, 0.1 + 0.14])   # results come back in request order
+    for _, out in reqs:
+        assert os.path.exists(os.path.join(out, os.path.basename(out) + ".signature"))
+    assert not [d for d in os.listdir(tmp_path) if d.startswith("_rf3_batch")]        # scratch directory cleaned up
+    # second call: everything cached -> no process at all
+    fe.predict_structures(reqs, cfg)
+    assert len(calls) == 1
+    # a new request next to cached ones: only the missing one runs (single prediction -> plain layout)
+    fe.predict_structures(reqs + [([("A", WT + "AAAAAA", msa)], str(tmp_path / "rescue" / "d3"))], cfg)
+    assert len(calls) == 2 and len(json.load(open([c.split("=", 1)[1] for c in calls[1] if c.startswith("inputs=")][0]))) == 1
+
+
+def test_a_batch_that_misses_an_output_fails_loudly(tmp_path, monkeypatch):
+    class R:
+        returncode, stdout, stderr = 0, "", ""
+
+    monkeypatch.setattr(fe.subprocess, "run", lambda cmd, **kw: R())          # RF3 "succeeds" but writes nothing
+    cfg = {"folding": {"use_wsl": False, "use_msa": True}}
+    msa = write_a3m(tmp_path / "m.a3m", [WT])
+    with pytest.raises(RuntimeError, match="wrote no output"):
+        fe.predict_structures([([("A", WT, msa)], str(tmp_path / "a" / "x")), ([("A", WT, msa)], str(tmp_path / "b" / "x"))], cfg)

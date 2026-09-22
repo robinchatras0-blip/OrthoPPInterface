@@ -129,6 +129,11 @@ def fake_predict(fasta_sequences, out_dir, config):
             "iptm_std": 0.0, "n_samples": 1, "has_clash": False, "chain_pair_pae_min": None, "model_pdb": None}
 
 
+def many(single):
+    """Adapts a single-prediction fake to the batched API predict_structures(requests, config)."""
+    return lambda requests, config: [single(fasta, out_dir, config) for fasta, out_dir in requests]
+
+
 def run_main(module, argv, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["x"] + argv)
     module.main()
@@ -155,7 +160,7 @@ def test_modules_4_and_5_end_to_end(workspace, monkeypatch):
     assert all(len(s) >= 2 for s in per_motif.values()), per_motif
 
     m5 = load_module("05_eval_final.py")
-    monkeypatch.setattr(m5, "predict_structure", fake_predict)
+    monkeypatch.setattr(m5, "predict_structures", many(fake_predict))
     out5 = str(ws["root"] / "run" / "05_final_eval")
     run_main(m5, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--design_dir", out4,
                   "--filter_dir", ws["d3"], "--out_dir", out5], monkeypatch)
@@ -178,7 +183,7 @@ def test_module5_never_invents_missing_metrics(workspace, monkeypatch):
     write_pdb(d4 / "A_prime_candidate_00_B_cand_00.pdb",
               [make_chain("A", NAMES_A), make_chain("B", NAMES_B, origin=(9, 0, 0))])
     m5 = load_module("05_eval_final.py")
-    monkeypatch.setattr(m5, "predict_structure", fake_predict)
+    monkeypatch.setattr(m5, "predict_structures", many(fake_predict))
     out5 = str(ws["root"] / "run" / "05_final_eval")
     run_main(m5, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--design_dir", str(d4),
                   "--filter_dir", ws["d3"], "--out_dir", out5], monkeypatch)
@@ -189,7 +194,7 @@ def test_module5_never_invents_missing_metrics(workspace, monkeypatch):
 def test_module3_filters_and_writes_metrics(workspace, monkeypatch):
     ws = workspace
     m3 = load_module("03_filter_A_prime.py")
-    monkeypatch.setattr(m3, "predict_structure", fake_predict)
+    monkeypatch.setattr(m3, "predict_structures", many(fake_predict))
     out3 = str(ws["root"] / "run" / "03_out")
     run_main(m3, ["--config", ws["cfg"], "--design_dir", str(ws["root"] / "run" / "02_rupture_design"),
                   "--analysis_dir", ws["ana"], "--out_dir", out3], monkeypatch)
@@ -205,7 +210,7 @@ def test_module3_filters_and_writes_metrics(workspace, monkeypatch):
 def test_calibration_script_runs(workspace, monkeypatch):
     ws = workspace
     cal = load_module("calibrate_predictor.py")
-    monkeypatch.setattr(cal, "predict_structure", fake_predict)
+    monkeypatch.setattr(cal, "predict_structures", many(fake_predict))
     out = str(ws["root"] / "cal")
     run_main(cal, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--out_dir", out,
                    "--n_controls", "2", "--n_pos_mut", "3", "--n_neg_mut", "5"], monkeypatch)
@@ -372,7 +377,7 @@ def test_module5_adds_energy_columns_and_the_combined_score(workspace, monkeypat
     d4.mkdir()
     write_pdb(d4 / "A_prime_candidate_00_B_cand_00.pdb", [make_chain("A", NAMES_A), make_chain("B", NAMES_B, origin=(9, 0, 0))])
     m5 = load_module("05_eval_final.py")
-    monkeypatch.setattr(m5, "predict_structure", fake_predict)
+    monkeypatch.setattr(m5, "predict_structures", many(fake_predict))
     seen = []
 
     def fake_energy(jobs, out_json, config):
@@ -404,7 +409,7 @@ def test_module5_energy_can_veto_a_design_that_rf3_likes(workspace, monkeypatch)
     d4.mkdir()
     write_pdb(d4 / "A_prime_candidate_00_B_cand_00.pdb", [make_chain("A", NAMES_A), make_chain("B", NAMES_B, origin=(9, 0, 0))])
     m5 = load_module("05_eval_final.py")
-    monkeypatch.setattr(m5, "predict_structure", fake_predict)
+    monkeypatch.setattr(m5, "predict_structures", many(fake_predict))
     dg = {"native": -60.0, "Ap.Bp": -45.0, "AWT.Bp": -55.0, "Ap.BWT": -36.0}     # B' binds A_WT better than A'
     monkeypatch.setattr(m5, "score_interfaces", lambda jobs, out_json, config: {
         j["name"]: {"dG": dg["native" if j["name"] == "native" else j["name"].split("__")[1]]} for j in jobs})
@@ -438,7 +443,7 @@ def run_module5_on_two_designs(workspace, monkeypatch, name, calls):
     for i in range(2):
         write_pdb(d4 / f"A_prime_candidate_00_B_cand_{i:02d}.pdb", [make_chain("A", NAMES_A), make_chain("B", NAMES_B, origin=(9, 0, 0))])
     m5 = load_module("05_eval_final.py")
-    monkeypatch.setattr(m5, "predict_structure", recording_predict(calls))
+    monkeypatch.setattr(m5, "predict_structures", many(recording_predict(calls)))
     out5 = str(ws["root"] / "run" / (name + "_out"))
     run_main(m5, ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--design_dir", str(d4),
                   "--filter_dir", ws["d3"], "--out_dir", out5], monkeypatch)
@@ -495,3 +500,11 @@ def test_module5_early_exit_spends_neither_folds_nor_energy_on_hopeless_designs(
     assert ("A_wt", "B_prime") not in calls and ("A_prime", "B_wt") not in calls        # no cross / rupture fold
     assert energy_calls == []                                                          # nothing to score, no call at all
     assert (df["status"] == "early_exit_low_rescue").all() and not df["passes"].any()
+
+
+def test_module5_falls_back_to_per_design_ceilings_when_masks_depend_on_the_design(workspace, monkeypatch):
+    set_cfg(workspace, folding={"wt_ceiling_control": "global", "msa_mask_scope": "diff"})
+    calls = []
+    _, df = run_module5_on_two_designs(workspace, monkeypatch, "diffscope", calls)
+    assert calls.count(("A_wt", "B_wt")) == 2                      # one per design: 'diff' masks differ between designs
+    assert (df["iptm_ceiling"] == 0.85).all()

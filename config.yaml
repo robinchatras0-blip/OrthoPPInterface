@@ -14,13 +14,13 @@ pipeline:
   scaffold_max_clashes: 5             # RFD3 backbone vs A' heavy-atom clashes tolerated
   scaffold_max_framework_rmsd: 1.5    # RFD3 must not distort the fixed framework of B (A)
   scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
-  local_rfdiffusion: bash OrthoIntRob/bin/rfd3
-  local_ligandmpnn: bash OrthoIntRob/bin/mpnn
+  local_rfdiffusion: bash bin/rfd3
+  local_ligandmpnn: bash bin/mpnn
 diversity_selection:
   enabled: true
   max_a_prime_motifs: 8
 ligandmpnn:
-  checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
+  checkpoint_path: /home/ommearo/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt
   model_type: ligand_mpnn
   is_legacy_weights: 'True'
   temperature_rupture: 0.2
@@ -31,7 +31,7 @@ ligandmpnn:
   top_k_per_motif: 6                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
 folding:
-  rf3_bin: /home/ommearo/miniforge3/envs/foundry_env/bin/rf3
+  rf3_bin: /home/ommearo/miniforge3/envs/orthoppinterface/bin/rf3
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
   # --- MSA regime (see src/calibrate_predictor.py to choose empirically) ---

@@ -19,7 +19,7 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import interface_columns, load_config  # noqa: E402
-from folding_engine import get_chain_sequence, prepare_msa, predict_structure  # noqa: E402
+from folding_engine import get_chain_sequence, prepare_msa, predict_structures  # noqa: E402
 
 CONSERVATIVE = {'I': 'V', 'V': 'I', 'L': 'I', 'M': 'L', 'K': 'R', 'R': 'K', 'D': 'E', 'E': 'D',
                 'S': 'T', 'T': 'S', 'N': 'Q', 'Q': 'N', 'F': 'Y', 'Y': 'F', 'A': 'S', 'H': 'N', 'W': 'F', 'C': 'S', 'G': 'A', 'P': 'A'}
@@ -65,21 +65,24 @@ def main():
     fixed_b = json.load(open(os.path.join(args.analysis_dir, 'mpnn_fixed_positions_B.json'))).get(chB, [])
     iface_A, iface_B = interface_columns(wt_pdb, chA, chB, mapping, fixed_b)
     regimes = [("gap", "interface"), ("substitute", "interface"), ("gap", "diff"), ("substitute", "diff"), ("keep", "diff"), ("gap", "mutable")]
-    rows = []
+    jobs, requests = [], []
     for mode, scope in regimes:
         cfg = copy.deepcopy(config)
         cfg['folding'].update(msa_mask_mode=mode, msa_mask_scope=scope)
         for name, label, seq in controls:
             d = os.path.join(args.out_dir, f"{mode}_{scope}", name)
             os.makedirs(d, exist_ok=True)
-            msa_a = os.path.join(d, "A.a3m")
+            msa_a, msa_b = os.path.join(d, "A.a3m"), os.path.join(d, "B.a3m")
             prepare_msa(a3m_A, seq, msa_a, cfg, modified_indices=sorted(neigh), interface_columns=iface_A)
-            msa_b = os.path.join(d, "B.a3m")
             prepare_msa(a3m_B, seq_B, msa_b, cfg, interface_columns=iface_B)
-            m = predict_structure([('A_var', seq, msa_a), ('B_wt', seq_B, msa_b)], d, cfg)
-            rows.append({"mode": mode, "scope": scope, "control": name, "expected_binder": label,
-                         "iptm": m["iptm"], "ptm": m["ptm"], "plddt": m["plddt"]})
-            print(f"  {mode:10s}/{scope:7s} {name:6s} iPTM={m['iptm']:.3f}")
+            jobs.append((mode, scope, name, label))
+            requests.append(([('A_var', seq, msa_a), ('B_wt', seq_B, msa_b)], d))
+    print(f"{len(requests)} folds in one RF3 process...", flush=True)
+    rows = []
+    for (mode, scope, name, label), m in zip(jobs, predict_structures(requests, config)):
+        rows.append({"mode": mode, "scope": scope, "control": name, "expected_binder": label,
+                     "iptm": m["iptm"], "ptm": m["ptm"], "plddt": m["plddt"]})
+        print(f"  {mode:10s}/{scope:9s} {name:6s} iPTM={m['iptm']:.3f}")
 
     df = pd.DataFrame(rows)
     df.to_csv(os.path.join(args.out_dir, "calibration_raw.csv"), index=False)

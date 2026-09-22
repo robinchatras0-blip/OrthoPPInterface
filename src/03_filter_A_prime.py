@@ -6,7 +6,7 @@ import sys
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import interface_columns, load_chain, load_config, std_residues
-from folding_engine import get_chain_sequence, prepare_msa, predict_structure, calculate_ca_rmsd
+from folding_engine import get_chain_sequence, prepare_msa, predict_structures, calculate_ca_rmsd
 
 
 def main():
@@ -51,14 +51,14 @@ def main():
 
     # Sanity checks of the predictor: the native complex must be recognised with full MSAs, and we record the
     # ceiling of the configured MSA regime (WT/WT with the interface masked), the best any design can reach there.
-    m_ctrl = predict_structure([('A_wt', seq_A_wt, wt_a3m_A), ('B_wt', seq_B_wt, wt_a3m_B)],
-                               os.path.join(args.out_dir, "wt_control_full_msa"), config)
     reg_dir = os.path.join(args.out_dir, "wt_control_regime")
     os.makedirs(reg_dir, exist_ok=True)
     msa_A_reg, msa_B_reg = os.path.join(reg_dir, "A.a3m"), os.path.join(reg_dir, "B.a3m")
     prepare_msa(wt_a3m_A, seq_A_wt, msa_A_reg, config, interface_columns=cols_A)
     prepare_msa(wt_a3m_B, seq_B_wt, msa_B_reg, config, interface_columns=cols_B)
-    m_reg = predict_structure([('A_wt', seq_A_wt, msa_A_reg), ('B_wt', seq_B_wt, msa_B_reg)], reg_dir, config)
+    m_ctrl, m_reg = predict_structures([([('A_wt', seq_A_wt, wt_a3m_A), ('B_wt', seq_B_wt, wt_a3m_B)],
+                                          os.path.join(args.out_dir, "wt_control_full_msa")),
+                                         ([('A_wt', seq_A_wt, msa_A_reg), ('B_wt', seq_B_wt, msa_B_reg)], reg_dir)], config)
     with open(os.path.join(args.out_dir, "wt_control.json"), 'w') as f:
         json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "plddt": m_ctrl.get("plddt"),
                    "msa_scope": scope}, f, indent=2)
@@ -76,69 +76,72 @@ def main():
     print(f"Module 3: Found {len(design_pdbs)} candidate(s) to evaluate.")
     passed_candidates = []
 
-    for idx, design_pdb in enumerate(design_pdbs):
-        basename = os.path.basename(design_pdb)
-        cand_name = os.path.splitext(basename)[0]
-        print(f"\n[{idx + 1}/{len(design_pdbs)}] Module 3: Evaluating candidate {basename}...")
+    batch = int(config.get('folding', {}).get('batch_size', 16))    # candidates per RF3 process (early stop between chunks)
+    for start in range(0, len(design_pdbs), batch):
+        chunk = design_pdbs[start:start + batch]
+        # ---- monomer stability of A' (MSA masked like the design), one RF3 process for the chunk
+        cands = []
+        for design_pdb in chunk:
+            basename = os.path.basename(design_pdb)
+            cand_name = os.path.splitext(basename)[0]
+            seq_A_prime = get_chain_sequence(design_pdb, chain_A_id)
+            if not seq_A_prime:
+                print(f"  Skipping {basename}: no chain {chain_A_id} sequence.")
+                continue
+            monomer_out = os.path.join(args.out_dir, "monomer", cand_name)
+            os.makedirs(monomer_out, exist_ok=True)
+            monomer_a3m = os.path.join(monomer_out, f"{basename}.a3m")
+            msa_stats = prepare_msa(wt_a3m_A, seq_A_prime, monomer_a3m, config, modified_indices=modified_cols,
+                                    interface_columns=cols_A)
+            print(f"  {cand_name}: {msa_stats['n_masked']} columns re-designed ({msa_stats['frac_masked']:.0%}) "
+                  f"mode={msa_stats['mode']}, rows={msa_stats['n_rows']}")
+            cands.append({"pdb": design_pdb, "name": cand_name, "basename": basename, "seq": seq_A_prime,
+                          "monomer_out": monomer_out, "a3m": monomer_a3m, "msa_stats": msa_stats})
+        print(f"\nModule 3: monomer folds for candidates {start + 1}-{start + len(chunk)} of {len(design_pdbs)}...")
+        monomers = predict_structures([([('A_prime', c["seq"], c["a3m"])], c["monomer_out"]) for c in cands], config)
+        survivors = []
+        for c, m in zip(cands, monomers):
+            plddt = m.get("plddt", 0.0)
+            rmsd_monomer = calculate_ca_rmsd(wt_pdb, c["monomer_out"], chain_ref=chain_A_id)
+            rmsd_framework = calculate_ca_rmsd(wt_pdb, c["monomer_out"], chain_ref=chain_A_id, subset_res_ids=fixed_ids)
+            print(f"  {c['name']}: monomer pLDDT {plddt:.2f} (min {plddt_min}), RMSD vs WT {rmsd_monomer:.3f} A "
+                  f"(framework {rmsd_framework:.3f} A, max {rmsd_max:.1f} A)")
+            if plddt < plddt_min:
+                print(f"    FAIL-FAST: monomer stability too low ({plddt:.2f} < {plddt_min}). Candidate rejected.")
+                continue
+            if rmsd_monomer > rmsd_max:
+                print(f"    FAIL-FAST: monomer RMSD too high ({rmsd_monomer:.2f} > {rmsd_max}). Candidate rejected.")
+                continue
+            c.update(plddt=plddt, rmsd_monomer=rmsd_monomer, rmsd_framework=rmsd_framework)
+            survivors.append(c)
 
-        seq_A_prime = get_chain_sequence(design_pdb, chain_A_id)
-        if not seq_A_prime:
-            print(f"  Skipping {basename}: no chain {chain_A_id} sequence.")
-            continue
-
-        # 1. Monomer stability (A' folded alone; MSA masked where A' differs from WT)
-        monomer_out = os.path.join(args.out_dir, "monomer", cand_name)
-        os.makedirs(monomer_out, exist_ok=True)
-        monomer_a3m = os.path.join(monomer_out, f"{basename}.a3m")
-        msa_stats = prepare_msa(wt_a3m_A, seq_A_prime, monomer_a3m, config, modified_indices=modified_cols,
-                                interface_columns=cols_A)
-        print(f"  MSA: {msa_stats['n_masked']} columns re-designed "
-              f"({msa_stats['frac_masked']:.0%}) mode={msa_stats['mode']}, rows={msa_stats['n_rows']}")
-
-        metrics_monomer = predict_structure([('A_prime', seq_A_prime, monomer_a3m)], monomer_out, config)
-        plddt = metrics_monomer.get("plddt", 0.0)
-        rmsd_monomer = calculate_ca_rmsd(wt_pdb, monomer_out, chain_ref=chain_A_id)
-        rmsd_framework = calculate_ca_rmsd(wt_pdb, monomer_out, chain_ref=chain_A_id, subset_res_ids=fixed_ids)
-        print(f"  Monomer pLDDT: {plddt:.2f} (min {plddt_min})")
-        print(f"  Monomer RMSD vs WT: {rmsd_monomer:.3f} A (framework {rmsd_framework:.3f} A, max {rmsd_max:.1f} A)")
-
-        if plddt < plddt_min:
-            print(f"  FAIL-FAST: monomer stability too low ({plddt:.2f} < {plddt_min}). Candidate rejected.")
-            continue
-        if rmsd_monomer > rmsd_max:
-            print(f"  FAIL-FAST: monomer RMSD too high ({rmsd_monomer:.2f} > {rmsd_max}). Candidate rejected.")
-            continue
-
-        # 2. Rupture test: A' + B_WT must not bind
-        rupture_out = os.path.join(args.out_dir, "complex_rupture", cand_name)
-        os.makedirs(rupture_out, exist_ok=True)
-        msa_B_wt = os.path.join(rupture_out, "Bwt.a3m")
-        prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, interface_columns=cols_B)
-        metrics_rupture = predict_structure([('A_prime', seq_A_prime, monomer_a3m), ('B_wt', seq_B_wt, msa_B_wt)],
-                                            rupture_out, config)
-        iptm_rupture = metrics_rupture.get("iptm", 1.0)
-        print(f"  Rupture iPTM: {iptm_rupture:.2f} (max {iptm_rupture_max})")
-
-        with open(os.path.join(args.out_dir, f"metrics_{cand_name}.json"), 'w') as f:
-            json.dump({
-                "candidate": cand_name,
-                "pdb": design_pdb,
-                "plddt_monomer": plddt,
-                "rmsd_monomer": rmsd_monomer,
-                "rmsd_framework": rmsd_framework,
-                "iptm_rupture": iptm_rupture,
-                "iptm_rupture_mean": metrics_rupture.get("iptm_mean"),
-                "n_masked_columns": msa_stats["n_masked"],
-                "msa_scope": scope,
-                "passed": bool(iptm_rupture <= iptm_rupture_max and rmsd_monomer <= rmsd_max)
-            }, f, indent=2)
-
-        if iptm_rupture > iptm_rupture_max:
-            print(f"  FAIL-FAST: rupture failed, A' binds WT B ({iptm_rupture:.2f} > {iptm_rupture_max}). Candidate rejected.")
-            continue
-
-        print(f"  SUCCESS: {basename} passed fail-fast validation.")
-        passed_candidates.append(design_pdb)
+        # ---- rupture A'.B_WT for the survivors, one RF3 process
+        reqs = []
+        for c in survivors:
+            c["rupture_out"] = os.path.join(args.out_dir, "complex_rupture", c["name"])
+            os.makedirs(c["rupture_out"], exist_ok=True)
+            msa_B_wt = os.path.join(c["rupture_out"], "Bwt.a3m")
+            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, interface_columns=cols_B)
+            reqs.append(([('A_prime', c["seq"], c["a3m"]), ('B_wt', seq_B_wt, msa_B_wt)], c["rupture_out"]))
+        if reqs:
+            print(f"Module 3: rupture folds for {len(reqs)} stable candidates...")
+        for c, m in zip(survivors, predict_structures(reqs, config) if reqs else []):
+            iptm_rupture = m.get("iptm", 1.0)
+            print(f"  {c['name']}: rupture iPTM {iptm_rupture:.2f} (max {iptm_rupture_max})")
+            with open(os.path.join(args.out_dir, f"metrics_{c['name']}.json"), 'w') as f:
+                json.dump({
+                    "candidate": c["name"], "pdb": c["pdb"], "plddt_monomer": c["plddt"], "rmsd_monomer": c["rmsd_monomer"],
+                    "rmsd_framework": c["rmsd_framework"], "iptm_rupture": iptm_rupture,
+                    "iptm_rupture_mean": m.get("iptm_mean"), "n_masked_columns": c["msa_stats"]["n_masked"],
+                    "msa_scope": scope, "passed": bool(iptm_rupture <= iptm_rupture_max and c["rmsd_monomer"] <= rmsd_max)
+                }, f, indent=2)
+            if iptm_rupture > iptm_rupture_max:
+                print(f"    FAIL-FAST: rupture failed, A' binds WT B ({iptm_rupture:.2f} > {iptm_rupture_max}). Candidate rejected.")
+                continue
+            print(f"    SUCCESS: {c['basename']} passed fail-fast validation.")
+            passed_candidates.append(c["pdb"])
+            if max_passing and len(passed_candidates) >= int(max_passing):
+                break
         if max_passing and len(passed_candidates) >= int(max_passing):
             print(f"\nModule 3: target of {max_passing} passing candidate(s) reached, stopping early.")
             break
