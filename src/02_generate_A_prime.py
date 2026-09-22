@@ -25,6 +25,29 @@ def main():
     chain_A_id = pcfg.get('chain_A', 'A')
     os.makedirs(args.out_dir, exist_ok=True)
 
+    # Crash recovery: if a previous run of this exact command already produced every candidate (RFD3 + LigandMPNN +
+    # packing all done), skip straight to Module 3 instead of redoing ~15-20 min of GPU work. Only a fast-path for a
+    # FULLY complete previous attempt: any partial/incomplete state below falls through to a full regeneration, as before.
+    expected_n = int(pcfg.get('foundry_n_batches', 1)) * int(pcfg.get('foundry_diffusion_batch_size', 1))
+    existing_cands = sorted(glob.glob(os.path.join(args.out_dir, "A_prime_candidate_*.pdb")))
+    pack_designs = energy_enabled(config) and config['energy'].get('pack_designs', True)
+    resumed = False
+    if len(existing_cands) == expected_n:
+        if pack_designs:
+            try:
+                pack_status = json.load(open(os.path.join(args.out_dir, "pack_status.json")))
+            except (FileNotFoundError, json.JSONDecodeError):
+                pack_status = {}
+            names = [os.path.basename(c)[:-4] for c in existing_cands]
+            resumed = all(pack_status.get(n, {}).get("ok") for n in names)
+        else:
+            resumed = True
+    if resumed:
+        print(f"Module 2: found {len(existing_cands)} complete A' candidate(s) from a previous run of this exact "
+              f"config - skipping RFD3/LigandMPNN/packing.")
+        print(f"Module 2 Complete: {len(existing_cands)} A' rupture designs generated (resumed).")
+        return
+
     # 1. RFD3 (Foundry): sample backbones with the interface segments of A regenerated de novo
     rfd_output_dir = os.path.join(args.out_dir, 'A_prime_rfd_out').replace('\\', '/')
     if os.path.exists(rfd_output_dir):

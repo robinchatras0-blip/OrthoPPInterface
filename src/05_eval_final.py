@@ -112,13 +112,14 @@ def main():
     if ceiling_mode == 'global' and scope != 'interface':
         print(f"NOTE: a global WT ceiling needs design-independent masks (msa_mask_scope 'interface'); with '{scope}' each design gets its own.")
         ceiling_mode = 'per_design'
-    global_ceiling, ceiling_request = NAN, None
+    global_ceiling, global_ceiling_ipsae, ceiling_request = NAN, NAN, None
     if ceiling_mode == 'global':
         wtc_path = os.path.join(filter_dir, "wt_control.json")
         if os.path.exists(wtc_path):
             wtc = json.load(open(wtc_path))
             if wtc.get("msa_scope") == scope and ok(wtc.get("iptm_regime")):
                 global_ceiling = float(wtc["iptm_regime"])
+                global_ceiling_ipsae = float(wtc["ipsae_regime"]) if ok(wtc.get("ipsae_regime")) else NAN
                 print(f"WT ceiling of the '{scope}' regime reused from Module 3: {global_ceiling:.3f}")
         if not ok(global_ceiling):
             cdir = os.path.join(args.out_dir, "wt_ceiling")
@@ -161,7 +162,8 @@ def main():
         print(f"  {design_id}: mutations vs WT A'={n_mut_A}, B'={n_mut_B} | masked cols A={st_a['n_masked']}, B={st_b['n_masked']}")
         ctxs.append({"design_id": design_id, "pdb": b_prime_pdb, "meta": meta, "parent_a": parent_a, "m3": m3, "out": out,
                      "seq_A": seq_A_prime, "seq_B": seq_B_prime, "msa_A": msa_A, "msa_B": msa_B,
-                     "n_mut_A": n_mut_A, "n_mut_B": n_mut_B, "iptm_negative": NAN, "iptm_rupture": NAN, "iptm_ceiling": NAN})
+                     "n_mut_A": n_mut_A, "n_mut_B": n_mut_B, "iptm_negative": NAN, "iptm_rupture": NAN, "iptm_ceiling": NAN,
+                     "ipsae_negative": NAN, "ipsae_rupture": NAN, "ipsae_ceiling": NAN})
 
     # ---- Stage 1: rescue folds (and the global ceiling if needed) in ONE RF3 process
     print(f"\nModule 5: rescue folds for {len(ctxs)} designs...")
@@ -169,9 +171,11 @@ def main():
     res = predict_structures(reqs + ([ceiling_request] if ceiling_request else []), config)
     if ceiling_request:
         global_ceiling = res[-1].get("iptm", NAN)
+        global_ceiling_ipsae = res[-1].get("ipsae", NAN)
         print(f"WT ceiling of the '{scope}' regime computed once: {global_ceiling:.3f}")
     for c, m in zip(ctxs, res):
         c["m_pos"], c["iptm_rescue"] = m, m.get("iptm", NAN)
+        c["ipsae_rescue"] = m.get("ipsae", NAN)
         c["status"] = "early_exit_low_rescue" if c["iptm_rescue"] < early_exit else "ok"
         print(f"  {c['design_id']}: rescue iPTM {c['iptm_rescue']:.3f} (min {iptm_rescue_min})"
               + ("  -> early exit: no cross/rupture fold, no energy" if c["status"] != "ok" else ""))
@@ -187,10 +191,11 @@ def main():
         else:
             msa_A_wt = wt_a3m_A
         reqs.append(([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', c["seq_B"], c["msa_B"])], c["out"]["neg"]))
-        slots.append((c, "iptm_negative"))
+        slots.append((c, "negative"))
         # A'.B_WT does not depend on B': Module 3's measurement is reused when it used the same regime
         if reuse_rupture and c["m3"].get("msa_scope") == scope and ok(c["m3"].get("iptm_rupture")):
             c["iptm_rupture"] = float(c["m3"]["iptm_rupture"])
+            c["ipsae_rupture"] = float(c["m3"]["ipsae_rupture"]) if ok(c["m3"].get("ipsae_rupture")) else NAN
             print(f"  {c['design_id']}: rupture iPTM reused from Module 3: {c['iptm_rupture']:.3f}")
         else:
             if neg_regime == 'matched':
@@ -199,27 +204,30 @@ def main():
             else:
                 msa_B_wt = wt_a3m_B
             reqs.append(([('A_prime', c["seq_A"], c["msa_A"]), ('B_wt', seq_B_wt, msa_B_wt)], c["out"]["rup"]))
-            slots.append((c, "iptm_rupture"))
+            slots.append((c, "rupture"))
         if ceiling_mode == 'per_design':
             msa_A_c = os.path.join(c["out"]["ctl"], f"{c['design_id']}_Awt_ceiling.a3m")
             msa_B_c = os.path.join(c["out"]["ctl"], f"{c['design_id']}_Bwt_ceiling.a3m")
             prepare_msa(wt_a3m_A, seq_A_wt, msa_A_c, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
             prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=c["seq_B"], interface_columns=iface_B)
             reqs.append(([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], c["out"]["ctl"]))
-            slots.append((c, "iptm_ceiling"))
+            slots.append((c, "ceiling"))
     if reqs:
         print(f"\nModule 5: {len(reqs)} cross / rupture / ceiling folds for the {sum(c['status'] == 'ok' for c in ctxs)} surviving designs...")
-        for (c, key), m in zip(slots, predict_structures(reqs, config)):
-            c[key] = m.get("iptm", NAN)
+        for (c, kind), m in zip(slots, predict_structures(reqs, config)):
+            c[f"iptm_{kind}"] = m.get("iptm", NAN)
+            c[f"ipsae_{kind}"] = m.get("ipsae", NAN)
     if ceiling_mode == 'global':
         for c in ctxs:
             c["iptm_ceiling"] = global_ceiling
+            c["ipsae_ceiling"] = global_ceiling_ipsae
 
     # ---- Stage 3: geometry, energy inputs and scores of every design
     results_data = []
     for c in ctxs:
         design_id, b_prime_pdb, meta, m_pos, m3, status = c["design_id"], c["pdb"], c["meta"], c["m_pos"], c["m3"], c["status"]
         iptm_rescue, iptm_negative, iptm_rupture, iptm_ceiling = c["iptm_rescue"], c["iptm_negative"], c["iptm_rupture"], c["iptm_ceiling"]
+        ipsae_rescue, ipsae_negative, ipsae_rupture = c["ipsae_rescue"], c["ipsae_negative"], c["ipsae_rupture"]
         pos_out = c["out"]["pos"]
         plddt_a_prime, rmsd_a_prime_m3 = m3.get("plddt_monomer", NAN), m3.get("rmsd_monomer", NAN)
 
@@ -242,6 +250,7 @@ def main():
 
         f_raw = iptm_margin(iptm_rescue, iptm_rupture, iptm_negative)
         f_rel = f_iptm_rel(iptm_rescue, iptm_rupture, iptm_negative, iptm_ceiling)
+        f_ipsae = iptm_margin(ipsae_rescue, ipsae_rupture, ipsae_negative)      # diagnostic only, not yet in F_ortho
         rel = (iptm_rescue / iptm_ceiling) if iptm_ceiling and iptm_ceiling == iptm_ceiling and iptm_ceiling > 0 else NAN
         rescue_thr = iptm_rescue_min
         if rescue_rel and iptm_ceiling == iptm_ceiling:
@@ -251,7 +260,7 @@ def main():
         pass_negative = bool(iptm_negative <= iptm_negative_max) if iptm_negative == iptm_negative else False
 
         print(f"  {design_id}: RF3 rescue {iptm_rescue:.3f} | rupture {iptm_rupture:.3f} | negative {iptm_negative:.3f} | "
-              f"ceiling {iptm_ceiling:.3f} | F_iptm(rel) {f_rel:.3f}")
+              f"ceiling {iptm_ceiling:.3f} | F_iptm(rel) {f_rel:.3f} | ipSAE margin {f_ipsae:.3f}")
         print(f"      B' RMSD vs WT {rmsd_b_prime:.2f} A | self-consistency L-RMSD {sc_lrms:.2f} A | "
               f"DockQ(WT) {dockq_res['dockq']:.3f} ({dockq_res['quality']}) DockQ(design) {dockq_des['dockq']:.3f}")
 
@@ -260,6 +269,8 @@ def main():
             "status": status,
             "iptm_rescue": iptm_rescue, "iptm_rupture": iptm_rupture, "iptm_negative": iptm_negative,
             "iptm_ceiling": iptm_ceiling, "iptm_rescue_rel": rel, "f_ortho_iptm": f_raw, "f_iptm_rel": f_rel,
+            "ipsae_rescue": ipsae_rescue, "ipsae_rupture": ipsae_rupture, "ipsae_negative": ipsae_negative,
+            "ipsae_ceiling": c["ipsae_ceiling"], "f_ipsae": f_ipsae,
             "pass_rescue": pass_rescue, "pass_rupture": pass_rupture, "pass_negative": pass_negative,
             "iptm_rescue_mean": m_pos.get("iptm_mean", NAN), "iptm_rescue_std": m_pos.get("iptm_std", NAN),
             "pae_min_rescue": m_pos.get("chain_pair_pae_min") if m_pos.get("chain_pair_pae_min") is not None else NAN,
@@ -324,6 +335,10 @@ def main():
             coh["n_designs"], *(("%.2f" % coh[k]) if coh[k] is not None else "n/a" for k in (
                 "spearman_rescue_iptm_vs_binding", "spearman_negative_iptm_vs_binding", "spearman_rupture_iptm_vs_binding",
                 "spearman_margins", "margin_sign_agreement"))))
+        ipsae_iptm, ipsae_energy = coh["spearman_ipsae_vs_iptm_margins"], coh["spearman_ipsae_margin_vs_binding"]
+        print("ipSAE vs iPTM margin %s | ipSAE margin vs PyRosetta %s" % (
+            "%.2f" % ipsae_iptm if ipsae_iptm is not None else "n/a",
+            "%.2f" % ipsae_energy if ipsae_energy is not None else "n/a"))
         if coh["disagreements"]:
             print("  designs where the two measures disagree most:", ", ".join(coh["disagreements"]))
 

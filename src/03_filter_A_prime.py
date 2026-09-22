@@ -60,8 +60,8 @@ def main():
                                           os.path.join(args.out_dir, "wt_control_full_msa")),
                                          ([('A_wt', seq_A_wt, msa_A_reg), ('B_wt', seq_B_wt, msa_B_reg)], reg_dir)], config)
     with open(os.path.join(args.out_dir, "wt_control.json"), 'w') as f:
-        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "plddt": m_ctrl.get("plddt"),
-                   "msa_scope": scope}, f, indent=2)
+        json.dump({"iptm_full_msa": m_ctrl.get("iptm"), "iptm_regime": m_reg.get("iptm"), "ipsae_regime": m_reg.get("ipsae"),
+                   "plddt": m_ctrl.get("plddt"), "msa_scope": scope}, f, indent=2)
     print(f"  WT control (A_wt + B_wt): iPTM = {m_ctrl.get('iptm', 0.0):.3f} with full MSAs, "
           f"{m_reg.get('iptm', 0.0):.3f} in the configured MSA regime (= ceiling for designs)")
     if m_ctrl.get("iptm", 0.0) < 0.6:
@@ -132,7 +132,8 @@ def main():
                 json.dump({
                     "candidate": c["name"], "pdb": c["pdb"], "plddt_monomer": c["plddt"], "rmsd_monomer": c["rmsd_monomer"],
                     "rmsd_framework": c["rmsd_framework"], "iptm_rupture": iptm_rupture,
-                    "iptm_rupture_mean": m.get("iptm_mean"), "n_masked_columns": c["msa_stats"]["n_masked"],
+                    "iptm_rupture_mean": m.get("iptm_mean"), "ipsae_rupture": m.get("ipsae"),
+                    "n_masked_columns": c["msa_stats"]["n_masked"],
                     "msa_scope": scope, "passed": bool(iptm_rupture <= iptm_rupture_max and c["rmsd_monomer"] <= rmsd_max)
                 }, f, indent=2)
             if iptm_rupture > iptm_rupture_max:

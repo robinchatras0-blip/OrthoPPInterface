@@ -10,6 +10,7 @@ from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import THREE_TO_ONE, cif_to_pdb, diff_positions  # noqa: E402
+from scoring import ipsae_score  # noqa: E402
 
 
 def _use_wsl(config):
@@ -216,6 +217,24 @@ def _f(data, key, default=0.0):
         return default
 
 
+_IPSAE_NAN = {"ipsae": float('nan'), "ipsae_d0chn": float('nan'), "ipsae_d0dom": float('nan'), "lis": float('nan')}
+
+
+def _load_ipsae(summary_path):
+    """ipSAE (see scoring.ipsae_score) computed for free from the PAE matrix RF3 already writes alongside the
+    summary: no extra fold needed. Best-effort diagnostic, like chain_pair_pae_min below - NaN for a monomer
+    fold (only 2-chain complexes have an interface) or if the confidences file is missing/malformed."""
+    conf_path = summary_path.replace("_summary_confidences.json", "_confidences.json")
+    if not os.path.exists(conf_path):
+        return dict(_IPSAE_NAN)
+    try:
+        with open(conf_path, 'r') as f:
+            conf = json.load(f)
+        return ipsae_score(conf["pae"], conf["token_chain_ids"])
+    except Exception:
+        return dict(_IPSAE_NAN)
+
+
 def _parse_summary(path):
     with open(path, 'r') as f:
         data = json.load(f)
@@ -227,12 +246,14 @@ def _parse_summary(path):
         pae_min = float(pae_min[0][1]) if pae_min else None
     except (TypeError, IndexError, ValueError):
         pae_min = None
-    return {
+    out = {
         "plddt": plddt, "iptm": iptm, "ptm": _f(data, "ptm"),
         "ranking_score": _f(data, "ranking_score", iptm),
         "has_clash": bool(data.get("has_clash", False)),
         "chain_pair_pae_min": pae_min,
     }
+    out.update(_load_ipsae(path))
+    return out
 
 
 def _collect_metrics(out_dir):
