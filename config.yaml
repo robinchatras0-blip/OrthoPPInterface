@@ -13,6 +13,10 @@ pipeline:
   # They also move the diffusion origin out of chain A (see src/01_analyze_interface.py). RFD3 was trained
   # with sparse hotspot sets (<= 20% revealed), so keep this small: 5-10 out of ~36 interface residues.
   rescue_ppi_hotspots: 8
+  # Minimum length of a FIXED segment in the rescue contig. Distance-based selection leaves 1-2 residue anchors
+  # between short loops, which RFD3 cannot satisfy without clashing into A'. Short fixed islands are absorbed
+  # into the surrounding loop. 3-4 is sensible; 1 disables the consolidation.
+  rescue_min_fixed_segment: 3
   # Optional: partial diffusion for the rescue step. Re-denoises the existing B loops instead of rebuilding
   # them from scratch, so B' stays close to a backbone that already fits A'. In angstroms of added noise,
   # <= 15 recommended by RFD3; null disables it (full de-novo loop diffusion).

@@ -85,6 +85,7 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 - Defines mutable vs frozen positions for LigandMPNN.
 - Crops chain B to the residues within `crop_chain_B_distance_angstroms` (15.0 Å) of the interface to keep RFD3 within GPU memory.
 - Generates the RFD3 contigs (`inputs.json` for the rupture, `inputs_rescue.json` for the rescue), the rupture bias (`mpnn_bias.json`), the fixed-position files and `index_mapping.json`.
+- **Loop consolidation of B** (`rescue_min_fixed_segment`, default 3): selecting the redesignable residues of B purely by distance to the interface leaves isolated 1-2 residue *fixed* anchors between short flexible stretches. On the reference system the rescue contig had 5 such anchors out of 8 fixed segments, with two single-residue diffused segments — RFD3 was being asked to thread a backbone between arbitrary pinned points while avoiding A'. Short fixed islands are absorbed into the surrounding loop, turning that contig into 3 anchors (8/26/7 residues) and 3 real loops (20/19/8) for 6 extra redesignable residues (41 → 47 of 88).
 - **PPI hotspots for the rescue diffusion** (`rescue_ppi_hotspots`, default 8): the A' interface residues that B' must engage, ranked by how many B residues they contact in the native complex. They are written to `inputs_rescue.json` as `select_hotspots` together with `infer_ori_strategy: hotspots`, and **not** to `inputs.json` — a hotspot is a positive-design signal, the opposite of the rupture objective. See the note on the diffusion origin in Module 4.
 
 ### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
@@ -204,6 +205,7 @@ pipeline:
   foundry_n_batches: 100               # RFD3 backbones for the A' rupture design
   rescue_diffusion_n_batches: 15       # RFD3 backbones per A' motif for the B' rescue
   rescue_ppi_hotspots: 8               # A' residues B' must engage; also moves the diffusion origin out of A (5-10)
+  rescue_min_fixed_segment: 3          # absorb shorter fixed islands of B into the loops (1 = no consolidation)
   rescue_partial_t: null               # Å of noise for partial diffusion of the B loops (≤ 15); null = de novo loops
   max_rescue_scaffolds: 4              # scaffolds kept per motif
   local_rfdiffusion: bash OrthoIntRob/bin/rfd3
@@ -298,6 +300,7 @@ The configuration file is read as UTF-8 (a BOM is tolerated) and missing `pipeli
 | `dockq_vs_design`, `selfcons_lrms`, `pred_interface_contacts` | RF3 prediction vs the *designed* complex (self-consistency), contacts in the prediction |
 | `n_mut_A`, `n_mut_B` | Number of mutations vs WT |
 | `scaffold_idx`, `scaffold_flex_rmsd` | RFD3 scaffold the B' comes from; movement of its loop backbone vs WT (Å) |
+| `scaffold_is_native` | `True` = no RFD3 scaffold passed the filters for this motif and Module 4 fell back to the rigid WT backbone, so the design carries **no induced fit**. Watch this column: a run where it is mostly `True` did not really co-adapt B' to A'. |
 | `proxy_contacts_a_wt`, `proxy_clashes_a_wt` | Module 4 rigid proxy: contacts / clashes of B' with $A_{\text{WT}}$ |
 
 Values that could not be computed are empty (`NaN`); they are never replaced by defaults.

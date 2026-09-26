@@ -243,6 +243,23 @@ def test_module1_writes_all_analysis_files(workspace, monkeypatch):
     assert mapping["interface_ids_A"] and mapping["interface_ids_B"]                   # used by the MSA regime
 
 
+def test_rupture_bias_never_ends_up_favouring_the_wild_type_residue(workspace, monkeypatch):
+    """Regression: the WT penalty used to be written first and the rule blocks then overwrote it, so at any
+    position whose WT residue the rule happens to recommend (ARG/TYR/GLU/ASN...) the bias actively favoured
+    keeping the wild type - the opposite of the rupture objective."""
+    m1 = load_module("01_analyze_interface.py")
+    out = str(workspace["root"] / "analysis_bias")
+    run_main(m1, ["--config", workspace["cfg"], "--out_dir", out], monkeypatch)
+
+    bias = json.load(open(os.path.join(out, "mpnn_bias.json")))["A"]
+    wt_by_id = {r["resseq"]: r["resname"] for r in
+                json.load(open(os.path.join(out, "index_mapping.json")))["residues_A"]}
+    assert bias, "no rupture bias produced"
+    favoured = {rid: (wt_by_id[int(rid)], d[wt_by_id[int(rid)]])
+                for rid, d in bias.items() if d.get(wt_by_id[int(rid)], -1.0) >= 0}
+    assert not favoured, f"WT residue favoured at {len(favoured)} interface position(s): {favoured}"
+
+
 def test_rescue_diffusion_gets_ppi_hotspots_but_rupture_does_not(workspace, monkeypatch):
     """Without hotspots RFD3 starts every diffused atom at the COM of the fixed motif, which is buried
     inside chain A, and the B loops interpenetrate it. Hotspots move that origin outside the surface.

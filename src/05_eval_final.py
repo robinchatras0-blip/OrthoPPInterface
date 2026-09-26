@@ -282,6 +282,9 @@ def main():
             "rmsd_a_prime": rmsd_a_prime, "rmsd_b_prime": rmsd_b_prime, "rmsd_a_prime_monomer": rmsd_a_prime_m3,
             "n_mut_A": c["n_mut_A"], "n_mut_B": c["n_mut_B"],
             "scaffold_idx": meta.get("scaffold_idx", NAN), "scaffold_flex_rmsd": meta.get("scaffold_flex_rmsd", NAN),
+            # True = the RFD3 co-adaptation produced nothing usable for this motif and Module 4 fell back to the
+            # rigid WT backbone, so this design carries no induced fit. Without it the table cannot tell the two apart.
+            "scaffold_is_native": meta.get("scaffold_is_native", NAN),
             "proxy_contacts_a_wt": meta.get("contacts_a_wt", NAN), "proxy_clashes_a_wt": meta.get("clashes_a_wt", NAN),
             "ranking_score": m_pos.get("ranking_score", NAN),
         })

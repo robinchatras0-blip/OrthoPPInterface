@@ -8,6 +8,30 @@ sys.path.append(os.path.dirname(__file__))
 from design_utils import THREE_TO_ONE, heavy_atoms, load_config, min_residue_distance
 
 
+def consolidate_flexible(all_ids, flexible, min_fixed):
+    """Absorbs fixed runs shorter than `min_fixed` residues into the surrounding flexible region.
+
+    Selecting the redesignable residues of B purely by distance leaves isolated 1-2 residue fixed anchors
+    between short flexible stretches. RFD3 then has to thread a backbone between arbitrary pinned points
+    while avoiding the fixed partner chain, and returns interpenetrating scaffolds. Runs that touch either
+    terminus are kept: they anchor the chain. `min_fixed <= 1` is a no-op.
+    """
+    cur = set(flexible)
+    while True:
+        runs, start = [], 0
+        for i in range(1, len(all_ids) + 1):
+            if i == len(all_ids) or (all_ids[i] in cur) != (all_ids[start] in cur):
+                runs.append((all_ids[start] in cur, start, i - 1))
+                start = i
+        grew = False
+        for is_flex, i0, i1 in runs:
+            if not is_flex and (i1 - i0 + 1) < min_fixed and i0 > 0 and i1 < len(all_ids) - 1:
+                cur |= set(all_ids[i0:i1 + 1])
+                grew = True
+        if not grew:
+            return sorted(cur)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Module 1: Interface Parsing & Hotspot Targeting")
     parser.add_argument('--config', default='config.yaml')
@@ -76,6 +100,12 @@ def main():
                 mutable_B.add(res_B)
                 break
     neighborhood_ids_B = sorted(list(set([res.id[1] for res in mutable_B])))
+    # Turn that scattered selection into real loops before it becomes an RFD3 contig (see consolidate_flexible).
+    # Measured on the reference system: 5 of 8 fixed contig segments were 1-2 residues and two diffused segments
+    # were a single residue; consolidating gives 3 anchors (8/26/7 residues) and 3 loops (20/19/8) for only
+    # 6 extra redesignable residues (41 -> 47 of 88).
+    min_fixed_B = int(config['pipeline'].get('rescue_min_fixed_segment', 3))
+    neighborhood_ids_B = consolidate_flexible([r.id[1] for r in residues_B], set(neighborhood_ids_B), min_fixed_B)
 
     # Comprehensive Context-Aware Soluble Rupture Bias for LigandMPNN
     # Applies H-bond Donor/Acceptor inversion, electrostatic repulsion, and soluble steric clashing
@@ -90,11 +120,7 @@ def main():
         wt_resname = res_A.get_resname()
         bias_dict = {}
 
-        # 1. Softly discourage the wild-type amino acid and glycine
-        bias_dict[wt_resname] = -1.5
-        bias_dict["GLY"] = -2.0
-
-        # 2. Find interacting partners on Chain B
+        # 1. Find interacting partners on Chain B
         partners_B = []
         for res_B in residues_B:
             dist = min_residue_distance(res_A, res_B)
@@ -131,6 +157,16 @@ def main():
                 bias_dict.update({
                     "GLU": 2.0, "ARG": 2.0, "ASN": 1.5, "TYR": 1.5
                 })
+
+        # 2. Discourage the wild-type residue and glycine LAST, and never leave them positive. Applying the
+        # penalty first let a rule that happens to recommend the wild-type residue overwrite it and actively
+        # favour keeping the wild type - the opposite of the rupture objective (measured on the reference
+        # system: 8 of 36 interface positions, all ARG/TYR/GLU/ASN, i.e. exactly the contact-making residues
+        # the rules recommend). Adding the penalty is not enough either, since a +2.0 rule bonus survives a
+        # -1.5 penalty; a rule that recommends the residue already there is self-contradictory for a rupture,
+        # so the rule bonus is dropped for those two residues rather than merely reduced.
+        for res_name, penalty in ((wt_resname, -1.5), ("GLY", -2.0)):
+            bias_dict[res_name] = round(min(bias_dict.get(res_name, 0.0), 0.0) + penalty, 2)
 
         mpnn_bias[chain_A_id][aid] = bias_dict
 

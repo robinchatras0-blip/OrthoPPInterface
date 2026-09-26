@@ -264,7 +264,17 @@ def _collect_metrics(out_dir):
     files = [p for p in files if re.search(r"seed-\d+_sample-\d+", os.path.basename(p))] or files
     if not files:
         return None, None
-    parsed = [(p, _parse_summary(p)) for p in files]
+    parsed = []
+    for p in files:
+        try:
+            parsed.append((p, _parse_summary(p)))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+            # A machine crash mid-write leaves a truncated summary behind (observed: a 0-byte file). Skipping it
+            # makes the prediction look uncached and it is simply recomputed; raising here would kill the whole
+            # module on a recoverable cache entry, which matters for long unattended runs.
+            print(f"  [Foundry RF3] Unreadable summary {os.path.basename(p)} ({type(e).__name__}) -> ignored.")
+    if not parsed:
+        return None, None
     best_path, best = max(parsed, key=lambda t: t[1]["ranking_score"])
     iptms = [m["iptm"] for _, m in parsed]
     mean = sum(iptms) / len(iptms)
