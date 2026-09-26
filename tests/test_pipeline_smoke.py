@@ -4,6 +4,7 @@ It cannot judge scientific quality, but it executes every line of the three main
 synthetic geometry and asserts the properties that were broken before: scaffold diversity survives
 selection, WT head/tail are restored, no fabricated metrics, matched MSA regimes.
 """
+import glob
 import json
 import os
 import random
@@ -409,6 +410,38 @@ def test_module4_packs_b_prime_against_the_fixed_a_prime(workspace, monkeypatch)
         assert all(os.path.exists(j["pdb"]) for j in jobs)
     meta = json.load(open(os.path.join(out4, "diversity_pairs_metadata.json")))
     assert meta and all(os.path.exists(m["pdb"]) for m in meta.values())     # final designs = packed pool complexes
+
+
+def test_module4_tops_up_a_partial_rfd3_backbone_set_instead_of_reusing_it(workspace, monkeypatch):
+    """A run interrupted mid-diffusion leaves fewer backbones than requested. Reusing that partial set would
+    design the motif from a fraction of the intended sampling and silently halve its chance of yielding a
+    usable scaffold - the fake RFD3 writes 4 backbones while the config asks for 10."""
+    ws = workspace
+    cfg = yaml.safe_load(open(ws["cfg"], encoding="utf-8-sig"))
+    cfg["pipeline"]["rescue_diffusion_n_batches"] = 10
+    yaml.dump(cfg, open(ws["cfg"], "w", encoding="utf-8"), sort_keys=False)
+
+    m4 = load_module("04_generate_B_prime.py")
+    calls = []
+
+    def counting_run(cmd, **kw):
+        if any(str(c).startswith("inputs=") for c in cmd):
+            calls.append(cmd)
+        return fake_subprocess_run(cmd, **kw)
+
+    monkeypatch.setattr(m4.subprocess, "run", counting_run)
+    out4 = str(ws["root"] / "run" / "04_partial")
+    args = ["--config", ws["cfg"], "--analysis_dir", ws["ana"], "--passed_candidates",
+            os.path.join(ws["d3"], "passed_candidates.txt"), "--out_dir", out4]
+    run_main(m4, args, monkeypatch)
+    first = len(calls)
+    assert first > 0
+
+    # drop the finished designs so the per-motif cache does not short-circuit before the backbone check
+    for p in glob.glob(os.path.join(out4, "*_B_cand_*.pdb")):
+        os.remove(p)
+    run_main(m4, args, monkeypatch)
+    assert len(calls) > first, "partial RFD3 backbone set was reused instead of being topped up"
 
 
 def test_module5_adds_energy_columns_and_the_combined_score(workspace, monkeypatch):

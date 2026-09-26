@@ -274,9 +274,15 @@ def main():
             rfd_dir = os.path.join(motif_work_dir, "rfd3_coadapt_out")
             os.makedirs(rfd_dir, exist_ok=True)
             rfd_pdbs = [p for p in collect_pdbs(rfd_dir) if os.path.abspath(p) != os.path.abspath(complex_pdb)]
-            if rfd_pdbs and not args.force:
+            n_wanted = int(pcfg.get('rescue_diffusion_n_batches', 10))
+            if rfd_pdbs and len(rfd_pdbs) >= n_wanted and not args.force:
                 print(f"  [Resume Cache] Reusing {len(rfd_pdbs)} RFD3 backbones.")
             else:
+                # A run interrupted mid-diffusion leaves a partial set here. Reusing it as-is would design this
+                # motif from a fraction of the intended backbones and silently halve its chances of yielding a
+                # usable scaffold, so RFD3 is re-invoked; its own skip_existing tops the set up to n_batches.
+                if rfd_pdbs and not args.force:
+                    print(f"  [Resume] only {len(rfd_pdbs)} of {n_wanted} RFD3 backbones present -> topping up.")
                 print(f"  Running RFD3 backbone co-adaptation on B around {a_cand_name}...")
                 with open(os.path.join(args.analysis_dir, "inputs_rescue.json")) as f:
                     rescue_json = json.load(f)
