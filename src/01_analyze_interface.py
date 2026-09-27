@@ -322,9 +322,16 @@ def main():
     }
     partial_t = config['pipeline'].get('rescue_partial_t')
     if partial_t:
-        # Partial diffusion re-denoises the EXISTING B loops instead of rebuilding them from the origin.
-        # RFD3 then centres on the COM and ignores infer_ori_strategy; the hotspot conditioning still applies.
-        rfd3_rescue_inputs["design"]["partial_t"] = float(partial_t)
+        # Measured, not assumed: with this contig `partial_t` is a silent no-op. The flexible stretches of B are
+        # declared as de-novo LENGTHS ("20-20"), and partial diffusion needs existing coordinates to add noise to,
+        # so RFD3 returns the input untouched - 10 backbones came back byte-identical, flex_rmsd exactly 0.000,
+        # and Module 4 then fell back to the native backbone. Making it work means expressing the flexible
+        # regions as real residue ranges (B1-20, ...) and unfixing their coordinates with `select_fixed_atoms`,
+        # which changes how the whole rescue contig is built. Refuse rather than pretend.
+        raise ValueError(
+            "pipeline.rescue_partial_t is not supported with the current rescue contig: its flexible regions are "
+            "de-novo length specs, which partial diffusion cannot noise (verified: 10/10 identical backbones, "
+            "flex_rmsd 0.000). Express them as residue ranges with select_fixed_atoms first, or leave it null.")
     index_mapping["rescue_hotspot_ids_A"] = hotspot_ids_A
     print(f"Rescue PPI hotspots on chain {chain_A_id} (contact-ranked): "
           f"{hotspot_ids_A} (contacts {[contacts_A[r] for r in hotspot_ids_A]})"

@@ -17,9 +17,10 @@ pipeline:
   # between short loops, which RFD3 cannot satisfy without clashing into A'. Short fixed islands are absorbed
   # into the surrounding loop. 3-4 is sensible; 1 disables the consolidation.
   rescue_min_fixed_segment: 3
-  # Optional: partial diffusion for the rescue step. Re-denoises the existing B loops instead of rebuilding
-  # them from scratch, so B' stays close to a backbone that already fits A'. In angstroms of added noise,
-  # <= 15 recommended by RFD3; null disables it (full de-novo loop diffusion).
+  # Partial diffusion for the rescue step. NOT USABLE with the current contig: its flexible regions are
+  # de-novo length specs, which partial diffusion cannot noise, so RFD3 returns the input untouched
+  # (measured: 10/10 identical backbones, flex_rmsd 0.000). Module 1 now refuses instead of pretending.
+  # Making it work requires expressing those regions as residue ranges plus select_fixed_atoms.
   rescue_partial_t: null
   max_rescue_scaffolds: 4
   include_native_scaffold: false      # true = also design on the rigid WT backbone (control scaffold)
