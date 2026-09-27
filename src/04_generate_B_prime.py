@@ -423,6 +423,12 @@ def main():
                 "scaffold_is_native": cand["native"], "scaffold_flex_rmsd": cand["scaffold_flex_rmsd"],
                 "mpnn_confidence": cand["conf"], **cand["spec"]}
 
+        # Persist after every motif, not only at the end: an interrupted run used to leave no metadata file at
+        # all, so the motifs replayed from the cache above fell back to a bare {parent_a, pdb} entry and their
+        # provenance was lost (observed: 30 of 72 designs with scaffold_is_native = NaN after one resume).
+        with open(meta_path, 'w') as f:
+            json.dump(metadata_pairs, f, indent=2)
+
     with open(os.path.join(args.out_dir, "diversity_pairs_metadata.json"), 'w') as f:
         json.dump(metadata_pairs, f, indent=2)
     print(f"\nModule 4 Complete: {len(all_saved_b_pdbs)} A'/B' pairs across {len(selected_candidates)} A' motifs.")
