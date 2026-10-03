@@ -284,6 +284,7 @@ def main():
         dockq_res = c.get("dockq_res_early") or calculate_dockq(wt_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
         dockq_des = c.get("dockq_des_early") or calculate_dockq(b_prime_pdb, pos_out, chain_A=chain_A_id, chain_B=chain_B_id)
         best_dq = max(dockq_res.get("dockq", 0.0), dockq_des.get("dockq", 0.0))
+        best_lrms = min(dockq_res.get("lrms", 99.0), dockq_des.get("lrms", 99.0))
         has_pos_model = c.get("has_pos_model", False)
         pass_dockq = bool((best_dq >= dockq_min and best_lrms <= lrms_max) if has_pos_model else True)
 
