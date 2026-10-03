@@ -58,8 +58,9 @@ def main():
         for _, r in top5_s1.iterrows():
             print(f"| `{r['design_id']}` | {r['parent_a']} | **{r['dockq']:.4f}** | {r['lrms']:.2f} Å | **{r['iptm_rescue']:.3f}** |")
     elif os.path.exists(EVAL_DIR):
-        c_rescue = glob.glob(os.path.join(EVAL_DIR, "complex_rescue", "*_unrelaxed_rank_001.pdb"))
-        print(f"**Module 5 - Étape 1** : ⏳ **Repliement RF3 en cours** ({len(c_rescue)} complexes résolus...)")
+        c_sigs = glob.glob(os.path.join(EVAL_DIR, "complex_rescue", "**", "*.signature"), recursive=True)
+        batch_idx = (len(c_sigs) // 40) + 1
+        print(f"**Module 5 - Étape 1 (Sauvetage RF3)** : 🚀 **Repliement en cours sur GPU** — **{len(c_sigs)} / 600 complexes terminés** (Batch {batch_idx}/15 en cours, {len(c_sigs)/6:.1f}%)")
 
     # 3. Final Results Inspection
     if os.path.exists(FINAL_CSV_PATH):

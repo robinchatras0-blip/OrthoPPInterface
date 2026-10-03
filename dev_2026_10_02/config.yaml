@@ -1,0 +1,96 @@
+pipeline:
+  run_name: run_rf3_deep_search_v2
+  runs_dir: runs
+  input_pdb: data/inputs/complex_S1_S2.pdb
+  input_msa_A: data/inputs/S1_chain_A.a3m
+  input_msa_B: data/inputs/S2_chain_B.a3m
+  chain_A: A
+  chain_B: B
+  foundry_n_batches: 60
+  foundry_diffusion_batch_size: 1
+  rescue_diffusion_n_batches: 10
+  # PPI hotspots handed to RFD3 for the rescue diffusion: the N most-contacting A' interface residues.
+  # They also move the diffusion origin out of chain A (see src/01_analyze_interface.py). RFD3 was trained
+  # with sparse hotspot sets (<= 20% revealed), so keep this small: 5-10 out of ~36 interface residues.
+  rescue_ppi_hotspots: 8
+  # Minimum length of a FIXED segment in the contigs. Distance-based selection leaves 1-2 residue anchors
+  # between short loops, which RFD3 cannot satisfy without clashing or pinning the backbone. Short fixed islands
+  # are absorbed into the surrounding loop. 3-4 is sensible; 1 disables the consolidation.
+  rupture_min_fixed_segment: 3
+  rescue_min_fixed_segment: 3
+  # Guided partial diffusion for B' co-adaptation: applies 3.5 A Gaussian noise to native
+  # flexible interface loops of B while locking framework residues, allowing realistic C-alpha relaxation.
+  rescue_partial_t: 3.5
+  max_rescue_scaffolds: 4
+  include_native_scaffold: true       # true = also design on the rigid WT backbone (control scaffold)
+  scaffold_max_clashes: 15            # RFD3 un-repacked scaffold vs A' heavy-atom clashes tolerated (sidechains repacked in MPNN)
+  scaffold_max_framework_rmsd: 1.5    # RFD3 must not distort the fixed framework of B (A)
+  scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
+  scaffold_max_flex_rmsd: 4.5         # prevent scaffolds with extreme loop drift (10-19 A) from ruining rescue
+  local_rfdiffusion: bash dev_2026_10_02/bin/rfd3
+  local_ligandmpnn: bash dev_2026_10_02/bin/mpnn
+diversity_selection:
+  enabled: true
+  max_a_prime_motifs: 4
+ligandmpnn:
+  checkpoint_path: /home/ommearo/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt
+  model_type: ligand_mpnn
+  is_legacy_weights: 'True'
+  temperature_rupture: 0.2
+  temperature_rescue: 0.15
+  rescue_coadaptation: true
+  rupture_apo_design: true            # design A' alone: with B_WT visible, MPNN packs A' against B_WT and defeats the rupture
+  samples_per_scaffold: 30
+  top_k_per_motif: 4                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
+  max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
+folding:
+  rf3_bin: /home/ommearo/miniforge3/envs/orthoppinterface/bin/rf3
+  rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
+  use_msa: true
+  # --- MSA regime (see src/calibrate_predictor.py to choose empirically) ---
+  msa_mask_scope: diff                # diff = only mask positions that really differ from WT (preserves structural alignment)
+  msa_mask_mode: substitute           # substitute = replace mutant positions with designed amino acids instead of gaps
+  negative_msa_regime: matched        # matched = WT partner masked like its designed counterpart | native = full WT MSA
+  wt_ceiling_control: global          # WT/WT ceiling of the regime: global (once, from module 3) | per_design | off
+  reuse_module3_rupture: true         # A'.B_WT does not depend on B': reuse module 3's value (same regime)
+  strict_msa: true                    # raise if MSA width != sequence length
+  diffusion_batch_size: 2             # RF3 samples per prediction; best-ranked one is reported, iPTM mean/std logged
+  # n_recycles: 10
+  # num_steps: 200                    # RF3 docs: 50 steps show no deterioration (~4x faster)
+  # wsl_distro: Ubuntu
+  # use_wsl: true                     # default: true on Windows, false elsewhere
+energy:                                # PyRosetta: packs the side chains of designs and scores interface energies
+  enabled: true
+  python: /home/ommearo/miniforge3/envs/orthoppinterface/bin/python
+  n_procs: 16
+  pack_designs: true                   # rebuild the side chains LigandMPNN does not write (modules 2 and 4)
+  relax_repeats: 1                     # FastRelax repeats (constrained to the start coordinates) before scoring
+  seed: 1
+  weight_iptm: 0.5                     # F_ortho = w * F_iptm(rel) + (1 - w) * F_energy
+  min_binding_fraction: 0.5            # PROVISIONAL: dG(A'.B') / dG(native) must be at least this
+  f_energy_min: -0.05                  # Near-neutral interface energy margin permitted when DockQ & iPTM pass
+structural_constraints:
+  interface_distance_threshold_angstroms: 6.0
+  neighborhood_radius_angstroms: 6.0   # LigandMPNN may change interface residues + those within this radius (6 A: 87/224 on the reference A chain; 10 A: 113)
+  crop_chain_B_distance_angstroms: 15.0
+thresholds:
+  monomer_stability:
+    plddt_min: 80.0
+    rmsd_max: 3.0                     # relaxed to 3.0 A to allow interface loop remodeling
+    rmsd_framework_max: 1.5           # strict constraint on hydrophobic core & non-interface framework
+  negative_design_rupture:
+    iptm_rupture_max: 0.45            # rupture with WT B achieved (< 0.45 vs WT ceiling 0.865)
+  positive_design_rescue:
+    iptm_rescue_min: 0.70             # high affinity rescue (0.751 achieved on champion)
+    relative_to_ceiling: 0.80         # >= 80% of native WT ceiling (0.864)
+  negative_design_orthogonality:
+    iptm_negative_max: 0.65           # cross-reactivity with WT A reduced vs ceiling
+  orthogonality:
+    f_ortho_min: 0.02                 # positive orthogonal margin
+  dockq_min: 0.23                     # Seuil CAPRI Acceptable (0.80 achieved on champion)
+  lrms_max: 15.0                      # Distance max ligand RMSD (A) par rapport au site natif
+  early_exit:
+    rescue_iptm_floor: 0.25           # rescue iPTM below this: no cross/rupture fold, no energy
+    require_dockq: true               # Stoppe prematurement les faux positifs aberrants (hors-cible)
+  fail_fast:
+    max_passing_candidates: 12
