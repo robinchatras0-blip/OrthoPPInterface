@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>OrthoPPInterface — Dossier Scientifique des Champions Orthogonaux</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f8fafc; margin: 0; padding: 40px; }
+  .container { max-width: 1200px; margin: 0 auto; background: #ffffff; padding: 40px 60px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; }
+  h2 { color: #1e3a8a; margin-top: 35px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #1e3a8a; color: #ffffff; font-weight: 600; text-align: center; }
+  tr:hover { background-color: #f1f5f9; }
+  code { background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; }
+  pre { background: #0f172a; color: #f8fafc; padding: 18px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  blockquote { border-left: 4px solid #3b82f6; margin: 0; padding-left: 18px; color: #475569; background: #eff6ff; padding: 12px 18px; border-radius: 0 8px 8px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Dossier Scientifique & Technique — Champions Orthogonaux (OrthoPPInterface)</h1>
+<blockquote>
+<strong>Projet :</strong> Ingénierie Rationnelle d'Interfaces Protéine-Protéine Orthogonales (A'·B')<br>
+<strong>Statut :</strong> 19 Champions d'Élite confirmés sur 600 candidats explorés (Campagne de nuit 8.7h)<br>
+<strong>Plateforme :</strong> NVIDIA GeForce RTX 5070 Ti (TF32) + 18 CPU PyRosetta
+</blockquote>
+
+<h2>1. Résumé Exécutif & Métriques Clés</h2>
+<p>La campagne a évalué 600 complexes de sauvetage all-atom issus de 12 familles de topologies distinctes :</p>
+<ul>
+  <li><strong>422 / 600 candidats (70.3%)</strong> conservent un amarrage natif rigoureux (CAPRI DockQ &ge; 0.23, avec 20 designs de Haute Qualité &ge; 0.80).</li>
+  <li><strong>431 / 600 candidats (100% des survivants)</strong> confirment une rupture totale de liaison avec le partenaire sauvage B_WT (iPTM &le; 0.35).</li>
+  <li><strong>176 / 600 candidats</strong> suppriment la liaison croisée avec le sauvage A_WT (iPTM &le; 0.40).</li>
+  <li><strong>19 Champions Stricts</strong> réunissent l'ensemble des critères d'or (DockQ natif, fort sauvetage, rupture bilatérale, énergie PyRosetta favorable).</li>
+</ul>
+
+<h2>2. Tableau Récapitulatif des 19 Champions</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Rang</th>
+      <th>Identifiant</th>
+      <th>Parent A'</th>
+      <th>DockQ</th>
+      <th>Qualité</th>
+      <th>iPTM Sauvetage</th>
+      <th>iPTM Croisé</th>
+      <th>iPTM Rupture</th>
+      <th>&Delta; iPTM</th>
+      <th>&Delta;G (REU)</th>
+      <th>F_ortho</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align:center;"><strong>1</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_40</code></td>
+      <td>A_prime_candidate_01</td>
+      <td style="text-align:right;"><strong>0.4812</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.745</strong></td>
+      <td style="text-align:right;">0.251</td>
+      <td style="text-align:right;">0.295</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.494</strong></td>
+      <td style="text-align:right;">-40.7</td>
+      <td style="text-align:right;"><strong>0.211</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>2</strong></td>
+      <td><code>A_prime_candidate_17_B_cand_29</code></td>
+      <td>A_prime_candidate_17</td>
+      <td style="text-align:right;"><strong>0.5470</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.781</strong></td>
+      <td style="text-align:right;">0.299</td>
+      <td style="text-align:right;">0.237</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.483</strong></td>
+      <td style="text-align:right;">-65.8</td>
+      <td style="text-align:right;"><strong>0.384</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>3</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_36</code></td>
+      <td>A_prime_candidate_01</td>
+      <td style="text-align:right;"><strong>0.5819</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.701</strong></td>
+      <td style="text-align:right;">0.259</td>
+      <td style="text-align:right;">0.295</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.442</strong></td>
+      <td style="text-align:right;">-48.1</td>
+      <td style="text-align:right;"><strong>0.253</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>4</strong></td>
+      <td><code>A_prime_candidate_13_B_cand_22</code></td>
+      <td>A_prime_candidate_13</td>
+      <td style="text-align:right;"><strong>0.4968</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.602</strong></td>
+      <td style="text-align:right;">0.221</td>
+      <td style="text-align:right;">0.246</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.381</strong></td>
+      <td style="text-align:right;">-74.7</td>
+      <td style="text-align:right;"><strong>0.400</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>5</strong></td>
+      <td><code>A_prime_candidate_11_B_cand_33</code></td>
+      <td>A_prime_candidate_11</td>
+      <td style="text-align:right;"><strong>0.5074</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.626</strong></td>
+      <td style="text-align:right;">0.247</td>
+      <td style="text-align:right;">0.259</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.379</strong></td>
+      <td style="text-align:right;">-48.8</td>
+      <td style="text-align:right;"><strong>0.191</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>6</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_20</code></td>
+      <td>A_prime_candidate_01</td>
+      <td style="text-align:right;"><strong>0.5401</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.741</strong></td>
+      <td style="text-align:right;">0.384</td>
+      <td style="text-align:right;">0.295</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.357</strong></td>
+      <td style="text-align:right;">-46.1</td>
+      <td style="text-align:right;"><strong>0.222</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>7</strong></td>
+      <td><code>A_prime_candidate_11_B_cand_40</code></td>
+      <td>A_prime_candidate_11</td>
+      <td style="text-align:right;"><strong>0.4729</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.600</strong></td>
+      <td style="text-align:right;">0.243</td>
+      <td style="text-align:right;">0.259</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.357</strong></td>
+      <td style="text-align:right;">-50.7</td>
+      <td style="text-align:right;"><strong>0.224</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>8</strong></td>
+      <td><code>A_prime_candidate_11_B_cand_04</code></td>
+      <td>A_prime_candidate_11</td>
+      <td style="text-align:right;"><strong>0.5368</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.625</strong></td>
+      <td style="text-align:right;">0.270</td>
+      <td style="text-align:right;">0.259</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.355</strong></td>
+      <td style="text-align:right;">-51.4</td>
+      <td style="text-align:right;"><strong>0.147</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>9</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_14</code></td>
+      <td>A_prime_candidate_01</td>
+      <td style="text-align:right;"><strong>0.6031</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.632</strong></td>
+      <td style="text-align:right;">0.282</td>
+      <td style="text-align:right;">0.295</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.351</strong></td>
+      <td style="text-align:right;">-48.5</td>
+      <td style="text-align:right;"><strong>0.221</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>10</strong></td>
+      <td><code>A_prime_candidate_04_B_cand_10</code></td>
+      <td>A_prime_candidate_04</td>
+      <td style="text-align:right;"><strong>0.5840</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.629</strong></td>
+      <td style="text-align:right;">0.279</td>
+      <td style="text-align:right;">0.255</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.350</strong></td>
+      <td style="text-align:right;">-64.2</td>
+      <td style="text-align:right;"><strong>0.277</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>11</strong></td>
+      <td><code>A_prime_candidate_18_B_cand_37</code></td>
+      <td>A_prime_candidate_18</td>
+      <td style="text-align:right;"><strong>0.4780</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.741</strong></td>
+      <td style="text-align:right;">0.402</td>
+      <td style="text-align:right;">0.240</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.340</strong></td>
+      <td style="text-align:right;">-50.8</td>
+      <td style="text-align:right;"><strong>0.181</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>12</strong></td>
+      <td><code>A_prime_candidate_07_B_cand_09</code></td>
+      <td>A_prime_candidate_07</td>
+      <td style="text-align:right;"><strong>0.5085</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.639</strong></td>
+      <td style="text-align:right;">0.313</td>
+      <td style="text-align:right;">0.246</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.326</strong></td>
+      <td style="text-align:right;">-67.9</td>
+      <td style="text-align:right;"><strong>0.293</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>13</strong></td>
+      <td><code>A_prime_candidate_19_B_cand_39</code></td>
+      <td>A_prime_candidate_19</td>
+      <td style="text-align:right;"><strong>0.5614</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.608</strong></td>
+      <td style="text-align:right;">0.296</td>
+      <td style="text-align:right;">0.227</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.312</strong></td>
+      <td style="text-align:right;">-62.8</td>
+      <td style="text-align:right;"><strong>0.241</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>14</strong></td>
+      <td><code>A_prime_candidate_18_B_cand_03</code></td>
+      <td>A_prime_candidate_18</td>
+      <td style="text-align:right;"><strong>0.5338</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.620</strong></td>
+      <td style="text-align:right;">0.331</td>
+      <td style="text-align:right;">0.240</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.289</strong></td>
+      <td style="text-align:right;">-47.6</td>
+      <td style="text-align:right;"><strong>0.177</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>15</strong></td>
+      <td><code>A_prime_candidate_19_B_cand_02</code></td>
+      <td>A_prime_candidate_19</td>
+      <td style="text-align:right;"><strong>0.4642</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.636</strong></td>
+      <td style="text-align:right;">0.356</td>
+      <td style="text-align:right;">0.227</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.281</strong></td>
+      <td style="text-align:right;">-50.0</td>
+      <td style="text-align:right;"><strong>0.087</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>16</strong></td>
+      <td><code>A_prime_candidate_20_B_cand_36</code></td>
+      <td>A_prime_candidate_20</td>
+      <td style="text-align:right;"><strong>0.5709</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.687</strong></td>
+      <td style="text-align:right;">0.412</td>
+      <td style="text-align:right;">0.207</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.275</strong></td>
+      <td style="text-align:right;">-44.9</td>
+      <td style="text-align:right;"><strong>0.122</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>17</strong></td>
+      <td><code>A_prime_candidate_04_B_cand_24</code></td>
+      <td>A_prime_candidate_04</td>
+      <td style="text-align:right;"><strong>0.5641</strong></td>
+      <td style="text-align:center;">Medium</td>
+      <td style="text-align:right;"><strong>0.629</strong></td>
+      <td style="text-align:right;">0.356</td>
+      <td style="text-align:right;">0.255</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.273</strong></td>
+      <td style="text-align:right;">-56.3</td>
+      <td style="text-align:right;"><strong>0.175</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>18</strong></td>
+      <td><code>A_prime_candidate_11_B_cand_32</code></td>
+      <td>A_prime_candidate_11</td>
+      <td style="text-align:right;"><strong>0.4858</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.625</strong></td>
+      <td style="text-align:right;">0.400</td>
+      <td style="text-align:right;">0.259</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.225</strong></td>
+      <td style="text-align:right;">-53.6</td>
+      <td style="text-align:right;"><strong>0.187</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>19</strong></td>
+      <td><code>A_prime_candidate_10_B_cand_25</code></td>
+      <td>A_prime_candidate_10</td>
+      <td style="text-align:right;"><strong>0.4600</strong></td>
+      <td style="text-align:center;">Acceptable</td>
+      <td style="text-align:right;"><strong>0.612</strong></td>
+      <td style="text-align:right;">0.419</td>
+      <td style="text-align:right;">0.208</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.194</strong></td>
+      <td style="text-align:right;">-63.5</td>
+      <td style="text-align:right;"><strong>0.122</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3. Guide d'Inspection PyMOL</h2>
+<p>Pour visualiser les champions avec coloration des chaînes et mise en valeur des mutations d'interface :</p>
+<pre>cd DOSSIER_CHAMPIONS/visualisation_pymol
+pymol load_top_champions.pml</pre>
+</div>
+</body>
+</html>
