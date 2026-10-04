@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(__file__))
 from design_utils import (  # noqa: E402
     THREE_TO_ONE, select_diverse, std_residues, match_residues, scaffold_metrics,
     ca_rmsd_after_fit, build_rescue_bias, candidate_specificity_score, parse_mpnn_confidence,
-    load_chain, load_config, collect_pdbs, save_structure, strip_nan_lines,
+    load_chain, load_config, collect_pdbs, save_structure, strip_nan_lines, get_mpnn_omit_args,
 )
 from energy_engine import enabled as energy_enabled, pack_structures
 
@@ -349,7 +349,7 @@ def main():
                 "--fixed_residues", ",".join(fixed_list),
                 "--bias_per_residue", json.dumps(rescue_bias),
                 "--write_structures", "True",
-            ]
+            ] + get_mpnn_omit_args(lcfg)
             subprocess.run(mpnn_cmd, check=True, env=os.environ.copy())
 
             outs = [f for f in collect_pdbs(mpnn_out_dir)

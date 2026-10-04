@@ -430,3 +430,45 @@ def load_config(path):
                          f"{list(config)[:5] if isinstance(config, dict) else config!r}). "
                          f"Check the file encoding (BOM) and indentation.")
     return config
+
+
+def get_mpnn_omit_args(lcfg):
+    """Build CLI arguments for LigandMPNN residue omission (e.g. banning cysteines).
+    
+    Accepts in config:
+      ban_cysteines: true/false (or omit_cysteines)
+      omit_AAs: "C" or "CYS" or ["CYS", "UNK"] or "C,M"
+    Returns:
+      ["--omit", json.dumps(tokens)] if tokens present, else []
+    """
+    import json
+    one_to_three = {
+        'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'C': 'CYS',
+        'E': 'GLU', 'Q': 'GLN', 'G': 'GLY', 'H': 'HIS', 'I': 'ILE',
+        'L': 'LEU', 'K': 'LYS', 'M': 'MET', 'F': 'PHE', 'P': 'PRO',
+        'S': 'SER', 'T': 'THR', 'W': 'TRP', 'Y': 'TYR', 'V': 'VAL'
+    }
+    omit_set = set()
+    if lcfg.get('ban_cysteines', False) or lcfg.get('omit_cysteines', False):
+        omit_set.add('CYS')
+        
+    raw = lcfg.get('omit_AAs', None)
+    if raw:
+        if isinstance(raw, str):
+            items = [x.strip() for x in raw.replace(',', ' ').split()]
+        elif isinstance(raw, (list, tuple, set)):
+            items = [str(x).strip() for x in raw]
+        else:
+            items = []
+        for it in items:
+            up = it.upper()
+            if up in one_to_three:
+                omit_set.add(one_to_three[up])
+            elif up in one_to_three.values():
+                omit_set.add(up)
+            elif up in {'UNK', 'XAA'}:
+                omit_set.add(up)
+    if omit_set:
+        return ['--omit', json.dumps(sorted(list(omit_set)))]
+    return []
+

@@ -117,3 +117,22 @@ def test_build_rescue_bias_only_touches_mutable_positions(helix_pair):
     fixed_b = {r.id[1] for r in m["B"] if r.id[1] > 10}
     bias = build_rescue_bias(a_prime, m["B"], wt_a, fixed_b)
     assert bias and all(int(k[1:]) not in fixed_b for k in bias)
+
+
+def test_get_mpnn_omit_args():
+    from design_utils import get_mpnn_omit_args
+    import json
+    
+    assert get_mpnn_omit_args({}) == []
+    
+    res_cys = get_mpnn_omit_args({'ban_cysteines': True})
+    assert res_cys[0] == '--omit'
+    assert json.loads(res_cys[1]) == ['CYS']
+    
+    res_multi = get_mpnn_omit_args({'omit_AAs': 'C,M'})
+    assert res_multi[0] == '--omit'
+    assert json.loads(res_multi[1]) == ['CYS', 'MET']
+    
+    res_list = get_mpnn_omit_args({'omit_AAs': ['CYS', 'TRP']})
+    assert json.loads(res_list[1]) == ['CYS', 'TRP']
+

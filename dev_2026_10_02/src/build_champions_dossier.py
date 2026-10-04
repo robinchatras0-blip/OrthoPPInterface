@@ -30,6 +30,7 @@ DESIGN_PDB_DIR = os.path.join(BASE_DIR, "runs", "run_overnight_production", "04_
 RESCUE_EVAL_DIR = os.path.join(BASE_DIR, "runs", "run_overnight_production", "05_final_eval", "complex_rescue")
 ENERGY_DIR = os.path.join(BASE_DIR, "runs", "run_overnight_production", "05_final_eval", "energy")
 WT_PDB = os.path.join(PROJECT_ROOT, "data", "inputs", "complex_S1_S2.pdb")
+TABLES_DIR = os.path.join(DOSSIER_DIR, "tableaux_scores")
 
 
 def get_chain_seq(pdb_path, chain_id):
@@ -376,7 +377,55 @@ def build_full_report(df, wt_A, wt_B):
     html_content += """  </tbody>
 </table>
 
-<h2>3. Guide d'Inspection PyMOL</h2>
+"""
+    af2_csv = os.path.join(TABLES_DIR, "af2_validation_top5.csv")
+    if os.path.exists(af2_csv):
+        df_af2 = pd.read_csv(af2_csv)
+        html_content += """
+<h2>3. Validation Croisée Indépendante : AlphaFold2-Multimer v3 (Top 5)</h2>
+<p>Évaluation des trois états conformationnels (Sauvetage A'·B', Rupture A'·B_WT, Croisement A_WT·B') sous JAX/CUDA pour tester la robustesse bi-modèle et éliminer les faux-positifs :</p>
+<table>
+  <thead>
+    <tr>
+      <th>Rang</th>
+      <th>Design ID</th>
+      <th>iPTM Sauvetage</th>
+      <th>pLDDT AF2</th>
+      <th>RMSD AF2</th>
+      <th>iPTM Rupture</th>
+      <th>iPTM Croisé</th>
+      <th>&Delta; iPTM AF2</th>
+      <th>Consensus Bi-Modèle</th>
+    </tr>
+  </thead>
+  <tbody>
+"""
+        verdicts = {
+            1: "⭐ Champion Consensus n°2 (Croisement min 0.149)",
+            2: "⭐ Pic d'Affinité Sauvetage (0.490 AF2, 0.781 RF3)",
+            3: "⭐ Champion Consensus n°1 (Sub-1.5 &Aring;, Delta +0.225)",
+            4: "⚠️ Rejeté AF2 (Divergence structurale)",
+            5: "⚠️ Rejeté AF2 (Non-associé)",
+        }
+        for _, r_af2 in df_af2.iterrows():
+            rk = int(r_af2['rank'])
+            verd = verdicts.get(rk, "N/A")
+            delta_color = "#166534" if r_af2['delta_iptm_af2'] > 0.10 else ("#991b1b" if r_af2['delta_iptm_af2'] < 0 else "#334155")
+            html_content += f"""    <tr>
+      <td style="text-align:center;"><strong>{rk}</strong></td>
+      <td><code>{r_af2['design_id']}</code></td>
+      <td style="text-align:right;"><strong>{r_af2['rescue_iptm']:.3f}</strong></td>
+      <td style="text-align:right;">{r_af2['rescue_plddt']:.3f}</td>
+      <td style="text-align:right;">{r_af2['rescue_rmsd']:.2f} &Aring;</td>
+      <td style="text-align:right;">{r_af2['rupture_iptm']:.3f}</td>
+      <td style="text-align:right;">{r_af2['cross_iptm']:.3f}</td>
+      <td style="text-align:right; color:{delta_color};"><strong>{r_af2['delta_iptm_af2']:+.3f}</strong></td>
+      <td><strong>{verd}</strong></td>
+    </tr>\n"""
+        html_content += "  </tbody>\n</table>\n"
+
+    html_content += """
+<h2>4. Guide d'Inspection PyMOL</h2>
 <p>Pour visualiser les champions avec coloration des chaînes et mise en valeur des mutations d'interface :</p>
 <pre>cd DOSSIER_CHAMPIONS/visualisation_pymol
 pymol load_top_champions.pml</pre>

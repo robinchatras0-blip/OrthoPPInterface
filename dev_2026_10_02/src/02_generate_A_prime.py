@@ -9,7 +9,7 @@ import sys
 from Bio.PDB import PDBParser
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import collect_pdbs, load_config, save_structure, std_residues, strip_nan_lines
+from design_utils import collect_pdbs, get_mpnn_omit_args, load_config, save_structure, std_residues, strip_nan_lines
 from energy_engine import enabled as energy_enabled, pack_structures
 
 
@@ -103,7 +103,7 @@ def main():
             "--fixed_residues", ",".join(f for f in fixed_list if f in existing),
             "--bias_per_residue", json.dumps(bias),
             "--write_structures", "True",
-        ]
+        ] + get_mpnn_omit_args(lcfg)
         print(f"Module 2: Running LigandMPNN -> {' '.join(mpnn_cmd[:6])} ...")
         subprocess.run(mpnn_cmd, check=True)
 

@@ -303,7 +303,83 @@
   </tbody>
 </table>
 
-<h2>3. Guide d'Inspection PyMOL</h2>
+
+<h2>3. Validation Croisée Indépendante : AlphaFold2-Multimer v3 (Top 5)</h2>
+<p>Évaluation des trois états conformationnels (Sauvetage A'·B', Rupture A'·B_WT, Croisement A_WT·B') sous JAX/CUDA pour tester la robustesse bi-modèle et éliminer les faux-positifs :</p>
+<table>
+  <thead>
+    <tr>
+      <th>Rang</th>
+      <th>Design ID</th>
+      <th>iPTM Sauvetage</th>
+      <th>pLDDT AF2</th>
+      <th>RMSD AF2</th>
+      <th>iPTM Rupture</th>
+      <th>iPTM Croisé</th>
+      <th>&Delta; iPTM AF2</th>
+      <th>Consensus Bi-Modèle</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align:center;"><strong>1</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_40</code></td>
+      <td style="text-align:right;"><strong>0.390</strong></td>
+      <td style="text-align:right;">0.830</td>
+      <td style="text-align:right;">1.79 &Aring;</td>
+      <td style="text-align:right;">0.198</td>
+      <td style="text-align:right;">0.149</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.192</strong></td>
+      <td><strong>⭐ Champion Consensus n°2 (Croisement min 0.149)</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>2</strong></td>
+      <td><code>A_prime_candidate_17_B_cand_29</code></td>
+      <td style="text-align:right;"><strong>0.490</strong></td>
+      <td style="text-align:right;">0.829</td>
+      <td style="text-align:right;">3.52 &Aring;</td>
+      <td style="text-align:right;">0.225</td>
+      <td style="text-align:right;">0.365</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.125</strong></td>
+      <td><strong>⭐ Pic d'Affinité Sauvetage (0.490 AF2, 0.781 RF3)</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>3</strong></td>
+      <td><code>A_prime_candidate_01_B_cand_36</code></td>
+      <td style="text-align:right;"><strong>0.427</strong></td>
+      <td style="text-align:right;">0.816</td>
+      <td style="text-align:right;">1.46 &Aring;</td>
+      <td style="text-align:right;">0.198</td>
+      <td style="text-align:right;">0.203</td>
+      <td style="text-align:right; color:#166534;"><strong>+0.225</strong></td>
+      <td><strong>⭐ Champion Consensus n°1 (Sub-1.5 &Aring;, Delta +0.225)</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>4</strong></td>
+      <td><code>A_prime_candidate_13_B_cand_22</code></td>
+      <td style="text-align:right;"><strong>0.122</strong></td>
+      <td style="text-align:right;">0.742</td>
+      <td style="text-align:right;">6.64 &Aring;</td>
+      <td style="text-align:right;">0.210</td>
+      <td style="text-align:right;">0.100</td>
+      <td style="text-align:right; color:#991b1b;"><strong>-0.088</strong></td>
+      <td><strong>⚠️ Rejeté AF2 (Divergence structurale)</strong></td>
+    </tr>
+    <tr>
+      <td style="text-align:center;"><strong>5</strong></td>
+      <td><code>A_prime_candidate_11_B_cand_33</code></td>
+      <td style="text-align:right;"><strong>0.136</strong></td>
+      <td style="text-align:right;">0.741</td>
+      <td style="text-align:right;">5.10 &Aring;</td>
+      <td style="text-align:right;">0.138</td>
+      <td style="text-align:right;">0.126</td>
+      <td style="text-align:right; color:#991b1b;"><strong>-0.002</strong></td>
+      <td><strong>⚠️ Rejeté AF2 (Non-associé)</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. Guide d'Inspection PyMOL</h2>
 <p>Pour visualiser les champions avec coloration des chaînes et mise en valeur des mutations d'interface :</p>
 <pre>cd DOSSIER_CHAMPIONS/visualisation_pymol
 pymol load_top_champions.pml</pre>

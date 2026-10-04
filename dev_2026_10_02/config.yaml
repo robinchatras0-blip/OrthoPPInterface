@@ -43,6 +43,8 @@ ligandmpnn:
   samples_per_scaffold: 30
   top_k_per_motif: 4                  # B' designs sent to Module 5 per A' motif (>= 1 per scaffold)
   max_clashes_with_a_prime: 3         # hard filter on LigandMPNN outputs
+  ban_cysteines: true                 # Ban cysteines to prevent un-paired / reactive free Cys (default: true)
+  omit_AAs: "C"                       # Specific amino acids to omit from LigandMPNN (e.g. "C" or "CYS" or ["CYS"])
 folding:
   rf3_bin: /home/ommearo/miniforge3/envs/orthoppinterface/bin/rf3
   rf3_ckpt: /home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
