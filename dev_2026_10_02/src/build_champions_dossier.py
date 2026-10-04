@@ -376,56 +376,121 @@ def build_full_report(df, wt_A, wt_B):
 
     html_content += """  </tbody>
 </table>
-
 """
-    af2_csv = os.path.join(TABLES_DIR, "af2_validation_top5.csv")
-    if os.path.exists(af2_csv):
-        df_af2 = pd.read_csv(af2_csv)
+    corr_csv = os.path.join(TABLES_DIR, "correlation_rf3_af2.csv")
+    af2_19_csv = os.path.join(TABLES_DIR, "af2_validation_19_champions.csv")
+
+    if os.path.exists(corr_csv):
+        df_corr = pd.read_csv(corr_csv)
         html_content += """
-<h2>3. Validation Croisée Indépendante : AlphaFold2-Multimer v3 (Top 5)</h2>
-<p>Évaluation des trois états conformationnels (Sauvetage A'·B', Rupture A'·B_WT, Croisement A_WT·B') sous JAX/CUDA pour tester la robustesse bi-modèle et éliminer les faux-positifs :</p>
+<h2>3. Analyse de Corrélation Statistique : RoseTTAFold-3 vs AlphaFold2-Multimer v3</h2>
+<p>Comparaison statistique rigoureuse sur les 19 champions (57 prédictions atomiques sous JAX/CUDA) :</p>
+<table>
+  <thead>
+    <tr>
+      <th>Métrique Comparée</th>
+      <th>Métrique RF3</th>
+      <th>Métrique AF2</th>
+      <th>Pearson <em>r</em></th>
+      <th>p-value (Pearson)</th>
+      <th>Spearman &rho;</th>
+      <th>p-value (Spearman)</th>
+      <th>Interprétation Statistique</th>
+    </tr>
+  </thead>
+  <tbody>
+"""
+        interp_map = {
+            "iPTM Rescue (RF3 vs AF2)": "✅ <strong>Forte corrélation de rang (&rho; = +0.754, p &lt; 0.001)</strong> — Accord majeur sur l'affinité de sauvetage.",
+            "iPTM Rupture (RF3 vs AF2)": "ℹ️ <strong>Effet de seuil (Non corrélé linéairement)</strong> — Les deux modèles saturent au plancher de non-amarrage (&le; 0.20-0.25).",
+            "iPTM Croise (RF3 vs AF2)": "✅ <strong>Corrélation significative (&rho; = +0.625, p &lt; 0.005)</strong> — Accord sur la suppression du croisement A_WT.",
+            "Delta iPTM (RF3 vs AF2)": "ℹ️ <strong>Corrélation modérée (r = +0.319)</strong> — Légère divergence sur les amplitudes de delta.",
+            "DockQ RF3 vs RMSD AF2": "✅ <strong>Anticorrélation attendue (&rho; = -0.360)</strong> — Meilleur DockQ corrélé à un RMSD AF2 plus faible.",
+            "PyRosetta dG vs iPTM Rescue AF2": "ℹ️ <strong>Corrélation positive faible (r = +0.240)</strong> — Physique ref2015 vs réseau neuronal.",
+        }
+        for _, rc in df_corr.iterrows():
+            comp = rc['comparison']
+            interp = interp_map.get(comp, "Corrélation standard")
+            p_val_str = f"{rc['pearson_pvalue']:.3e}" if rc['pearson_pvalue'] < 0.001 else f"{rc['pearson_pvalue']:.4f}"
+            s_val_str = f"{rc['spearman_pvalue']:.3e}" if rc['spearman_pvalue'] < 0.001 else f"{rc['spearman_pvalue']:.4f}"
+            pr_val = float(rc['pearson_r'])
+            sr_val = float(rc['spearman_rho'])
+            pr_str = f"{pr_val:+.3f}"
+            sr_str = f"{sr_val:+.3f}"
+            r_color = "#166534" if pr_val > 0.4 else ("#991b1b" if pr_val < -0.4 else "#334155")
+            rho_color = "#166534" if sr_val > 0.5 else ("#991b1b" if sr_val < -0.5 else "#334155")
+            html_content += f"""    <tr>
+      <td><strong>{comp}</strong></td>
+      <td><code>{rc['metric_rf3']}</code></td>
+      <td><code>{rc['metric_af2']}</code></td>
+      <td style="text-align:right; color:{r_color};"><strong>{pr_str}</strong></td>
+      <td style="text-align:right;">{p_val_str}</td>
+      <td style="text-align:right; color:{rho_color};"><strong>{sr_str}</strong></td>
+      <td style="text-align:right;">{s_val_str}</td>
+      <td>{interp}</td>
+    </tr>\n"""
+        html_content += "  </tbody>\n</table>\n"
+
+    if os.path.exists(af2_19_csv):
+        df_af2_19 = pd.read_csv(af2_19_csv)
+        html_content += """
+<h2>4. Tableau Comparatif Complet des 19 Champions (RF3 vs AF2)</h2>
+<p>Détail candidat par candidat de la validation croisée indépendante :</p>
 <table>
   <thead>
     <tr>
       <th>Rang</th>
       <th>Design ID</th>
-      <th>iPTM Sauvetage</th>
+      <th>iPTM RF3</th>
+      <th>iPTM AF2</th>
       <th>pLDDT AF2</th>
       <th>RMSD AF2</th>
-      <th>iPTM Rupture</th>
-      <th>iPTM Croisé</th>
+      <th>Rupture AF2</th>
+      <th>Croisé AF2</th>
       <th>&Delta; iPTM AF2</th>
       <th>Consensus Bi-Modèle</th>
     </tr>
   </thead>
   <tbody>
 """
-        verdicts = {
-            1: "⭐ Champion Consensus n°2 (Croisement min 0.149)",
-            2: "⭐ Pic d'Affinité Sauvetage (0.490 AF2, 0.781 RF3)",
-            3: "⭐ Champion Consensus n°1 (Sub-1.5 &Aring;, Delta +0.225)",
-            4: "⚠️ Rejeté AF2 (Divergence structurale)",
-            5: "⚠️ Rejeté AF2 (Non-associé)",
-        }
-        for _, r_af2 in df_af2.iterrows():
-            rk = int(r_af2['rank'])
-            verd = verdicts.get(rk, "N/A")
-            delta_color = "#166534" if r_af2['delta_iptm_af2'] > 0.10 else ("#991b1b" if r_af2['delta_iptm_af2'] < 0 else "#334155")
-            html_content += f"""    <tr>
+        for _, r19 in df_af2_19.iterrows():
+            rk = int(r19['rank'])
+            delta_af2 = float(r19['delta_iptm_af2'])
+            rmsd_af2 = float(r19['rescue_rmsd_af2'])
+            delta_str = f"{delta_af2:+.3f}"
+            if delta_af2 >= 0.15 and rmsd_af2 <= 2.0:
+                verd = "⭐ <strong>Champion Universel Confirmé</strong>"
+                bg_style = ' style="background-color: #ecfdf5;"'
+            elif delta_af2 >= 0.10:
+                verd = "⭐ <strong>Champion Fort Consensus</strong>"
+                bg_style = ' style="background-color: #f0fdf4;"'
+            elif delta_af2 >= 0.05:
+                verd = "✔️ <strong>Orthogonalité Modérée AF2</strong>"
+                bg_style = ""
+            elif delta_af2 > 0:
+                verd = "⚠️ <strong>Marge AF2 Faible</strong>"
+                bg_style = ""
+            else:
+                verd = "❌ <em>Divergence AF2 / Faux positif RF3</em>"
+                bg_style = ' style="background-color: #fff1f2;"'
+
+            delta_color = "#166534" if delta_af2 > 0.10 else ("#991b1b" if delta_af2 < 0 else "#334155")
+            html_content += f"""    <tr{bg_style}>
       <td style="text-align:center;"><strong>{rk}</strong></td>
-      <td><code>{r_af2['design_id']}</code></td>
-      <td style="text-align:right;"><strong>{r_af2['rescue_iptm']:.3f}</strong></td>
-      <td style="text-align:right;">{r_af2['rescue_plddt']:.3f}</td>
-      <td style="text-align:right;">{r_af2['rescue_rmsd']:.2f} &Aring;</td>
-      <td style="text-align:right;">{r_af2['rupture_iptm']:.3f}</td>
-      <td style="text-align:right;">{r_af2['cross_iptm']:.3f}</td>
-      <td style="text-align:right; color:{delta_color};"><strong>{r_af2['delta_iptm_af2']:+.3f}</strong></td>
-      <td><strong>{verd}</strong></td>
+      <td><code>{r19['design_id']}</code></td>
+      <td style="text-align:right;"><strong>{r19['iptm_rescue_rf3']:.3f}</strong></td>
+      <td style="text-align:right;"><strong>{r19['rescue_iptm_af2']:.3f}</strong></td>
+      <td style="text-align:right;">{r19['rescue_plddt_af2']:.3f}</td>
+      <td style="text-align:right;">{rmsd_af2:.2f} &Aring;</td>
+      <td style="text-align:right;">{r19['rupture_iptm_af2']:.3f}</td>
+      <td style="text-align:right;">{r19['cross_iptm_af2']:.3f}</td>
+      <td style="text-align:right; color:{delta_color};"><strong>{delta_str}</strong></td>
+      <td>{verd}</td>
     </tr>\n"""
         html_content += "  </tbody>\n</table>\n"
 
     html_content += """
-<h2>4. Guide d'Inspection PyMOL</h2>
+<h2>5. Guide d'Inspection PyMOL</h2>
 <p>Pour visualiser les champions avec coloration des chaînes et mise en valeur des mutations d'interface :</p>
 <pre>cd DOSSIER_CHAMPIONS/visualisation_pymol
 pymol load_top_champions.pml</pre>
