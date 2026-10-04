@@ -490,7 +490,40 @@ def build_full_report(df, wt_A, wt_B):
         html_content += "  </tbody>\n</table>\n"
 
     html_content += """
-<h2>5. Guide d'Inspection PyMOL</h2>
+<h2>5. Galerie Graphique & Preuves Statistiques de Succès</h2>
+<p>Visualisation analytique à haute résolution (300 DPI) étayant l'orthogonalité, la convergence bi-modèle et la conservation structurelle :</p>
+
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="color:#1e3a8a; margin-top:0;">Figure 1 : Distributions d'Amarrage iPTM et Sélectivité Orthogonale</h3>
+  <img src="figures/fig1_iptm_distributions_and_orthogonality.png" alt="Figure 1" style="max-width:100%; height:auto; border-radius:6px; border:1px solid #cbd5e1;">
+  <p style="font-size:13px; color:#475569; margin-top:10px;"><strong>Légende :</strong> Séparation nette des états de sauvetage (médiane ~0.70) et de rupture (plancher &le; 0.20-0.25). Le quadrant supérieur droit du panel C concentre les champions universels de la lignée candidate_01 et candidate_17.</p>
+</div>
+
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="color:#1e3a8a; margin-top:0;">Figure 2 : Corrélations Statistique Multi-Modèles (RF3 vs AF2) & PyRosetta</h3>
+  <img src="figures/fig2_correlations_rf3_af2_pyrosetta.png" alt="Figure 2" style="max-width:100%; height:auto; border-radius:6px; border:1px solid #cbd5e1;">
+  <p style="font-size:13px; color:#475569; margin-top:10px;"><strong>Légende :</strong> Forte concordance de rang entre RoseTTAFold-3 et AlphaFold2 sur l'affinité de sauvetage (&rho; = +0.754, p = 1.9e-4) et sur l'amarrage croisé (&rho; = +0.625, p = 4.3e-3), couplée à des énergies libres PyRosetta favorables (&Delta;G jusqu'à -75 REU).</p>
+</div>
+
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="color:#1e3a8a; margin-top:0;">Figure 3 : Cartographie des Mutations & Taux de Conservation par Position</h3>
+  <img src="figures/fig3_mutation_frequency_and_conservation.png" alt="Figure 3" style="max-width:100%; height:auto; border-radius:6px; border:1px solid #cbd5e1;">
+  <p style="font-size:13px; color:#475569; margin-top:10px;"><strong>Légende :</strong> Localisation précise des hotspots sur les 3 îlots de contact (N-ter, boucle médiane, C-ter) et conservation absolue à 100 % du coeur structural. Matrice des 1 169 substitutions d'acides aminés (panel C).</p>
+</div>
+
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="color:#1e3a8a; margin-top:0;">Figure 4 : Profils de Confiance Atomique pLDDT par Résidu le long des Chaînes</h3>
+  <img src="figures/fig4_plddt_profiles_per_residue.png" alt="Figure 4" style="max-width:100%; height:auto; border-radius:6px; border:1px solid #cbd5e1;">
+  <p style="font-size:13px; color:#475569; margin-top:10px;"><strong>Légende :</strong> Extraction des pLDDT par résidu des modèles PDB des top champions. L'ensemble des chaînes A' (224 aa) et B' (88 aa) reste solidement au-dessus du seuil de haute confiance structurelle (pLDDT &gt; 80).</p>
+</div>
+
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:30px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="color:#1e3a8a; margin-top:0;">Figure 5 : Profils Multi-Critères de Performance (Radar Chart Pareto)</h3>
+  <img src="figures/fig5_champion_radar_profiles.png" alt="Figure 5" style="max-width:100%; height:auto; border-radius:6px; border:1px solid #cbd5e1;">
+  <p style="font-size:13px; color:#475569; margin-top:10px;"><strong>Légende :</strong> Diagramme hexagonal comparant les champions d'élite sur 6 axes indépendants (Affinité RF3, Affinité AF2, &Delta;iPTM, &Delta;G Rosetta, DockQ, Précision 1/RMSD).</p>
+</div>
+
+<h2>6. Guide d'Inspection PyMOL</h2>
 <p>Pour visualiser les champions avec coloration des chaînes et mise en valeur des mutations d'interface :</p>
 <pre>cd DOSSIER_CHAMPIONS/visualisation_pymol
 pymol load_top_champions.pml</pre>

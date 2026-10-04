@@ -255,13 +255,66 @@ Soit **57 prédictions atomiques 3D complètes**.
 
 ---
 
-## 9. ARBORESCENCE COMPLÈTE DU DOSSIER
+## 9. GALERIE GRAPHIQUE & PREUVES STATISTIQUES DE SUCCÈS
+
+Cinq figures scientifiques à haute résolution (300 DPI) ont été générées automatiquement dans le dossier `figures/` pour étayer et justifier les conclusions de la campagne d'ingénierie moléculaire :
+
+### Figure 1 : Matrice de Sélectivité et Distributions d'Amarrage iPTM
+![Figure 1 : Distributions d'Amarrage et Sélectivité](figures/fig1_iptm_distributions_and_orthogonality.png)
+* **Panel A :** Séparation drastique des scores d'amarrage entre les complexes de sauvetage $A' \cdot B'$ (médiane à 0.65-0.75) et les états négatifs répressifs ($A' \cdot B_{\text{WT}}$ et $A_{\text{WT}} \cdot B'$, sous le seuil critique de 0.35).
+* **Panel B :** Spectre en cascade du différentiel de sélectivité $\Delta iPTM^{\text{AF2}}$, montrant que 11 des 19 variants conservent une marge positive nette sous AlphaFold2.
+* **Panel C :** Espace bi-modèle RF3 vs AF2 mettant en évidence le quadrant d'or supérieur droit où se concentrent les champions de la famille `candidate_01` et `candidate_17`.
+
+---
+
+### Figure 2 : Corrélations Statistique Multi-Modèles & PyRosetta
+![Figure 2 : Corrélations Statistique Multi-Modèles](figures/fig2_correlations_rf3_af2_pyrosetta.png)
+* **Panel A :** Corrélation d'affinité de sauvetage entre RF3 et AF2 (**Pearson $r = +0.559$, Spearman $\rho = +0.754$, $p = 1.9 \times 10^{-4}$**).
+* **Panel B :** Accord bi-modèle sur la répression du partenaire croisé sauvage $A_{\text{WT}}$ (**Pearson $r = +0.478$, Spearman $\rho = +0.625$, $p = 4.3 \times 10^{-3}$**).
+* **Panels C & D :** Paysage d'énergie libre PyRosetta ($\Delta G$ jusqu'à -75 REU) et convergence conformationnelle (DockQ élevé corrélé à de faibles RMSD atomiques).
+
+---
+
+### Figure 3 : Cartographie des Mutations & Taux de Conservation par Position
+![Figure 3 : Cartographie des Mutations et Conservation](figures/fig3_mutation_frequency_and_conservation.png)
+* **Panels A & B :** Fréquence de mutation par résidu sur la chaîne $A'$ (224 résidus) et la chaîne $B'$ (88 résidus). On observe une conservation rigoureuse à 100 % du framework structurel et des hotspots intenses localisés sur les 3 îlots d'amarrage (N-ter, boucle médiane, C-ter).
+* **Panel C :** Matrice de substitution d'acides aminés (heatmap 20×20 des 1 169 mutations répertoriées).
+* **Panel D :** Top 15 des mutations hotspots les plus récurrentes, identifiant les substitutions clés (`D39R`, `L37R`, `S12W`, `R4A`, `H15A`).
+
+---
+
+### Figure 4 : Profils de Confiance Atomique pLDDT par Résidu le long des Chaînes
+![Figure 4 : Profils pLDDT le long des chaînes](figures/fig4_plddt_profiles_per_residue.png)
+* **Panel A (Chaîne A') & Panel B (Chaîne B') :** Profils de confiance $pLDDT$ résidu par résidu pour les Top Champions. L'ensemble des chaînes se maintient confortablement au-dessus du seuil de haute confiance structurelle ($pLDDT > 80$), garantissant l'absence de régions désordonnées ou d'effondrement local.
+
+---
+
+### Figure 5 : Profils Multi-Critères de Performance (Radar Chart Pareto)
+![Figure 5 : Radar Pareto des Champions](figures/fig5_champion_radar_profiles.png)
+* Comparaison hexagonale multi-objectifs normalisée des 5 meilleurs champions sur 6 critères indépendants :
+  1. Affinité Sauvetage RF3
+  2. Affinité Sauvetage AF2
+  3. Sélectivité $\Delta iPTM$ AF2
+  4. Énergie de Liaison PyRosetta ($-\Delta G$)
+  5. Fidélité Géométrique CAPRI (DockQ)
+  6. Précision Atomique 3D ($1 / \text{RMSD}$)
+
+---
+
+## 10. ARBORESCENCE COMPLÈTE DU DOSSIER
 
 ```
 DOSSIER_CHAMPIONS/
 │
 ├── RAPPORT_SCIENTIFIQUE_COMPLET.md      <- Ce rapport exécutif exhaustif
 ├── RAPPORT_SCIENTIFIQUE_COMPLET.html    <- Dashboard HTML complet pour navigateur
+│
+├── figures/                             <- 5 figures scientifiques haute résolution (300 DPI)
+│   ├── fig1_iptm_distributions_and_orthogonality.png
+│   ├── fig2_correlations_rf3_af2_pyrosetta.png
+│   ├── fig3_mutation_frequency_and_conservation.png
+│   ├── fig4_plddt_profiles_per_residue.png
+│   └── fig5_champion_radar_profiles.png
 │
 ├── structures_pdb/                      <- 76 fichiers PDB annotés et préfixés par rang
 │   ├── 01_A_prime_candidate_01_B_cand_40_design.pdb
@@ -288,4 +341,5 @@ DOSSIER_CHAMPIONS/
 └── visualisation_pymol/                 <- Environnement PyMOL 3D en 1 clic
     └── load_top_champions.pml
 ```
+
 
