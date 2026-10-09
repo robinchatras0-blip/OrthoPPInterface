@@ -1002,31 +1002,31 @@ A production campaign of **600 all-atom complexes** across **12 $A'$ motif famil
 
 ---
 
-### 4.1 Evaluation Table of the 19 Champions: Explicit 4-State Matrix & Scoring Breakdown
+### 4.1 Evaluation Table of the 19 Champions: 4-Way iPTM Matrix & CAPRI DockQ
 
-The table below presents the complete biophysical evaluation of the 19 strict orthogonal champions. All four molecular interaction states ($\text{iPTM}(A' \cdot B')$, $\text{iPTM}(A' \cdot B_{\text{WT}})$, $\text{iPTM}(A_{\text{WT}} \cdot B')$, and the reference ceiling $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}}) = 0.545$) are displayed directly, making the derivation of the selectivity margin $\Delta\text{iPTM} = \text{iPTM}(A' \cdot B') - \max(\text{iPTM}(A' \cdot B_{\text{WT}}), \text{iPTM}(A_{\text{WT}} \cdot B'))$ and composite score $F_{\text{ortho}}$ completely transparent.
+The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our formal theoretical indices from Section 2.1: the target cognate rescue $\text{iPTM}(A' \cdot B')$, the host rupture state $\text{iPTM}(A' \cdot B_{\text{WT}})$, the host cross-reactivity state $\text{iPTM}(A_{\text{WT}} \cdot B')$, the calibrated wild-type ceiling $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}}) = 0.545$, the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to the native crystallographic ground truth $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}}) = 1.000$.
 
-| Rank | Complex ID | Parent $A'$ | $\text{iPTM}(A' \cdot B')$<br>*(Rescue)* | $\text{iPTM}(A' \cdot B_{\text{WT}})$<br>*(Rupture)* | $\text{iPTM}(A_{\text{WT}} \cdot B')$<br>*(Cross)* | $\text{iPTM}_{\text{ref}}^{\text{WT}}$<br>*(Ceiling)* | $\Delta\text{iPTM}$<br>*(Margin)* | $\Delta G$<br>*(REU)* | $F_{\text{ortho}}$ | DockQ<br>*(RF3)* | CAPRI<br>Class | $\text{iPTM}_{\text{res}}^{\text{AF2}}$ | $\text{RMSD}^{\text{AF2}}$<br>*(Å)* | Key Characteristic |
-| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **01** | `cand_01_B_cand_40` | `cand_01` | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | -40.7 | 0.211 | 0.4812 | Acceptable | 0.390 | 1.79 Å | ⭐ Selectivity Record ($\Delta\text{iPTM} \approx +0.50$) |
-| **02** | `cand_17_B_cand_29` | `cand_17` | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | **-65.8** | **0.384** | **0.5470** | Medium | **0.490** | 3.52 Å | ⭐ Affinity Peak ($\text{iPTM} = 0.781$, $\Delta G = -65.8$) |
-| **03** | `cand_01_B_cand_36` | `cand_01` | **0.701** | 0.295 | 0.259 | 0.545 | <strong style="color: #2ed578;">+0.442</strong> | -48.1 | 0.253 | **0.5819** | Medium | **0.428** | **1.46 Å** | ⭐ Native Docking Record (Sub-1.5 Å AF2) |
-| **04** | `cand_13_B_cand_22` | `cand_13` | 0.602 | 0.246 | 0.221 | 0.545 | <strong style="color: #2ed578;">+0.381</strong> | **-74.7** | **0.400** | 0.4968 | Medium | 0.122 | 6.64 Å | ⚠️ Energy Record ($\Delta G = -74.7$), AF2 diverged |
-| **05** | `cand_11_B_cand_33` | `cand_11` | 0.626 | 0.259 | 0.247 | 0.545 | <strong style="color: #2ed578;">+0.379</strong> | -48.8 | 0.191 | **0.5074** | Medium | 0.136 | 5.10 Å | ⚠️ Solid RF3 Medium, AF2 false negative |
-| **06** | `cand_01_B_cand_20` | `cand_01` | **0.741** | 0.295 | 0.384 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | -46.1 | 0.222 | **0.5401** | Medium | 0.297 | 2.05 Å | ✔️ High Cognate Rescue ($\text{iPTM} = 0.741$) |
-| **07** | `cand_11_B_cand_40` | `cand_11` | 0.600 | 0.259 | 0.243 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | -50.7 | 0.224 | 0.4729 | Acceptable | 0.154 | 5.03 Å | ✔️ Favorable Energetics ($\Delta G = -50.7$) |
-| **08** | `cand_11_B_cand_04` | `cand_11` | 0.625 | 0.259 | 0.270 | 0.545 | <strong style="color: #2ed578;">+0.355</strong> | -51.4 | 0.147 | **0.5368** | Medium | 0.135 | 6.23 Å | ✔️ CAPRI Medium Geometry |
-| **09** | `cand_01_B_cand_14` | `cand_01` | 0.632 | 0.295 | 0.282 | 0.545 | <strong style="color: #2ed578;">+0.351</strong> | -48.5 | 0.221 | **0.6031** | Medium | **0.470** | **1.51 Å** | ⭐ Universal Consensus #1 (DockQ 0.60, 1.51 Å) |
-| **10** | `cand_04_B_cand_10` | `cand_04` | 0.629 | 0.255 | 0.279 | 0.545 | <strong style="color: #2ed578;">+0.350</strong> | **-64.2** | 0.277 | **0.5840** | Medium | 0.277 | 3.35 Å | ⭐ High Energy & Stability ($\Delta G = -64.2$) |
-| **11** | `cand_18_B_cand_37` | `cand_18` | **0.741** | 0.240 | 0.402 | 0.545 | <strong style="color: #2ed578;">+0.340</strong> | -50.8 | 0.181 | 0.4780 | Acceptable | **0.417** | 2.10 Å | ⭐ Strong Dual Affinity ($\text{iPTM} = 0.741 / 0.417$) |
-| **12** | `cand_07_B_cand_09` | `cand_07` | 0.639 | 0.246 | 0.313 | 0.545 | <strong style="color: #2ed578;">+0.326</strong> | **-67.9** | 0.293 | **0.5085** | Medium | 0.369 | **1.45 Å** | ⭐ AF2 Geometric Record (RMSD = 1.45 Å) |
-| **13** | `cand_19_B_cand_39` | `cand_19` | 0.608 | 0.227 | 0.296 | 0.545 | <strong style="color: #2ed578;">+0.312</strong> | **-62.8** | 0.241 | **0.5614** | Medium | 0.141 | 2.94 Å | ✔️ CAPRI Medium, Low WT Rupture (0.227) |
-| **14** | `cand_18_B_cand_03` | `cand_18` | 0.620 | 0.240 | 0.331 | 0.545 | <strong style="color: #2ed578;">+0.289</strong> | -47.6 | 0.177 | **0.5338** | Medium | 0.292 | 2.29 Å | ✔️ Balanced Profile |
-| **15** | `cand_19_B_cand_02` | `cand_19` | 0.636 | 0.227 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.281</strong> | -50.0 | 0.087 | 0.4642 | Acceptable | 0.311 | 2.00 Å | ✔️ Sub-2.0 Å Docking |
-| **16** | `cand_20_B_cand_36` | `cand_20` | 0.687 | 0.207 | 0.412 | 0.545 | <strong style="color: #2ed578;">+0.275</strong> | -44.9 | 0.122 | **0.5709** | Medium | **0.415** | **1.00 Å** | ⭐ Lowest WT Rupture (0.207), 1.00 Å AF2 RMSD |
-| **17** | `cand_04_B_cand_24` | `cand_04` | 0.629 | 0.255 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.273</strong> | -56.3 | 0.175 | **0.5641** | Medium | **0.588** | **1.04 Å** | ⭐ AF2 Affinity Peak (0.588, RMSD 1.04 Å) |
-| **18** | `cand_11_B_cand_32` | `cand_11` | 0.625 | 0.259 | 0.400 | 0.545 | <strong style="color: #2ed578;">+0.225</strong> | -53.6 | 0.187 | 0.4858 | Acceptable | 0.300 | **1.62 Å** | ✔️ 1.62 Å AF2 Binding Pose |
-| **19** | `cand_10_B_cand_25` | `cand_10` | 0.612 | 0.208 | 0.419 | 0.545 | <strong style="color: #2ed578;">+0.194</strong> | **-63.5** | 0.122 | 0.4600 | Acceptable | 0.127 | 4.69 Å | ✔️ High Stability ($\Delta G = -63.5$) |
+| Pair | $\text{iPTM}(A' \cdot B')$ | $\text{iPTM}(A' \cdot B_{\text{WT}})$ | $\text{iPTM}(A_{\text{WT}} \cdot B')$ | $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}})$ | $\Delta\text{iPTM}$ | $\text{DockQ}(A' \cdot B')$ | $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}})$ |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Pair 01** | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | 0.481 | 1.000 |
+| **Pair 02** | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | 0.547 | 1.000 |
+| **Pair 03** | **0.701** | 0.295 | 0.259 | 0.545 | <strong style="color: #2ed578;">+0.442</strong> | 0.582 | 1.000 |
+| **Pair 04** | 0.602 | 0.246 | 0.221 | 0.545 | <strong style="color: #2ed578;">+0.381</strong> | 0.497 | 1.000 |
+| **Pair 05** | 0.626 | 0.259 | 0.247 | 0.545 | <strong style="color: #2ed578;">+0.379</strong> | 0.507 | 1.000 |
+| **Pair 06** | **0.741** | 0.295 | 0.384 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | 0.540 | 1.000 |
+| **Pair 07** | 0.600 | 0.259 | 0.243 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | 0.473 | 1.000 |
+| **Pair 08** | 0.625 | 0.259 | 0.270 | 0.545 | <strong style="color: #2ed578;">+0.355</strong> | 0.537 | 1.000 |
+| **Pair 09** | 0.632 | 0.295 | 0.282 | 0.545 | <strong style="color: #2ed578;">+0.351</strong> | 0.603 | 1.000 |
+| **Pair 10** | 0.629 | 0.255 | 0.279 | 0.545 | <strong style="color: #2ed578;">+0.350</strong> | 0.584 | 1.000 |
+| **Pair 11** | **0.741** | 0.240 | 0.402 | 0.545 | <strong style="color: #2ed578;">+0.340</strong> | 0.478 | 1.000 |
+| **Pair 12** | 0.639 | 0.246 | 0.313 | 0.545 | <strong style="color: #2ed578;">+0.326</strong> | 0.509 | 1.000 |
+| **Pair 13** | 0.608 | 0.227 | 0.296 | 0.545 | <strong style="color: #2ed578;">+0.312</strong> | 0.561 | 1.000 |
+| **Pair 14** | 0.620 | 0.240 | 0.331 | 0.545 | <strong style="color: #2ed578;">+0.289</strong> | 0.534 | 1.000 |
+| **Pair 15** | 0.636 | 0.227 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.281</strong> | 0.464 | 1.000 |
+| **Pair 16** | 0.687 | 0.207 | 0.412 | 0.545 | <strong style="color: #2ed578;">+0.275</strong> | 0.571 | 1.000 |
+| **Pair 17** | 0.629 | 0.255 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.273</strong> | 0.564 | 1.000 |
+| **Pair 18** | 0.625 | 0.259 | 0.400 | 0.545 | <strong style="color: #2ed578;">+0.225</strong> | 0.486 | 1.000 |
+| **Pair 19** | 0.612 | 0.208 | 0.419 | 0.545 | <strong style="color: #2ed578;">+0.194</strong> | 0.460 | 1.000 |
 
 <div style="text-align: center; margin: 2rem 0;">
   <img src="figures/fig5_champion_radar_profiles.png" alt="Figure 5: Radar Profiles of Top Champions" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />

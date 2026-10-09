@@ -482,354 +482,218 @@ export function Model(): React.ReactElement {
           </p>
         </div>
 
-        <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champions-table">
-          4.1 Evaluation Table of the 19 Orthogonal Champions
+                <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champions-table">
+          4.1 Evaluation Table of the 19 Orthogonal Champions: 4-Way iPTM Matrix &amp; CAPRI DockQ
         </h3>
+        <p className="small text-secondary mb-3">
+          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our theoretical indices from Section 2.1:
+          the target cognate rescue $\text{iPTM}(A' \cdot B')$, the host rupture state $\text{iPTM}(A' \cdot B_{\text{WT}})$, the host cross-reactivity state $\text{iPTM}(A_{\text{WT}} \cdot B')$, the calibrated wild-type ceiling $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}}) = 0.545$, the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to the native crystallographic ground truth $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}}) = 1.000$.
+        </p>
 
         <div className="table-responsive my-3">
           <table className="table table-dark table-hover table-bordered small align-middle">
             <thead className="table-success text-dark text-nowrap">
               <tr>
-                <th className="text-center">Rank</th>
-                <th>Complex ID</th>
-                <th>Parent A'</th>
-                <th className="text-center bg-primary text-light">iPTM(A'&middot;B')<br/><span className="fw-normal small">Rescue</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A'&middot;B_WT)<br/><span className="fw-normal small">Rupture</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A_WT&middot;B')<br/><span className="fw-normal small">Cross</span></th>
-                <th className="text-center bg-secondary text-light">iPTM_ref<br/><span className="fw-normal small">Ceiling</span></th>
+                <th className="text-center">Pair</th>
+                <th className="text-center bg-primary text-light">iPTM(A'&middot;B')<br/><span className="fw-normal small">Rescue (s₁)</span></th>
+                <th className="text-center bg-danger text-light">iPTM(A'&middot;B_WT)<br/><span className="fw-normal small">Rupture (s₂)</span></th>
+                <th className="text-center bg-danger text-light">iPTM(A_WT&middot;B')<br/><span className="fw-normal small">Cross (s₃)</span></th>
+                <th className="text-center bg-secondary text-light">iPTM(A_WT&middot;B_WT)<br/><span className="fw-normal small">Ceiling (s₄)</span></th>
                 <th className="text-center bg-success text-light">&Delta;iPTM<br/><span className="fw-normal small">Margin</span></th>
-                <th className="text-center">&Delta;G (REU)</th>
-                <th className="text-center">F_ortho</th>
-                <th className="text-center">DockQ</th>
-                <th className="text-center">CAPRI</th>
-                <th className="text-center">AF2 iPTM</th>
-                <th className="text-center">AF2 RMSD</th>
-                <th>Key Characteristic</th>
+                <th className="text-center">DockQ(A'&middot;B')<br/><span className="fw-normal small">Design Pose</span></th>
+                <th className="text-center text-info">DockQ(A_WT&middot;B_WT)<br/><span className="fw-normal small">WT Reference</span></th>
               </tr>
             </thead>
             <tbody>
-              <tr className="table-active">
-                <td className="text-center fw-bold">01</td>
-                <td><code className="text-info">cand_01_B_cand_40</code></td>
-                <td>cand_01</td>
+              <tr>
+                <td className="text-center fw-bold">Pair 01</td>
                 <td className="text-center fw-bold text-success">0.745</td>
                 <td className="text-center text-secondary">0.295</td>
                 <td className="text-center text-secondary">0.251</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.494</td>
-                <td className="text-center">-40.7</td>
-                <td className="text-center">0.211</td>
-                <td className="text-center">0.4812</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center">0.390</td>
-                <td className="text-center">1.79 Å</td>
-                <td><span className="badge bg-success text-dark">⭐ Selectivity Record</span></td>
+                <td className="text-center fw-bold">0.481</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">02</td>
-                <td><code className="text-info">cand_17_B_cand_29</code></td>
-                <td>cand_17</td>
+                <td className="text-center fw-bold">Pair 02</td>
                 <td className="text-center fw-bold text-success">0.781</td>
                 <td className="text-center text-secondary">0.237</td>
                 <td className="text-center text-secondary">0.299</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.483</td>
-                <td className="text-center fw-bold text-info">-65.8</td>
-                <td className="text-center fw-bold text-warning">0.384</td>
-                <td className="text-center fw-bold">0.5470</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center fw-bold text-info">0.490</td>
-                <td className="text-center">3.52 Å</td>
-                <td><span className="badge bg-primary">⭐ Affinity Peak</span></td>
+                <td className="text-center fw-bold">0.547</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">03</td>
-                <td><code className="text-info">cand_01_B_cand_36</code></td>
-                <td>cand_01</td>
+                <td className="text-center fw-bold">Pair 03</td>
                 <td className="text-center fw-bold text-success">0.701</td>
                 <td className="text-center text-secondary">0.295</td>
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.442</td>
-                <td className="text-center">-48.1</td>
-                <td className="text-center">0.253</td>
-                <td className="text-center fw-bold">0.5819</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center">0.428</td>
-                <td className="text-center fw-bold text-success">1.46 Å</td>
-                <td><span className="badge bg-success">⭐ Sub-1.5 Å Native Dock</span></td>
+                <td className="text-center fw-bold">0.582</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">04</td>
-                <td><code className="text-info">cand_13_B_cand_22</code></td>
-                <td>cand_13</td>
-                <td className="text-center">0.602</td>
+                <td className="text-center fw-bold">Pair 04</td>
+                <td className="text-center text-light">0.602</td>
                 <td className="text-center text-secondary">0.246</td>
                 <td className="text-center text-secondary">0.221</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.381</td>
-                <td className="text-center fw-bold text-danger">-74.7</td>
-                <td className="text-center fw-bold text-warning">0.400</td>
-                <td className="text-center">0.4968</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center text-muted">0.122</td>
-                <td className="text-center text-muted">6.64 Å</td>
-                <td><span className="badge bg-danger">⚠️ AF2 Divergence</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.381</td>
+                <td className="text-center fw-bold">0.497</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">05</td>
-                <td><code className="text-info">cand_11_B_cand_33</code></td>
-                <td>cand_11</td>
-                <td className="text-center">0.626</td>
+                <td className="text-center fw-bold">Pair 05</td>
+                <td className="text-center text-light">0.626</td>
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-secondary">0.247</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.379</td>
-                <td className="text-center">-48.8</td>
-                <td className="text-center">0.191</td>
-                <td className="text-center">0.5074</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center text-muted">0.136</td>
-                <td className="text-center text-muted">5.10 Å</td>
-                <td><span className="badge bg-secondary">Solid RF3 Medium</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.379</td>
+                <td className="text-center fw-bold">0.507</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">06</td>
-                <td><code className="text-info">cand_01_B_cand_20</code></td>
-                <td>cand_01</td>
+                <td className="text-center fw-bold">Pair 06</td>
                 <td className="text-center fw-bold text-success">0.741</td>
                 <td className="text-center text-secondary">0.295</td>
                 <td className="text-center text-secondary">0.384</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.357</td>
-                <td className="text-center">-46.1</td>
-                <td className="text-center">0.222</td>
-                <td className="text-center">0.5401</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center">0.297</td>
-                <td className="text-center">2.05 Å</td>
-                <td><span className="badge bg-info text-dark">High Cognate Rescue</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.357</td>
+                <td className="text-center fw-bold">0.540</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">07</td>
-                <td><code className="text-info">cand_11_B_cand_40</code></td>
-                <td>cand_11</td>
-                <td className="text-center">0.600</td>
+                <td className="text-center fw-bold">Pair 07</td>
+                <td className="text-center text-light">0.600</td>
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-secondary">0.243</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.357</td>
-                <td className="text-center">-50.7</td>
-                <td className="text-center">0.224</td>
-                <td className="text-center">0.4729</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center text-muted">0.154</td>
-                <td className="text-center text-muted">5.03 Å</td>
-                <td><span className="badge bg-secondary">Balanced Energy</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.357</td>
+                <td className="text-center fw-bold">0.473</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">08</td>
-                <td><code className="text-info">cand_11_B_cand_04</code></td>
-                <td>cand_11</td>
-                <td className="text-center">0.625</td>
+                <td className="text-center fw-bold">Pair 08</td>
+                <td className="text-center text-light">0.625</td>
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-secondary">0.270</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.355</td>
-                <td className="text-center">-51.4</td>
-                <td className="text-center">0.147</td>
-                <td className="text-center">0.5368</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center text-muted">0.135</td>
-                <td className="text-center text-muted">6.23 Å</td>
-                <td><span className="badge bg-secondary">CAPRI Medium</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.355</td>
+                <td className="text-center fw-bold">0.537</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">09</td>
-                <td><code className="text-info">cand_01_B_cand_14</code></td>
-                <td>cand_01</td>
-                <td className="text-center">0.632</td>
+                <td className="text-center fw-bold">Pair 09</td>
+                <td className="text-center text-light">0.632</td>
                 <td className="text-center text-secondary">0.295</td>
                 <td className="text-center text-secondary">0.282</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.351</td>
-                <td className="text-center">-48.5</td>
-                <td className="text-center">0.221</td>
-                <td className="text-center fw-bold text-success">0.6031</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center fw-bold text-info">0.470</td>
-                <td className="text-center fw-bold text-success">1.51 Å</td>
-                <td><span className="badge bg-success">⭐ Universal Consensus #1</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.351</td>
+                <td className="text-center fw-bold">0.603</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">10</td>
-                <td><code className="text-info">cand_04_B_cand_10</code></td>
-                <td>cand_04</td>
-                <td className="text-center">0.629</td>
+                <td className="text-center fw-bold">Pair 10</td>
+                <td className="text-center text-light">0.629</td>
                 <td className="text-center text-secondary">0.255</td>
                 <td className="text-center text-secondary">0.279</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.350</td>
-                <td className="text-center fw-bold text-info">-64.2</td>
-                <td className="text-center">0.277</td>
-                <td className="text-center fw-bold">0.5840</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center">0.277</td>
-                <td className="text-center">3.35 Å</td>
-                <td><span className="badge bg-info text-dark">High Stability</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.350</td>
+                <td className="text-center fw-bold">0.584</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">11</td>
-                <td><code className="text-info">cand_18_B_cand_37</code></td>
-                <td>cand_18</td>
+                <td className="text-center fw-bold">Pair 11</td>
                 <td className="text-center fw-bold text-success">0.741</td>
                 <td className="text-center text-secondary">0.240</td>
                 <td className="text-center text-secondary">0.402</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.340</td>
-                <td className="text-center">-50.8</td>
-                <td className="text-center">0.181</td>
-                <td className="text-center">0.4780</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center fw-bold text-info">0.417</td>
-                <td className="text-center">2.10 Å</td>
-                <td><span className="badge bg-primary">Strong Dual Affinity</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.340</td>
+                <td className="text-center fw-bold">0.478</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">12</td>
-                <td><code className="text-info">cand_07_B_cand_09</code></td>
-                <td>cand_07</td>
-                <td className="text-center">0.639</td>
+                <td className="text-center fw-bold">Pair 12</td>
+                <td className="text-center text-light">0.639</td>
                 <td className="text-center text-secondary">0.246</td>
                 <td className="text-center text-secondary">0.313</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.326</td>
-                <td className="text-center fw-bold text-info">-67.9</td>
-                <td className="text-center">0.293</td>
-                <td className="text-center">0.5085</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center">0.369</td>
-                <td className="text-center fw-bold text-success">1.45 Å</td>
-                <td><span className="badge bg-success">⭐ Geometric Record (1.45 Å)</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.326</td>
+                <td className="text-center fw-bold">0.509</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">13</td>
-                <td><code className="text-info">cand_19_B_cand_39</code></td>
-                <td>cand_19</td>
-                <td className="text-center">0.608</td>
+                <td className="text-center fw-bold">Pair 13</td>
+                <td className="text-center text-light">0.608</td>
                 <td className="text-center text-secondary">0.227</td>
                 <td className="text-center text-secondary">0.296</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.312</td>
-                <td className="text-center fw-bold text-info">-62.8</td>
-                <td className="text-center">0.241</td>
-                <td className="text-center">0.5614</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center text-muted">0.141</td>
-                <td className="text-center">2.94 Å</td>
-                <td><span className="badge bg-secondary">Low WT Rupture (0.227)</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.312</td>
+                <td className="text-center fw-bold">0.561</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">14</td>
-                <td><code className="text-info">cand_18_B_cand_03</code></td>
-                <td>cand_18</td>
-                <td className="text-center">0.620</td>
+                <td className="text-center fw-bold">Pair 14</td>
+                <td className="text-center text-light">0.620</td>
                 <td className="text-center text-secondary">0.240</td>
                 <td className="text-center text-secondary">0.331</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.289</td>
-                <td className="text-center">-47.6</td>
-                <td className="text-center">0.177</td>
-                <td className="text-center">0.5338</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center">0.292</td>
-                <td className="text-center">2.29 Å</td>
-                <td><span className="badge bg-secondary">Balanced Profile</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.289</td>
+                <td className="text-center fw-bold">0.534</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">15</td>
-                <td><code className="text-info">cand_19_B_cand_02</code></td>
-                <td>cand_19</td>
-                <td className="text-center">0.636</td>
+                <td className="text-center fw-bold">Pair 15</td>
+                <td className="text-center text-light">0.636</td>
                 <td className="text-center text-secondary">0.227</td>
                 <td className="text-center text-secondary">0.356</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.281</td>
-                <td className="text-center">-50.0</td>
-                <td className="text-center">0.087</td>
-                <td className="text-center">0.4642</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center">0.311</td>
-                <td className="text-center">2.00 Å</td>
-                <td><span className="badge bg-secondary">Sub-2.0 Å Docking</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.281</td>
+                <td className="text-center fw-bold">0.464</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">16</td>
-                <td><code className="text-info">cand_20_B_cand_36</code></td>
-                <td>cand_20</td>
-                <td className="text-center fw-bold">0.687</td>
+                <td className="text-center fw-bold">Pair 16</td>
+                <td className="text-center text-light">0.687</td>
                 <td className="text-center text-secondary">0.207</td>
                 <td className="text-center text-secondary">0.412</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.275</td>
-                <td className="text-center">-44.9</td>
-                <td className="text-center">0.122</td>
-                <td className="text-center">0.5709</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center fw-bold text-info">0.415</td>
-                <td className="text-center fw-bold text-success">1.00 Å</td>
-                <td><span className="badge bg-success">⭐ 1.00 Å AF2 RMSD</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.275</td>
+                <td className="text-center fw-bold">0.571</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">17</td>
-                <td><code className="text-info">cand_04_B_cand_24</code></td>
-                <td>cand_04</td>
-                <td className="text-center">0.629</td>
+                <td className="text-center fw-bold">Pair 17</td>
+                <td className="text-center text-light">0.629</td>
                 <td className="text-center text-secondary">0.255</td>
                 <td className="text-center text-secondary">0.356</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.273</td>
-                <td className="text-center">-56.3</td>
-                <td className="text-center">0.175</td>
-                <td className="text-center">0.5641</td>
-                <td className="text-center"><span className="badge bg-success">Medium</span></td>
-                <td className="text-center fw-bold text-info">0.588</td>
-                <td className="text-center fw-bold text-success">1.04 Å</td>
-                <td><span className="badge bg-primary">⭐ AF2 Affinity Peak (0.588)</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.273</td>
+                <td className="text-center fw-bold">0.564</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">18</td>
-                <td><code className="text-info">cand_11_B_cand_32</code></td>
-                <td>cand_11</td>
-                <td className="text-center">0.625</td>
+                <td className="text-center fw-bold">Pair 18</td>
+                <td className="text-center text-light">0.625</td>
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-secondary">0.400</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.225</td>
-                <td className="text-center">-53.6</td>
-                <td className="text-center">0.187</td>
-                <td className="text-center">0.4858</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center">0.300</td>
-                <td className="text-center">1.62 Å</td>
-                <td><span className="badge bg-secondary">1.62 Å AF2 Binding</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.225</td>
+                <td className="text-center fw-bold">0.486</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
-                <td className="text-center fw-bold">19</td>
-                <td><code className="text-info">cand_10_B_cand_25</code></td>
-                <td>cand_10</td>
-                <td className="text-center">0.612</td>
+                <td className="text-center fw-bold">Pair 19</td>
+                <td className="text-center text-light">0.612</td>
                 <td className="text-center text-secondary">0.208</td>
                 <td className="text-center text-secondary">0.419</td>
                 <td className="text-center text-muted">0.545</td>
-                <td className="text-center fw-bold text-success">+0.194</td>
-                <td className="text-center fw-bold text-info">-63.5</td>
-                <td className="text-center">0.122</td>
-                <td className="text-center">0.4600</td>
-                <td className="text-center"><span className="badge bg-warning text-dark">Acceptable</span></td>
-                <td className="text-center text-muted">0.127</td>
-                <td className="text-center text-muted">4.69 Å</td>
-                <td><span className="badge bg-secondary">High Stability</span></td>
+                <td className="text-center fw-bold text-success fs-6">+0.194</td>
+                <td className="text-center fw-bold">0.460</td>
+                <td className="text-center text-info">1.000</td>
               </tr>
             </tbody>
           </table>
