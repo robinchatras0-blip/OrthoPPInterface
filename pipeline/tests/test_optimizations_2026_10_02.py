@@ -141,7 +141,7 @@ def test_guided_partial_diffusion_rescue_spec(tmp_path, helix_pair):
     pdb_path, _, _ = helix_pair
 
     # Load real config and override input_pdb
-    cfg = load_config("dev_2026_10_02/config.yaml")
+    cfg = load_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml"))
     cfg["pipeline"]["input_pdb"] = pdb_path
     cfg["pipeline"]["rescue_partial_t"] = 3.5
 

@@ -27,8 +27,8 @@ pipeline:
   scaffold_max_framework_rmsd: 1.5    # RFD3 must not distort the fixed framework of B (A)
   scaffold_min_flex_rmsd: 0.5         # min backbone difference (A) between retained scaffolds
   scaffold_max_flex_rmsd: 4.5         # prevent scaffolds with extreme loop drift (10-19 A) from ruining rescue
-  local_rfdiffusion: bash dev_2026_10_02/bin/rfd3
-  local_ligandmpnn: bash dev_2026_10_02/bin/mpnn
+  local_rfdiffusion: bash pipeline/bin/rfd3
+  local_ligandmpnn: bash pipeline/bin/mpnn
 diversity_selection:
   enabled: true
   max_a_prime_motifs: 4

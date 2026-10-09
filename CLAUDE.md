@@ -9,22 +9,27 @@ l'affinité de A'·B' sans creuser l'écart avec les paires croisées rate la ci
 
 ```bash
 conda activate orthoppinterface          # toujours activer, ne jamais appeler le python de l'env directement
-python run_pipeline.py --run_name <nom>              # modules 1 à 5
-python run_pipeline.py --run_name <nom> --steps 4-5  # sous-ensemble de modules
-python src/04_generate_B_prime.py --config config.yaml --force   # module isolé, ignore le cache
-python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
-pytest tests                              # rapide, pas de GPU : les moteurs sont remplacés par des fakes
+python run_pipeline.py --run_name <nom>              # lance le pipeline via pipeline/run_pipeline.py
+python pipeline/run_pipeline.py --run_name <nom> --steps 4-5  # sous-ensemble de modules direct
+python pipeline/src/04_generate_B_prime.py --config pipeline/config.yaml --force   # module isolé
+python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
+pytest pipeline/tests                     # rapide, pas de GPU : les moteurs sont remplacés par des fakes (71 tests)
 ```
 
-## Architecture
+## Architecture du Dépôt
+
+- `pipeline/` : Cœur algorithmique de bio-ingénierie (`pipeline/src/`, `pipeline/tests/`, `pipeline/bin/`, `pipeline/config.yaml`).
+- `wiki/` : Package complet du wiki iGEM 2026 (`model.md`, `index.html`, `src_gitlab/model.tsx`, figures).
+- `dossier_champions/` : Fiches et structures des 19 champions d'élite all-atom.
+- `runs/` : Dossier unifié de stockage de tous les résultats d'expériences (git-ignoré).
 
 | Module | Fichier | Rôle |
 | --- | --- | --- |
-| 1 | `src/01_analyze_interface.py` | Résidus d'interface, hotspots, positions mutables, contigs RFD3, biais MPNN |
-| 2 | `src/02_generate_A_prime.py` | Diffusion RFD3 + LigandMPNN → candidats A' (design de rupture) |
-| 3 | `src/03_filter_A_prime.py` | Fail-fast RF3 : stabilité monomère, rupture A'·B_WT, plafond WT |
-| 4 | `src/04_generate_B_prime.py` | Co-adaptation RFD3 autour de A' + LigandMPNN biaisé spécificité → B' |
-| 5 | `src/05_eval_final.py` | 4 folds RF3 + énergie PyRosetta + F_ortho + export CSV/SQLite |
+| 1 | `pipeline/src/01_analyze_interface.py` | Résidus d'interface, hotspots, positions mutables, contigs RFD3, consolidation boucles |
+| 2 | `pipeline/src/02_generate_A_prime.py` | Diffusion RFD3 apo + LigandMPNN → candidats A' (rupture) |
+| 3 | `pipeline/src/03_filter_A_prime.py` | Fail-fast RF3 : stabilité monomère, rupture A'·B_WT, plafond WT |
+| 4 | `pipeline/src/04_generate_B_prime.py` | Co-adaptation RFD3 multi-scaffolds (recalage SVD) + LigandMPNN biaisé spécificité → B' |
+| 5 | `pipeline/src/05_eval_final.py` | 4 folds RF3 + énergie PyRosetta Ref2015 + DockQ CAPRI + F_ortho + export CSV/SQLite |
 
 Modules transverses : `design_utils.py` (séquences/structures), `folding_engine.py` (RF3, MSA, cache),
 `energy_engine.py` + `interface_energy.py` (PyRosetta), `scoring.py` (F_ortho, ipSAE), `dockq.py`,

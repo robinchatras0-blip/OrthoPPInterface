@@ -349,7 +349,7 @@ def main():
                 "--fixed_residues", ",".join(fixed_list),
                 "--bias_per_residue", json.dumps(rescue_bias),
                 "--write_structures", "True",
-            ] + get_mpnn_omit_args(lcfg)
+            ] + get_mpnn_omit_args(lmpnn_cfg)
             subprocess.run(mpnn_cmd, check=True, env=os.environ.copy())
 
             outs = [f for f in collect_pdbs(mpnn_out_dir)

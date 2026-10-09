@@ -9,4 +9,9 @@ data/outputs/
 *.a3m
 OrthoIntRob/
 scratch/
+work/
 runs/
+pipeline/data
+pipeline/runs
+.pytest_cache/
+pipeline/.pytest_cache/

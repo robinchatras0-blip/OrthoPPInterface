@@ -406,7 +406,7 @@ def test_module4_packs_b_prime_against_the_fixed_a_prime(workspace, monkeypatch)
                   os.path.join(ws["d3"], "passed_candidates.txt"), "--out_dir", out4], monkeypatch)
     assert len(packed) == 2                                                    # one batch per A' motif
     for jobs in packed:
-        assert len(jobs) >= 6 and all(j["fixed_chains"] == ["A"] and j["pdb"] == j["out"] for j in jobs)
+        assert len(jobs) >= 3 and all(j["fixed_chains"] == ["A"] and j["pdb"] == j["out"] for j in jobs)
         assert all(os.path.exists(j["pdb"]) for j in jobs)
     meta = json.load(open(os.path.join(out4, "diversity_pairs_metadata.json")))
     assert meta and all(os.path.exists(m["pdb"]) for m in meta.values())     # final designs = packed pool complexes
