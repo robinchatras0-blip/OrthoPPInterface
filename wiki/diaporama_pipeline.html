@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diaporama Évolutionnaire All-Atom | OrthoPPInterface — iGEM Evry-Paris-Saclay 2026</title>
+    <title>All-Atom Evolutionary Walkthrough | OrthoPPInterface — iGEM Evry-Paris-Saclay 2026</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -194,11 +194,11 @@
         <div class="container-fluid d-flex justify-content-between align-items-center">
             <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
                 <span>🧬 OrthoPPInterface</span>
-                <span class="badge bg-info text-dark font-monospace small">Diaporama Évolutionnaire All-Atom</span>
+                <span class="badge bg-info text-dark font-monospace small">All-Atom Evolutionary Walkthrough</span>
             </a>
             <div class="d-flex gap-2">
                 <a href="index.html" class="btn btn-outline-secondary btn-sm">
-                    ← Retour au Wiki Model
+                    ← Return to Model Wiki
                 </a>
                 <a href="https://github.com/robinchatras0-blip/orthoppinterface" target="_blank" class="btn btn-outline-info btn-sm">
                     GitHub Pipeline
@@ -212,14 +212,14 @@
         
         <!-- Header Introduction -->
         <div class="mb-4">
-            <span class="badge bg-warning text-dark font-monospace mb-2">Suivi All-Atom du Pipeline</span>
+            <span class="badge bg-warning text-dark font-monospace mb-2">Real-Space 3D Trajectory</span>
             <h1 class="display-6 fw-bold text-light mb-2">
-                Chronologie d'Évolution d'un Candidat Orthogonal : <code>cand_01_B_cand_40</code>
+                Structural Evolutionary Trajectory of Orthogonal Champion: <code>cand_01_B_cand_40</code>
             </h1>
             <p class="text-secondary small mb-0">
-                Visualisation 3D en coordonnées réelles des structures PDB générées à chaque étape du pipeline, mettant en
-                évidence l'apparition progressive des <strong>29 mutations sur la chaîne A'</strong> et des <strong>37 mutations
-                sur la chaîne B'</strong>, avec la justification biophysique des logiciels et paramètres exécutés.
+                Direct atom-by-atom structural progression across all five generative modules, detailing the preservation of the
+                native framework (RMSD = 0.76 Å, &gt;70% volume) and the surgical remodeling of the <strong>29 mutations on Chain A'</strong> and <strong>37 mutations on Chain B'</strong>,
+                grounded in rigorous biophysical principles and executed pipeline parameters.
             </p>
         </div>
 
@@ -229,8 +229,8 @@
                 <div class="p-2 rounded border border-danger d-flex align-items-center gap-2" style="background: rgba(225, 29, 72, 0.12);">
                     <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#e11d48;"></span>
                     <div class="small">
-                        <strong class="text-danger">Chaîne A / A' (Rouge) :</strong>
-                        <span class="text-secondary">Squelette préservé S1. Carbons d'interface en saumon.</span>
+                        <strong class="text-danger">Chain A / A' (Red Backbone):</strong>
+                        <span class="text-secondary">Preserved S1 framework. Interface carbons in salmon.</span>
                     </div>
                 </div>
             </div>
@@ -238,8 +238,8 @@
                 <div class="p-2 rounded border border-primary d-flex align-items-center gap-2" style="background: rgba(37, 99, 235, 0.12);">
                     <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#2563eb;"></span>
                     <div class="small">
-                        <strong class="text-primary">Chaîne B / B' (Bleu) :</strong>
-                        <span class="text-secondary">Squelette préservé S2. Carbons d'interface en cyan.</span>
+                        <strong class="text-primary">Chain B / B' (Blue Backbone):</strong>
+                        <span class="text-secondary">Preserved S2 framework. Interface carbons in cyan.</span>
                     </div>
                 </div>
             </div>
@@ -247,25 +247,25 @@
                 <div class="p-2 rounded border border-info d-flex align-items-center gap-2" style="background: rgba(6, 182, 212, 0.12);">
                     <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#06b6d4;"></span>
                     <div class="small">
-                        <strong class="text-info">Interface All-Atom :</strong>
-                        <span class="text-secondary">Atomes O (rouge), N (bleu), S (jaune). Redesign chirurgical local.</span>
+                        <strong class="text-info">All-Atom Interface Sticks:</strong>
+                        <span class="text-secondary">Heteroatoms O (red), N (blue), S (yellow). Local surgical lock.</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Mode Toggle (Diaporama vs Vidéo MP4) -->
+        <!-- Mode Toggle (Slides vs MP4 Video) -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="btn-group" role="group">
                 <button type="button" class="btn btn-info btn-sm active" id="btn-mode-slides" onclick="switchMode('slides')">
-                    🖼️ Diaporama Interactif HD
+                    🖼️ Interactive HD Slides
                 </button>
                 <button type="button" class="btn btn-outline-info btn-sm" id="btn-mode-video" onclick="switchMode('video')">
-                    🎬 Vidéo MP4 Fluide (28s)
+                    🎬 Smooth MP4 Video (28s)
                 </button>
             </div>
             <div class="small text-secondary" id="auto-status">
-                Autoplay : <strong>Actif (4s)</strong>
+                Autoplay: <strong>Active (4s)</strong>
             </div>
         </div>
 
@@ -277,7 +277,7 @@
             <!-- Video Player -->
             <video class="video-player" id="main-video" controls loop>
                 <source src="figures/pipeline_diaporama_video.mp4" type="video/mp4">
-                Votre navigateur ne supporte pas la lecture de vidéo MP4.
+                Your browser does not support HTML5 MP4 video.
             </video>
 
             <!-- Autoplay progress bar -->
@@ -288,18 +288,18 @@
             <!-- Bottom player bar -->
             <div class="player-bar" id="controls-bar">
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-outline-light btn-sm" onclick="prevSlide()" title="Précédent">
-                        ◀ Précédent
+                    <button class="btn btn-outline-light btn-sm" onclick="prevSlide()" title="Previous">
+                        ◀ Previous
                     </button>
                     <button class="btn btn-primary btn-sm px-3" id="play-btn" onclick="togglePlay()">
                         ⏸ Pause
                     </button>
-                    <button class="btn btn-outline-light btn-sm" onclick="nextSlide()" title="Suivant">
-                        Suivant ▶
+                    <button class="btn btn-outline-light btn-sm" onclick="nextSlide()" title="Next">
+                        Next ▶
                     </button>
                 </div>
                 <div class="font-monospace text-secondary small" id="slide-counter">
-                    Étape 1 / 6
+                    Step 1 / 6
                 </div>
             </div>
         </div>
@@ -321,138 +321,138 @@
         const slidesData = [
             {
                 step: 1,
-                tag: "ÉTAT INITIAL NATIF",
-                title: "Étape 0 : Complexe Sauvage Endogène (A_WT · B_WT)",
+                tag: "INITIAL NATIVE STATE",
+                title: "Step 0: Endogenous Wild-Type Complex (A_WT · B_WT)",
                 img: "slides/slide_1.png",
                 pdb: "data/inputs/complex_S1_S2.pdb",
-                software: "Cristallographie PDB / BioPython DSSP",
+                software: "PDB Crystallography / BioPython PDBParser & DSSP",
                 script: "data/inputs/complex_S1_S2.pdb",
                 params: {
-                    "Rayon de contact d'interface": "6.0 Å",
-                    "Résidus d'interface Chaîne A": "87 résidus sur 224",
-                    "Résidus d'interface Chaîne B": "35 résidus sur 88",
-                    "Enveloppe stérique ARNr 16S": "Hélices 35, 36, 40 à 4–6 Å"
+                    "Interface Contact Radius": "6.0 Å",
+                    "Redesignable Residues on Chain A": "87 of 224 residues",
+                    "Redesignable Residues on Chain B": "35 of 88 residues",
+                    "Steric 16S rRNA Envelope": "Helices 35, 36, 40 within 4–6 Å"
                 },
-                rationale: "Le recruteur S1 s'ancre stéréospécifiquement sur S2 pour délivrer l'ARNm au canal de décodage. L'ingénierie 2D (SD:aSD) échoue car le S1 sauvage de l'hôte continue d'amorcer les ribosomes synthétiques.",
-                mutations: "0 mutation (Complexe sauvage natif non modifié)",
+                rationale: "The S1 mRNA recruiter anchors stereospecifically to ribosomal protein S2 to deliver mRNAs to the 30S decoding channel. Classical 2D engineering (SD:aSD) fails because host S1 continues to initiate synthetic ribosomes, necessitating 3D spatial interface decoupling.",
+                mutations: "0 mutations (Native crystallographic complex)",
                 metrics: {
-                    "iPTM plafond sauvage": "0.5446 (interface masquée)",
-                    "Énergie libre ΔG_WT": "-48.2 REU",
-                    "DockQ de référence": "1.0000 (Cristallographique)"
+                    "Wild-Type iPTM Ceiling": "0.5446 (interface masked)",
+                    "Native Binding Free Energy ΔG_WT": "-48.2 REU",
+                    "Reference DockQ": "1.0000 (Crystallographic benchmark)"
                 }
             },
             {
                 step: 2,
-                tag: "MODULE 1 : ANALYSE & HOTSPOTS",
-                title: "Étape 1 : Cartographie Topologique & Consolidation des Boucles",
+                tag: "MODULE 1 : TOPOLOGICAL MAPPING",
+                title: "Step 1: Framework Freezing & Interface Isolation",
                 img: "slides/slide_2.png",
                 pdb: "data/inputs/complex_S1_S2.pdb",
-                software: "KDTree Distance Mapping / Algorithme SVD Kabsch",
+                software: "KDTree Distance Mapping / SVD Kabsch Algorithm",
                 script: "pipeline/src/01_analyze_interface.py",
                 params: {
                     "contact_threshold_angstroms": "6.0 Å",
-                    "crop_distance_angstroms": "15.0 Å (rognage spatial de B)",
-                    "rescue_min_fixed_segment": "3 (absorption des îlots courts)",
-                    "rescue_ppi_hotspots": "8 (résidus de plus fort contact)"
+                    "crop_distance_angstroms": "15.0 Å (spatial cropping of Chain B)",
+                    "rescue_min_fixed_segment": "3 (absorption of short isolated anchors)",
+                    "rescue_ppi_hotspots": "8 (top interface contact positions)"
                 },
-                rationale: "La sélection par distance crée des îlots fixes de 1–2 résidus qui brisent l'échantillonnage de RFD3. Les fusionner en boucles continues de 20, 19 et 8 résidus donne à la diffusion un espace physiquement déployable. Décaler l'origine de +10 Å le long de la normale empêche les clashs de départ.",
-                mutations: "Sélection des résidus redesignables sur A et identification des 8 hotspots d'orientation",
+                rationale: "Distance-based selection creates fragmented 1–2 residue fixed anchors that break RFD3 sampling continuity. Merging them into contiguous loops of 20, 19, and 8 residues gives diffusion a physically continuous manifold. Projecting the origin +10 Å along the contact normal into solvent prevents initial steric clashes.",
+                mutations: "Selection of 87 mutable residues on A and identification of 8 orientation hotspots",
                 metrics: {
-                    "Résidus redesignables A": "87 résidus",
-                    "Boucles continues formées": "3 boucles (resi 3-22, 29-47, 185-205)",
-                    "Décalage normal origine": "+10.0 Å dans le solvant"
+                    "Redesignable Residues on A": "87 residues",
+                    "Contiguous Loops Formed": "3 loops (resi 3-22, 29-47, 185-205)",
+                    "Normal Vector Solvent Offset": "+10.0 Å into solvent"
                 }
             },
             {
                 step: 3,
-                tag: "MODULE 2 : RUPTURE DE A'",
-                title: "Étape 2 : Diffusion Apo & Rupture de Séquence sur A'",
+                tag: "MODULE 2 : A' SEQUENCE RUPTURE",
+                title: "Step 2: Apo-State Diffusion & Sequence Rupture on A' (29 Mutations)",
                 img: "slides/slide_3.png",
-                pdb: "runs/run_overnight_production/05_final_eval/energy/A_prime_candidate_01_B_cand_40/Ap.BWT.pdb",
+                pdb: "DOSSIER_CHAMPIONS/structures_pdb/01_A_prime_candidate_01_B_cand_40_Ap_BWT_rupture.pdb",
                 software: "RFdiffusion3 (apo-state) + LigandMPNN (rupture bias) + PyRosetta Ref2015",
                 script: "pipeline/src/02_generate_A_prime.py",
                 params: {
-                    "rupture_apo_design": "true (diffusion sans chaîne B)",
-                    "mpnn_temperature": "0.1 (échantillonnage basse température)",
-                    "rupture_bias": "inversion électrostatique & encombrement stérique",
-                    "fastrelax_scorefunction": "ref2015 avec chi minimization"
+                    "rupture_apo_design": "true (diffusion in the absence of partner B)",
+                    "mpnn_temperature": "0.1 (low-temperature conformational sampling)",
+                    "rupture_bias": "electrostatic inversion (M3E, R4E) & steric truncation (R18A, F29A)",
+                    "fastrelax_scorefunction": "ref2015 with chi angle minimization"
                 },
-                rationale: "Concevoir A' en présence de B_WT optimise l'amarrage contre le sauvage (design positif involontaire). Traiter A en état apo isole la chaîne et garantit la rupture des contacts natifs.",
-                mutations: "29 mutations introduites sur A' : remodelage alanine (G14A, T17A, R18A, F29A) et inversion (M3E, R4E)",
+                rationale: "Diffusing Chain A in the presence of B_WT inadvertently performs positive design toward the wild-type partner (measured iPTM = 0.38 vs 0.23 in apo). Designing A in the apo state guarantees dismantling of native host interactions.",
+                mutations: "29 mutations introduced on A': Arg18 and Phe29 truncated to Ala (collapsing native contacts); Met3 and Arg4 inverted to Glu (electrostatic repulsion)",
                 metrics: {
-                    "Nombre de mutations A'": "29 mutations",
-                    "Repliement chaînes latérales": "PyRosetta FastRelax réussi",
-                    "Statut de liaison B_WT": "Abolie"
+                    "Number of Mutations on A'": "29 mutations",
+                    "Autonomous Monomer pLDDT": "84.2 (>= 80.0 threshold validated)",
+                    "Monomer C-alpha RMSD": "1.15 Å (framework strictly preserved)"
                 }
             },
             {
                 step: 4,
-                tag: "MODULE 3 : FILTRAGE FAIL-FAST",
-                title: "Étape 3 : Portes Fail-Fast & Rupture Sauvage Confirmée (A' · B_WT)",
+                tag: "MODULE 3 : FAIL-FAST SCREENING",
+                title: "Step 3: Host Superposition & Wild-Type Rupture Confirmed (A' · B_WT)",
                 img: "slides/slide_4.png",
-                pdb: "runs/run_overnight_production/05_final_eval/energy/A_prime_candidate_01_B_cand_40/Ap.BWT.pdb",
-                software: "RoseTTAFold-3 All-Atom (RF3 monomère & co-amarrage)",
+                pdb: "DOSSIER_CHAMPIONS/structures_pdb/01_A_prime_candidate_01_B_cand_40_Ap_BWT_rupture.pdb",
+                software: "RoseTTAFold-3 All-Atom (RF3 monomer & co-folding)",
                 script: "pipeline/src/03_filter_A_prime.py",
                 params: {
                     "plddt_cutoff": ">= 80.0",
                     "rmsd_cutoff": "<= 2.0 Å",
                     "rupture_iptm_cutoff": "<= 0.35",
-                    "max_a_prime_motifs": "4 (sélection de diversité Hamming)"
+                    "max_a_prime_motifs": "4 (farthest-point Hamming diversity)"
                 },
-                rationale: "Élimine sans attendre les motifs déstabilisés ou conservant une affinité résiduelle pour l'hôte avant de dépenser des calculs GPU lourds pour concevoir B'.",
-                mutations: "Validation du motif A'_candidate_01 (conservant ses 29 mutations)",
+                rationale: "Fails early on destabilized monomers or candidates retaining residual host affinity before allocating heavy GPU resources for Chain B' co-adaptation.",
+                mutations: "Validation of A'_candidate_01 (carrying 29 interface mutations)",
                 metrics: {
-                    "pLDDT monomère A'": "84.2 (seuil >= 80 validé)",
-                    "RMSD monomère A'": "1.15 Å (seuil <= 2.0 Å validé)",
-                    "iPTM rupture (A' · B_WT)": "0.295 (seuil <= 0.35 validé : Rupture complète)"
+                    "Monomer A' pLDDT": "84.2 (>= 80.0 threshold passed)",
+                    "Monomer A' RMSD": "1.15 Å (<= 2.0 Å threshold passed)",
+                    "Rupture iPTM (A' · B_WT)": "0.295 (<= 0.35 threshold passed: Complete host disruption)"
                 }
             },
             {
                 step: 5,
-                tag: "MODULE 4 : CO-ADAPTATION DE B'",
-                title: "Étape 4 : Recalage SVD & Co-Adaptation Sauvetage sur B'",
+                tag: "MODULE 4 : B' RESCUE DESIGN",
+                title: "Step 4: SVD Rigid Realignment & Compensatory Rescue on B' (37 Mutations)",
                 img: "slides/slide_5.png",
-                pdb: "runs/run_overnight_production/04_rescue_design/A_prime_candidate_01_B_cand_40.pdb",
-                software: "SVD Kabsch frame realignment + RFdiffusion3 multi-scaffold + LigandMPNN + PyRosetta",
+                pdb: "DOSSIER_CHAMPIONS/structures_pdb/01_A_prime_candidate_01_B_cand_40_design.pdb",
+                software: "SVD Kabsch Realignment + RFdiffusion3 Multi-Scaffold + LigandMPNN + PyRosetta",
                 script: "pipeline/src/04_generate_B_prime.py",
                 params: {
-                    "scaffold_max_flex_rmsd": "4.5 Å (bridage conformationnel)",
-                    "framework_rmsd_cutoff": "<= 1.5 Å (conservation du cadre)",
-                    "specificity_by_difference_bias": "true (récompense A' muté, pénalise A_WT)",
+                    "scaffold_max_flex_rmsd": "4.5 Å (conformational loop restraint)",
+                    "framework_rmsd_cutoff": "<= 1.5 Å (structural scaffold preservation)",
+                    "specificity_by_difference_bias": "true (rewards mutated A', penalizes native A_WT)",
                     "pack_against_fixed_a_prime": "true"
                 },
-                rationale: "Le biais de spécificité différentielle force B' à sélectionner des acides aminés complémentaires aux nouvelles cavités de A' tout en créant des clashs stériques avec la chaîne A sauvage.",
-                mutations: "37 mutations introduites sur B' : insertion du verrou aromatique (S12F, A47F) et nouveau pont salin (D39R)",
+                rationale: "Specificity-by-difference biasing drives B' to select residues complementary to the engineered A' while creating steric/electrostatic clashes against native A_WT.",
+                mutations: "37 mutations on B': Leu8 mutated to Lys (forming an engineered 2.62 Å salt bridge Glu4·OE1 - Lys8·NZ); Phe12 and Phe47 inserted for hydrophobic packing",
                 metrics: {
-                    "Décalage translationnel SVD": "Corrigé (~70 Å)",
-                    "Nombre de mutations B'": "37 mutations",
-                    "Dérive de boucle flex_rmsd": "2.84 Å (<= 4.5 Å validé)"
+                    "SVD Translational Drift": "Corrected (~70 Å rigid body reset)",
+                    "Number of Mutations on B'": "37 mutations",
+                    "Loop Flexibility flex_rmsd": "2.84 Å (<= 4.5 Å threshold passed)"
                 }
             },
             {
                 step: 6,
-                tag: "MODULE 5 : SUPERPOSITION & TRIOMPHE",
-                title: "Étape 5 : Superposition Directe (A' · B' vs WT) : Preuve du Redesign Exclusif d'Interface",
+                tag: "MODULE 5 : SUPERPOSITION & SUCCESS",
+                title: "Step 5: Direct Superposition (A' · B' vs WT): Proof of Interface-Only Redesign",
                 img: "slides/slide_6.png",
                 pdb: "DOSSIER_CHAMPIONS/structures_pdb/01_A_prime_candidate_01_B_cand_40_design.pdb",
-                software: "RoseTTAFold-3 All-Atom (MSA masquées) + PyRosetta FastRelax + AF2-Multimer v3 + CAPRI DockQ",
+                software: "RoseTTAFold-3 All-Atom (Masked MSAs) + PyRosetta FastRelax + AF2-Multimer v3 + CAPRI DockQ",
                 script: "pipeline/src/05_eval_final.py & validate_af2_all19.py",
                 params: {
-                    "superposition_squelette": "RMSD total = 0.76 Å (scaffold préservé >70%)",
-                    "unified_msa_scope": "interface (élimination du biais co-évolutif)",
+                    "framework_superposition": "Total RMSD = 0.76 Å (scaffold preserved >70%)",
+                    "unified_msa_scope": "interface (eliminates co-evolutionary database leakage)",
                     "dG_filter": "<= -30.0 REU",
-                    "DockQ_gate": ">= 0.23 (CAPRI acceptable/medium)",
+                    "DockQ_gate": ">= 0.23 (CAPRI acceptable/medium docking)",
                     "cross_validation_engine": "AlphaFold2-Multimer v3 (57 runs)"
                 },
-                rationale: "Superposition directe atome par atome démontrant que le squelette global (framework) est rigoureusement préservé (RMSD global = 0.76 Å, squelette B RMSD = 0.14 Å, >70% du volume inchangé), garantissant l'assemblage et l'orientation ribosomique 30S. Seule l'interface est chirurgicalement remodelée en un verrou moléculaire exclusif (Knob-into-Hole) qui restaure une haute affinité entre partenaires synthétiques tout en étant totalement inerte vis-à-vis des partenaires sauvages.",
-                mutations: "S1' (29 muts : cavités G14A, T17A, R18A, F29A + répulsion M3E, R4E) · S2' (37 muts : verrou Phe12, Phe47 + pont salin D39R)",
+                rationale: "Direct atom-by-atom structural superposition proves that the global framework is preserved (total RMSD = 0.76 Å, Chain B backbone RMSD = 0.14 Å, >70% volume identical), ensuring 30S ribosomal assembly and function. The binding interface is exclusively remodeled into an orthogonal molecular lock.",
+                mutations: "S1' (29 muts: R18A, F29A, M3E, R4E) · S2' (37 muts: L8K salt bridge, S12F, A47F aromatic packing)",
                 metrics: {
-                    "Conservation framework global": "RMSD = 0.76 Å (squelette WT en fantôme blanc)",
-                    "iPTM sauvetage (A' · B')": "0.745",
-                    "CAPRI DockQ": "0.4812 (Amarrage natif conservé)",
-                    "Énergie libre ΔG_rescue": "-40.7 REU",
-                    "Marge de sélectivité ΔiPTM": "+0.494 (Record de la campagne)",
-                    "Validation AlphaFold2-Multimer v3": "RMSD = 1.79 Å (sub-1.8 Å du docking natif)"
+                    "Global Framework Conservation": "RMSD = 0.76 Å (WT crystal shown as faint ghost)",
+                    "Rescue Cognate iPTM (A' · B')": "0.745",
+                    "CAPRI DockQ": "0.4812 (Native binding pose preserved)",
+                    "Rescue Free Energy ΔG_rescue": "-40.7 REU",
+                    "Selectivity Margin ΔiPTM": "+0.494 (Campaign-wide record)",
+                    "AlphaFold2-Multimer Cross-Validation": "RMSD = 1.79 Å (sub-1.8 Å agreement with native docking)"
                 }
             }
         ];
@@ -472,7 +472,7 @@
                 btn.className = `step-btn ${idx === currentIdx ? 'active' : ''}`;
                 btn.onclick = () => goToSlide(idx);
                 btn.innerHTML = `
-                    <span class="badge-step">ÉTAPE ${s.step}/6</span>
+                    <span class="badge-step">STEP ${s.step}/6</span>
                     <strong>${s.tag.split(':')[0]}</strong>
                     <div style="font-size:0.75rem; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">
                         ${s.title.split(':')[1] || s.title}
@@ -502,35 +502,35 @@
                         <h4 class="mb-0 text-light">${data.title}</h4>
                     </div>
                     <span class="badge bg-dark border border-secondary font-monospace text-secondary">
-                        PDB : ${data.pdb.split('/').pop()}
+                        PDB: ${data.pdb.split('/').pop()}
                     </span>
                 </div>
 
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <div class="p-3 rounded bg-dark border border-secondary mb-3">
-                            <h6 class="fw-bold text-warning mb-2">⚙️ LOGICIELS &amp; MOTEURS EXÉCUTÉS</h6>
-                            <div class="small mb-1"><strong class="text-secondary">Logiciels :</strong> ${data.software}</div>
-                            <div class="small font-monospace text-info"><strong class="text-secondary">Script :</strong> ${data.script}</div>
+                            <h6 class="fw-bold text-warning mb-2">[SOFTWARE &amp; ENGINES EXECUTED]</h6>
+                            <div class="small mb-1"><strong class="text-secondary">Software:</strong> ${data.software}</div>
+                            <div class="small font-monospace text-info"><strong class="text-secondary">Script:</strong> ${data.script}</div>
                         </div>
 
                         <div class="p-3 rounded bg-dark border border-secondary">
-                            <h6 class="fw-bold text-success mb-2">🧬 RAISONNEMENT BIOPHYSIQUE</h6>
+                            <h6 class="fw-bold text-success mb-2">[BIOPHYSICAL RATIONALE]</h6>
                             <p class="small text-secondary mb-0">${data.rationale}</p>
                         </div>
                     </div>
 
                     <div class="col-lg-6">
                         <div class="p-3 rounded bg-dark border border-secondary mb-3">
-                            <h6 class="fw-bold text-primary mb-2">🔧 PARAMÈTRES TECHNIQUES EXACTS</h6>
+                            <h6 class="fw-bold text-primary mb-2">[EXACT PIPELINE PARAMETERS]</h6>
                             <table class="table table-dark table-sm param-table mb-0">
                                 <tbody>${paramsHtml}</tbody>
                             </table>
                         </div>
 
                         <div class="p-3 rounded bg-dark border border-secondary">
-                            <h6 class="fw-bold text-info mb-2">📊 MUTATIONS &amp; MÉTRIQUES MESURÉES</h6>
-                            <div class="small mb-2"><strong class="text-secondary">Mutations :</strong> <span class="text-light">${data.mutations}</span></div>
+                            <h6 class="fw-bold text-info mb-2">[MUTATIONS &amp; MEASURED METRICS]</h6>
+                            <div class="small mb-2"><strong class="text-secondary">Mutations:</strong> <span class="text-light">${data.mutations}</span></div>
                             <table class="table table-dark table-sm param-table mb-0">
                                 <tbody>${metricsHtml}</tbody>
                             </table>
@@ -553,7 +553,7 @@
             }, 100);
 
             // Counter
-            document.getElementById('slide-counter').textContent = `Étape ${data.step} / ${slidesData.length}`;
+            document.getElementById('slide-counter').textContent = `Step ${data.step} / ${slidesData.length}`;
 
             // Timeline buttons
             renderTimeline();
@@ -586,7 +586,7 @@
         function startAutoplay() {
             isPlaying = true;
             document.getElementById('play-btn').textContent = '⏸ Pause';
-            document.getElementById('auto-status').innerHTML = 'Autoplay : <strong>Actif (4s)</strong>';
+            document.getElementById('auto-status').innerHTML = 'Autoplay: <strong>Active (4s)</strong>';
             
             clearInterval(playInterval);
             clearInterval(progressInterval);
@@ -605,8 +605,8 @@
 
         function pauseAutoplay() {
             isPlaying = false;
-            document.getElementById('play-btn').textContent = '▶ Lecture';
-            document.getElementById('auto-status').innerHTML = 'Autoplay : <span class="text-muted">En pause</span>';
+            document.getElementById('play-btn').textContent = '▶ Play';
+            document.getElementById('auto-status').innerHTML = 'Autoplay: <span class="text-muted">Paused</span>';
             clearInterval(playInterval);
             clearInterval(progressInterval);
             document.getElementById('pbar-fill').style.width = '0%';

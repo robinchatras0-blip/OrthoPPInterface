@@ -321,19 +321,19 @@ export function Model(): React.ReactElement {
           <a href="diaporama_pipeline.html" target="_blank" rel="noopener noreferrer">
             <img
               src="figures/pipeline_diaporama_animation.gif"
-              alt="Diaporama Évolutionnaire All-Atom du Pipeline"
+              alt="All-Atom 3D Pipeline Evolutionary Walkthrough"
               className="img-fluid rounded border border-info shadow-lg"
               style={{ maxWidth: '950px' }}
             />
           </a>
           <p className="text-muted small mt-2">
-            <strong>Diaporama Évolutionnaire All-Atom | Suivi 3D du Champion <code>cand_01_B_cand_40</code>.</strong><br/>
-            <span className="text-danger fw-semibold">● Squelette Chaîne A / A' (Rouge)</span> &nbsp;|&nbsp; 
-            <span className="text-primary fw-semibold">● Squelette Chaîne B / B' (Bleu)</span> &nbsp;|&nbsp; 
-            <span className="text-info fw-semibold">● Bâtonnets all-atom colorés par éléments (O rouge, N bleu, C par chaîne)</span>.<br/>
-            Superposition démontrant la conservation stricte du framework global (&gt;70% du volume, RMSD = 0.76 Å) et le remodelage chirurgical exclusif de l'interface (29 mutations sur A', 37 mutations sur B').<br/>
+            <strong>All-Atom 3D Evolutionary Walkthrough | Structural Trajectory of Champion <code>cand_01_B_cand_40</code>.</strong><br/>
+            <span className="text-danger fw-semibold">● Chain A / A' Backbone (Ruby Red)</span> &nbsp;|&nbsp; 
+            <span className="text-primary fw-semibold">● Chain B / B' Backbone (Marine Blue)</span> &nbsp;|&nbsp; 
+            <span className="text-info fw-semibold">● All-atom sticks colored by element (O red, N blue, C matched to chain)</span>.<br/>
+            Direct structural superposition proving total framework conservation (&gt;70% volume, RMSD = 0.76 Å) alongside surgical interface remodeling (29 mutations on A', 37 mutations on B').<br/>
             <a href="diaporama_pipeline.html" target="_blank" rel="noopener noreferrer" className="text-info fw-bold text-decoration-none ms-1">
-              ▶ Ouvrir le Diaporama Interactif Plein Écran &amp; Vidéo MP4 (28s)
+              ▶ Launch Fullscreen Interactive Slides &amp; HD Video (28s)
             </a>
           </p>
         </div>

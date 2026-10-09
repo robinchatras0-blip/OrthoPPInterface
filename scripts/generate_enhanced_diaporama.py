@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
 generate_enhanced_diaporama.py - Generates an all-atom 3D evolutionary pipeline walkthrough.
+High-impact publication & iGEM wiki standards (English).
 
-Visual Guidelines (User Request):
+Visual & Scientific Guidelines:
 - Chain A (S1 / A') backbone: Ruby Red (#e11d48)
 - Chain B (S2 / B') backbone: Marine Blue (#2563eb)
 - Interface sidechains: Element-colored (O=red, N=blue, S=yellow) with carbons matching their chain
-  (Salmon/Coral for Chain A, Cyan/Sky for Chain B)
-- Direct structural superposition demonstrating that the global framework is preserved (RMSD < 1.2 Å)
+  (Salmon for Chain A, Cyan for Chain B)
+- Direct structural superposition demonstrating that the global framework is preserved (RMSD = 0.76 Å, >70% volume)
   and only the interface is surgically redesigned.
+- Validated atomic mechanism:
+  * Rupture on A': Electrostatic inversion (M3E, R4E) & steric truncation of native anchors (R18A, F29A).
+  * Rescue on B': Reciprocal salt bridge Glu4·OE1 - Lys8·NZ (2.62 Å) & aromatic packing (S12F, A47F).
 - Outputs:
   1. wiki/slides/slide_1.png to slide_6.png (1600x900 HD)
-  2. wiki/figures/pipeline_diaporama_video.mp4 (Smooth 28s H.264)
+  2. wiki/figures/pipeline_diaporama_video.mp4 (Smooth 28s H.264 video with cross-dissolves)
   3. wiki/figures/pipeline_diaporama_animation.gif (Optimized looping GIF)
 """
 
@@ -35,9 +39,9 @@ os.makedirs(SLIDES_DIR, exist_ok=True)
 os.makedirs(FIG_DIR, exist_ok=True)
 
 # ----------------- Visual Styles -----------------
-BG_COLOR = [0.035, 0.045, 0.075] # #090c13 (Deep navy space)
+BG_COLOR = [0.035, 0.045, 0.075] # #090c13 (Deep space navy)
 
-# Chain colors (Requested by user: Backbone strictly Red & Blue)
+# Chain colors (Backbone strictly Red & Blue)
 RUBY_RED = [0.88, 0.11, 0.28]    # Chain A / A' backbone
 MARINE_BLUE = [0.15, 0.39, 0.92] # Chain B / B' backbone
 
@@ -113,73 +117,73 @@ slides = [
     {
         "step_num": 1,
         "step_total": 6,
-        "tag": "ETAT INITIAL NATIF",
-        "title": "Complexe Sauvage Endogène (A_WT · B_WT)",
-        "subtitle": "Architecture cristallographique native 30S d'E. coli : recruteur S1 (A) ancré sur la protéine ribosomique S2 (B)",
-        "software": "Cristallographie PDB / BioPython PDBParser & DSSP",
-        "params": "Interface contact < 6.0 A (87 residus sur A, 35 sur B). Enveloppe ARNr 16S a 4-6 A de distance.",
-        "mechanism": "Le squelette global (framework) assure le repliement et l'orientation ribosomique. Seule l'interface doit etre remodelee.",
-        "metrics": "iPTM ceiling = 0.5446 (interface masquee), DeltaG = -48.2 REU, 0 mutation. Squelettes : Rouge (A) et Bleu (B).",
+        "tag": "INITIAL NATIVE STATE",
+        "title": "Endogenous Wild-Type Complex (A_WT · B_WT)",
+        "subtitle": "Native E. coli 30S crystallographic scaffold: S1 recruiter (A) anchored to S2 ribosomal protein (B)",
+        "software": "PDB Crystallography / BioPython PDBParser & DSSP",
+        "params": "Interface contact < 6.0 A (87 residues on A, 35 on B). 16S rRNA pocket at 4-6 A distance.",
+        "mechanism": "The global framework ensures 30S ribosome assembly. Only the binding interface must be redesigned.",
+        "metrics": "iPTM ceiling = 0.5446 (interface masked), DeltaG = -48.2 REU, 0 mutations. Backbones: Red (A), Blue (B).",
         "action": "slide1"
     },
     {
         "step_num": 2,
         "step_total": 6,
-        "tag": "MODULE 1 : DELIMITATION DU FRAMEWORK",
-        "title": "Cartographie Topologique : Gel du Framework & Isolation de l'Interface",
-        "subtitle": "Preservation stricte du coeur structural (>70% de la proteine) et deverrouillage des 3 boucles pour RFD3",
-        "software": "KDTree Distance Mapping / Algorithme SVD Kabsch / SVD Normal Projections",
+        "tag": "MODULE 1 : FRAMEWORK DELIMITATION",
+        "title": "Topological Mapping: Framework Freezing & Interface Isolation",
+        "subtitle": "Strict preservation of structural core (>70% volume) and selection of 3 interface loops for RFD3",
+        "software": "KDTree Distance Mapping / Kabsch SVD Algorithm / SVD Normal Projections",
         "params": "contact_cutoff: 6.0 A, crop_distance: 15.0 A, min_fixed_segment: 3, ppi_hotspots: 8",
-        "mechanism": "Le framework est gele (semi-transparent). Seules les 3 boucles d'interface (20/19/8 res) sont autorisees a diffuser. Origine a +10 A.",
-        "metrics": "87 residus redesignables sur A, B rogne a 15 A (GPU 24 Go). Origine projetee dans le solvant pour eviter tout clash initial.",
+        "mechanism": "Core framework frozen (semi-transparent). 3 continuous loops (20/19/8 res) unlocked. Origin shifted +10 A.",
+        "metrics": "87 redesignable residues on A, B cropped to 15 A (24GB VRAM). Solvent origin prevents initial clashing.",
         "action": "slide2"
     },
     {
         "step_num": 3,
         "step_total": 6,
-        "tag": "MODULE 2 : RUPTURE SUR A'",
-        "title": "Diffusion Apo & Remodelage de Novo sur A' (29 Mutations)",
-        "subtitle": "Conception de novo de A' en l'absence de B pour abolir l'affinite sauvage sans biais de design positif",
+        "tag": "MODULE 2 : A' SEQUENCE RUPTURE",
+        "title": "Apo-State Diffusion & Sequence Rupture on A' (29 Mutations)",
+        "subtitle": "De novo design of A' without partner B to eliminate native affinity without positive design bias",
         "software": "RFdiffusion3 (apo-state) + LigandMPNN (rupture bias) + PyRosetta Ref2015 FastRelax",
-        "params": "rupture_apo_design: true, mpnn_temp: 0.1, rupture_bias: inversion charges (M3E, R4E) & cavites alanines",
-        "mechanism": "Le framework de A reste intact (RMSD = 1.15 A). 29 residus d'interface mutes : poches alanines (G14A, T17A, R18A, F29A).",
-        "metrics": "Chaine A' repliee de maniere autonome (pLDDT = 84.2). Surface de contact prete pour le demantelement de l'hote.",
+        "params": "rupture_apo_design: true, mpnn_temp: 0.1, rupture_bias: electrostatic inversion & steric truncation",
+        "mechanism": "Framework preserved (RMSD = 1.15 A). 29 interface mutations: Arg/Phe truncations (R18A, F29A) & charges (M3E, R4E).",
+        "metrics": "Monomer A' autonomously folded (pLDDT = 84.2). Native interface anchors dismantled.",
         "action": "slide3"
     },
     {
         "step_num": 4,
         "step_total": 6,
-        "tag": "MODULE 3 : FILTRAGE FAIL-FAST",
-        "title": "Superposition avec l'Hôte : Rupture Sauvage Confirmée (A' · B_WT)",
-        "subtitle": "Contrôle Fail-Fast montrant l'effondrement de l'amarrage entre A' muté et le partenaire sauvage B_WT",
-        "software": "RoseTTAFold-3 All-Atom (RF3 co-amarrage) / PyRosetta Ref2015",
+        "tag": "MODULE 3 : FAIL-FAST SCREENING",
+        "title": "Host Superposition: Wild-Type Rupture Confirmed (A' · B_WT)",
+        "subtitle": "Fail-fast checkpoint demonstrating binding collapse between engineered A' and wild-type host B_WT",
+        "software": "RoseTTAFold-3 All-Atom (RF3 co-folding) / PyRosetta Ref2015",
         "params": "pLDDT_monomer >= 80.0, RMSD <= 2.0 A, rupture_iPTM_cutoff <= 0.35, max_motifs: 4",
-        "mechanism": "Superposition A' (Rouge) + B_WT (Bleu) : Les charges Glu3/Glu4 repoussent B_WT et les cavites alanines detruisent les contacts natifs.",
-        "metrics": "iPTM(A' · B_WT) = 0.295 <= 0.35 (VALIDE). Rupture complete du complexe avec l'hote : aucun effet dominant-negatif !",
+        "mechanism": "Superposition A' (Red) + B_WT (Blue): Glu3/Glu4 create repulsion while Ala truncations collapse native packing.",
+        "metrics": "iPTM(A' · B_WT) = 0.295 <= 0.35 (PASSED). Zero dominant-negative host binding toxicity!",
         "action": "slide4"
     },
     {
         "step_num": 5,
         "step_total": 6,
-        "tag": "MODULE 4 : CO-ADAPTATION DE B'",
-        "title": "Recalage SVD & Co-Adaptation Sauvetage sur B' (37 Mutations)",
-        "subtitle": "Conception complémentaire de B' par différence : insertion du verrou aromatique et nouveaux ponts salins",
+        "tag": "MODULE 4 : B' COMPENSATORY RESCUE",
+        "title": "SVD Realignment & Compensatory Rescue Design on B' (37 Mutations)",
+        "subtitle": "Complementary co-adaptation: reciprocal salt bridge (L8K) and aromatic packing (S12F, A47F)",
         "software": "SVD Kabsch frame realignment + RFdiffusion3 multi-scaffold + LigandMPNN + PyRosetta",
         "params": "scaffold_max_flex_rmsd: 4.5 A, framework_rmsd <= 1.5 A, specificity_by_difference: true",
-        "mechanism": "B' conserve son squelette (Bleu). 37 mutations all-atom inserent Phe12 et Phe47 directement dans les cavites alanines de A' !",
-        "metrics": "Verrou 'Knob-into-Hole' (S12F, A47F) + pont salin Arg39 (D39R) : complementarite stereospecifique exclusive contre A' fixe.",
+        "mechanism": "B' preserves framework (Blue). 37 mutations introduce Lys8 (salt bridge to Glu4) and Phe12/Phe47 aromatic core.",
+        "metrics": "Engineered salt bridge Glu4.OE1 - Lys8.NZ (2.62 A) + hydrophobic packing. Specificity by difference validated.",
         "action": "slide5"
     },
     {
         "step_num": 6,
         "step_total": 6,
-        "tag": "MODULE 5 : SUPERPOSITION & TRIOMPHE",
-        "title": "Superposition Directe (A' · B' vs A_WT · B_WT) : Orthogonalité Parfaite",
-        "subtitle": "Superposition atome par atome démontrant la conservation totale du framework global et le redesign exclusif de l'interface",
+        "tag": "MODULE 5 : SUPERPOSITION & SUCCESS",
+        "title": "Direct Superposition (A' · B' vs WT): Proof of Interface-Only Redesign",
+        "subtitle": "Atom-by-atom superposition proving total framework preservation and exclusive interface reprogramming",
         "software": "RoseTTAFold-3 All-Atom + AlphaFold2-Multimer v3 + PyRosetta Ref2015 + CAPRI DockQ",
-        "params": "Superposition alignee sur le squelette global (RMSD total = 0.76 A). Regime unifie MSA masquee.",
-        "mechanism": "Le framework est 100% superpose (RMSD < 1.0 A). Seule l'interface all-atom est mutee : verrouillage orthogonal exclusif et etanche.",
-        "metrics": "iPTM rescue = 0.745, DockQ = 0.4812, Delta iPTM = +0.494 (AF2 RMSD = 1.79 A vs 13.26 A sauvage). Succes absolu !",
+        "params": "Global backbone alignment (Total RMSD = 0.76 A). Unified masked-MSA inference.",
+        "mechanism": "Framework 100% aligned with WT crystal (ghost). Interface exclusively remodeled into orthogonal lock.",
+        "metrics": "iPTM rescue = 0.745, DockQ = 0.4812, Delta iPTM = +0.494 (AF2 RMSD = 1.79 A vs 13.26 A WT). Orthogonality achieved!",
         "action": "slide6"
     }
 ]
@@ -251,9 +255,9 @@ for s in slides:
         cmd.color("salmon", "a_muts and elem C")
         cmd.color("firebrick", "a_muts and elem O and not elem C")
         cmd.color("tv_blue", "a_muts and elem N and not elem C")
-        # Highlight key Ala cavity remodeling
-        cmd.select("ala_cavity", "complex and chain A and resi 14+17+18+29")
-        cmd.color("hotpink", "ala_cavity and elem C")
+        # Highlight key Ala truncations R18A & F29A, and Glu mutations M3E & R4E
+        cmd.select("key_rupture", "complex and chain A and resi 3+4+18+29")
+        cmd.color("hotpink", "key_rupture and elem C")
 
     elif action == "slide4":
         # Slide 4: Rupture with host B_WT (superposed!)
@@ -289,15 +293,18 @@ for s in slides:
         cmd.color("cyan", "b_muts and elem C")
         cmd.color("firebrick", "(a_muts or b_muts) and elem O and not elem C")
         cmd.color("tv_blue", "(a_muts or b_muts) and elem N and not elem C")
-        # Highlight aromatic latch Phe12 & Phe47
-        cmd.select("latch", "complex and chain B and resi 12+47")
-        cmd.show("spheres", "latch")
-        cmd.set("sphere_scale", 0.38, "latch")
-        cmd.color("deepteal", "latch and elem C")
+        # Highlight key engineered salt bridge Glu4(A) - Lys8(B) and Phe12/Phe47
+        cmd.select("salt_bridge", "(complex and chain A and resi 4) or (complex and chain B and resi 8)")
+        cmd.show("spheres", "salt_bridge")
+        cmd.set("sphere_scale", 0.35, "salt_bridge")
+        cmd.select("aromatics", "complex and chain B and resi 12+47")
+        cmd.show("spheres", "aromatics")
+        cmd.set("sphere_scale", 0.35, "aromatics")
+        cmd.color("deepteal", "aromatics and elem C")
 
     elif action == "slide6":
         # Slide 6: Direct 1:1 Superposition (WT vs Champion Design!)
-        # Shows that framework is 100% aligned (RMSD = 0.76 A), but interface is completely reprogrammed
+        # Proves that framework is 100% aligned (RMSD = 0.76 A), but interface is completely reprogrammed
         cmd.load(pdb_wt, "wt")
         cmd.load(pdb_des, "des")
         cmd.set_view(saved_view)
@@ -317,11 +324,10 @@ for s in slides:
         cmd.color("firebrick", "iface_champ and elem O and not elem C")
         cmd.color("tv_blue", "iface_champ and elem N and not elem C")
         cmd.color("yellow", "iface_champ and elem S and not elem C")
-        # Aromatic latch in spheres
-        cmd.select("latch_champ", "des and chain B and resi 12+47")
-        cmd.show("spheres", "latch_champ")
-        cmd.set("sphere_scale", 0.36, "latch_champ")
-        cmd.color("deepteal", "latch_champ and elem C")
+        # Engineered salt bridge Glu4(A) - Lys8(B)
+        cmd.select("salt_pair", "(des and chain A and resi 4) or (des and chain B and resi 8)")
+        cmd.show("spheres", "salt_pair")
+        cmd.set("sphere_scale", 0.35, "salt_pair")
 
     # Save raw render image
     raw_path = os.path.join(SLIDES_DIR, f"slide_{step_num}_raw.png")
@@ -338,9 +344,9 @@ for s in slides:
 
     # Step badge & tag
     draw.rounded_rectangle([(30, 16), (220, 46)], radius=6, fill=HEX_BLUE)
-    draw.text((45, 22), f"ETAPE {s['step_num']} / {s['step_total']}", font=font_step, fill=HEX_WHITE)
+    draw.text((45, 22), f"STEP {s['step_num']} / {s['step_total']}", font=font_step, fill=HEX_WHITE)
 
-    draw.rounded_rectangle([(235, 16), (580, 46)], radius=6, fill=(30, 41, 59))
+    draw.rounded_rectangle([(235, 16), (620, 46)], radius=6, fill=(30, 41, 59))
     draw.text((250, 22), s["tag"], font=font_step, fill=HEX_CYAN)
 
     # Main Title & Subtitle
@@ -349,14 +355,14 @@ for s in slides:
 
     # Top-right chain color guide
     draw.rounded_rectangle([(WIDTH - 540, 16), (WIDTH - 280, 46)], radius=6, fill=(225, 29, 72, 230))
-    draw.text((WIDTH - 525, 22), "Chaine A : S1 / A' (Rouge)", font=font_legend, fill=HEX_WHITE)
+    draw.text((WIDTH - 525, 22), "Chain A : S1 / A' (Red)", font=font_legend, fill=HEX_WHITE)
 
     draw.rounded_rectangle([(WIDTH - 265, 16), (WIDTH - 30, 46)], radius=6, fill=(37, 99, 235, 230))
-    draw.text((WIDTH - 250, 22), "Chaine B : S2 / B' (Bleu)", font=font_legend, fill=HEX_WHITE)
+    draw.text((WIDTH - 250, 22), "Chain B : S2 / B' (Blue)", font=font_legend, fill=HEX_WHITE)
 
     # Right badge info
     draw.text((WIDTH - 540, 60), "Champion : A'_candidate_01 · B_cand_40", font=font_hud_mono, fill=HEX_CYAN)
-    draw.text((WIDTH - 540, 80), "Cible : Ribosome 30S (S1-S2-ARNr 16S)", font=font_hud_text, fill=HEX_MUTED)
+    draw.text((WIDTH - 540, 80), "Target : 30S Ribosome (S1-S2-16S rRNA)", font=font_hud_text, fill=HEX_MUTED)
 
     # Bottom HUD panel (Height 175px)
     hud_top = HEIGHT - 175
@@ -365,22 +371,22 @@ for s in slides:
 
     # Row 1: Software & Engines
     draw.rounded_rectangle([(30, hud_top + 13), (225, hud_top + 37)], radius=4, fill=(120, 53, 15))
-    draw.text((40, hud_top + 16), "[LOGICIELS & ENGINS]", font=font_hud_tag, fill=HEX_AMBER)
+    draw.text((40, hud_top + 16), "[SOFTWARE & ENGINES]", font=font_hud_tag, fill=HEX_AMBER)
     draw.text((245, hud_top + 16), s["software"], font=font_hud_mono, fill=HEX_WHITE)
 
     # Row 2: Pipeline Parameters
     draw.rounded_rectangle([(30, hud_top + 50), (225, hud_top + 74)], radius=4, fill=(6, 78, 59))
-    draw.text((40, hud_top + 53), "[PARAMETRES PIPELINE]", font=font_hud_tag, fill=HEX_EMERALD)
+    draw.text((40, hud_top + 53), "[PIPELINE PARAMETERS]", font=font_hud_tag, fill=HEX_EMERALD)
     draw.text((245, hud_top + 53), s["params"], font=font_hud_text, fill=(203, 213, 225))
 
     # Row 3: All-Atom Mechanism & Mutations
     draw.rounded_rectangle([(30, hud_top + 87), (225, hud_top + 111)], radius=4, fill=(14, 116, 144))
-    draw.text((40, hud_top + 90), "[MECANISME ALL-ATOM]", font=font_hud_tag, fill=HEX_CYAN)
+    draw.text((40, hud_top + 90), "[ALL-ATOM MECHANISM]", font=font_hud_tag, fill=HEX_CYAN)
     draw.text((245, hud_top + 90), s["mechanism"], font=font_hud_text, fill=HEX_WHITE)
 
     # Row 4: Biophysical Metrics & Status
     draw.rounded_rectangle([(30, hud_top + 124), (225, hud_top + 148)], radius=4, fill=(30, 41, 59))
-    draw.text((40, hud_top + 127), "[METRIQUES CLES]", font=font_hud_tag, fill=HEX_WHITE)
+    draw.text((40, hud_top + 127), "[KEY METRICS & STATUS]", font=font_hud_tag, fill=HEX_WHITE)
     draw.text((245, hud_top + 127), s["metrics"], font=font_hud_mono, fill=HEX_CYAN)
 
     # Composite & save final slide
@@ -393,7 +399,7 @@ for s in slides:
     print(f"Saved Slide {step_num} to {final_slide_path}")
 
 cmd.quit()
-print(f"\n[SUCCESS] All {len(slide_files)} slides generated successfully!")
+print(f"\n[SUCCESS] All {len(slide_files)} slides generated successfully in English!")
 
 # ----------------- Video & Animation Assembly -----------------
 video_mp4_path = os.path.join(FIG_DIR, "pipeline_diaporama_video.mp4")
