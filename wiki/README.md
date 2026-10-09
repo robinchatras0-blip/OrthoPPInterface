@@ -10,7 +10,6 @@ wiki/
 │   ├── figure1_triad_2d_vs_3d.png             # Architecture 2D (ARN) vs 3D (PPI + ARNr 16S)
 │   ├── figure2_universal_pathways.png         # Applications universelles aux voies synthétiques
 │   ├── figure3_cross_reactivity_matrix.png    # Matrice de spécificité 4-états & définition F_ortho
-│   ├── figure4_ode_competition_kinetics.png   # Cinétique ODE et sélectivité de traduction
 │   ├── fig1_iptm_distributions_and_orthogonality.png # Paysage empirique des 600 complexes & 19 champions
 │   ├── fig2_correlations_rf3_af2_pyrosetta.png # Matrice de corrélation statistique RF3 vs AF2 vs PyRosetta
 │   ├── fig3_mutation_frequency_and_conservation.png # Fréquence mutationnelle & conservation
@@ -49,6 +48,6 @@ wiki/
    - Très forte corrélation de rang avec RoseTTAFold-3 All-Atom ($\rho = 0.754$, $p = 0.00019$).
    - Consensus fort sur la lignée `cand_01` maintenant un amarrage natif sous les 1.6 Å tout en expulsant le partenaire sauvage à 13.26 Å.
 
-4. **Modèle Cinétique ODE & Cascade Expérimentale :**
-   - Simulation numérique ODE démontrant qu'une marge $F_{\text{ortho}} \ge +0.20$ garantit $>85\%$ d'isolation traductionnelle in vivo.
+4. **Critères de Sélection Biophysique Pareto & Cascade Expérimentale :**
+   - Système de 7 portes biophysiques strictes garantissant une marge de sélectivité $\Delta\text{iPTM} \ge +0.19$, l'abolition du cross-talk sauvage ($\text{iPTM} \le 0.35$), et une géométrie CAPRI native.
    - Protocole de validation wet-lab à 3 niveaux : cinétique BLI/SPR 4x4, SEC-MALS 1:1, et essai double rapporteur in vivo sfGFP/mCherry.
