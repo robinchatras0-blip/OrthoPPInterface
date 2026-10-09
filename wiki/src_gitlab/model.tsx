@@ -482,12 +482,11 @@ export function Model(): React.ReactElement {
           </p>
         </div>
 
-                <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champions-table">
+                        <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champions-table">
           4.1 Evaluation Table of the 19 Orthogonal Champions: 4-Way iPTM Matrix &amp; CAPRI DockQ
         </h3>
         <p className="small text-secondary mb-3">
-          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our theoretical indices from Section 2.1:
-          the target cognate rescue $\text{iPTM}(A' \cdot B')$, the host rupture state $\text{iPTM}(A' \cdot B_{\text{WT}})$, the host cross-reactivity state $\text{iPTM}(A_{\text{WT}} \cdot B')$, the calibrated wild-type ceiling $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}}) = 0.545$, the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to the native crystallographic ground truth $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}}) = 1.000$.
+          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
         </p>
 
         <div className="table-responsive my-3">
@@ -495,13 +494,13 @@ export function Model(): React.ReactElement {
             <thead className="table-success text-dark text-nowrap">
               <tr>
                 <th className="text-center">Pair</th>
-                <th className="text-center bg-primary text-light">iPTM(A'&middot;B')<br/><span className="fw-normal small">Rescue (s₁)</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A'&middot;B_WT)<br/><span className="fw-normal small">Rupture (s₂)</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A_WT&middot;B')<br/><span className="fw-normal small">Cross (s₃)</span></th>
-                <th className="text-center bg-secondary text-light">iPTM(A_WT&middot;B_WT)<br/><span className="fw-normal small">Ceiling (s₄)</span></th>
-                <th className="text-center bg-success text-light">&Delta;iPTM<br/><span className="fw-normal small">Margin</span></th>
-                <th className="text-center">DockQ(A'&middot;B')<br/><span className="fw-normal small">Design Pose</span></th>
-                <th className="text-center text-info">DockQ(A_WT&middot;B_WT)<br/><span className="fw-normal small">WT Reference</span></th>
+                <th className="text-center bg-primary text-light">iPTM(s₁)<br/><span className="fw-normal small">A' &middot; B'</span></th>
+                <th className="text-center bg-danger text-light">iPTM(s₂)<br/><span className="fw-normal small">A' &middot; B_WT</span></th>
+                <th className="text-center bg-danger text-light">iPTM(s₃)<br/><span className="fw-normal small">A_WT &middot; B'</span></th>
+                <th className="text-center bg-secondary text-light">iPTM(s₄)<br/><span className="fw-normal small">A_WT &middot; B_WT</span></th>
+                <th className="text-center bg-success text-light">&Delta;iPTM</th>
+                <th className="text-center">DockQ(A'&middot;B')</th>
+                <th className="text-center text-info">DockQ(AB)</th>
               </tr>
             </thead>
             <tbody>

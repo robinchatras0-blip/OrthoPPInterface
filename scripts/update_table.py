@@ -4,13 +4,13 @@ update_table.py - Updates the candidate evaluation table in wiki/model.md,
 wiki/index.html, and wiki/src_gitlab/model.tsx with the streamlined, mathematically
 coherent 8-column layout requested by the user:
 - Pair (Pair 01 to Pair 19)
-- iPTM(A' · B') (Target cognate rescue, s1)
-- iPTM(A' · B_WT) (Host rupture, s2)
-- iPTM(A_WT · B') (Host cross-reactivity, s3)
-- iPTM(A_WT · B_WT) (Wild-type reference ceiling, s4 = 0.545)
+- iPTM(s1) (A' · B')
+- iPTM(s2) (A' · B_WT)
+- iPTM(s3) (A_WT · B')
+- iPTM(s4) (A_WT · B_WT, reference ceiling = 0.545)
 - Delta iPTM (Selectivity margin)
-- DockQ(A' · B') (CAPRI docking score of cognate design)
-- DockQ(A_WT · B_WT) (Wild-type crystallographic ground truth = 1.000)
+- DockQ(A' · B') (Design pose)
+- DockQ(A · B) (Wild-type reference = 1.000)
 """
 
 import os
@@ -23,9 +23,9 @@ MODEL_TSX = os.path.join(BASE_DIR, "wiki", "src_gitlab", "model.tsx")
 
 table_md = """### 4.1 Evaluation Table of the 19 Champions: 4-Way iPTM Matrix & CAPRI DockQ
 
-The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our formal theoretical indices from Section 2.1: the target cognate rescue $\\text{iPTM}(A' \\cdot B')$, the host rupture state $\\text{iPTM}(A' \\cdot B_{\\text{WT}})$, the host cross-reactivity state $\\text{iPTM}(A_{\\text{WT}} \\cdot B')$, the calibrated wild-type ceiling $\\text{iPTM}(A_{\\text{WT}} \\cdot B_{\\text{WT}}) = 0.545$, the resulting selectivity margin $\\Delta\\text{iPTM}$, and the CAPRI binding pose fidelity $\\text{DockQ}(A' \\cdot B')$ compared to the native crystallographic ground truth $\\text{DockQ}(A_{\\text{WT}} \\cdot B_{\\text{WT}}) = 1.000$.
+The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\\Delta\\text{iPTM}$, and the CAPRI binding pose fidelity $\\text{DockQ}(A' \\cdot B')$ compared to native reference $\\text{DockQ}(A \\cdot B) = 1.000$:
 
-| Pair | $\\text{iPTM}(A' \\cdot B')$ | $\\text{iPTM}(A' \\cdot B_{\\text{WT}})$ | $\\text{iPTM}(A_{\\text{WT}} \\cdot B')$ | $\\text{iPTM}(A_{\\text{WT}} \\cdot B_{\\text{WT}})$ | $\\Delta\\text{iPTM}$ | $\\text{DockQ}(A' \\cdot B')$ | $\\text{DockQ}(A_{\\text{WT}} \\cdot B_{\\text{WT}})$ |
+| Pair | $\\text{iPTM}(s_1)$<br>$(A' \\cdot B')$ | $\\text{iPTM}(s_2)$<br>$(A' \\cdot B_{\\text{WT}})$ | $\\text{iPTM}(s_3)$<br>$(A_{\\text{WT}} \\cdot B')$ | $\\text{iPTM}(s_4)$<br>$(A_{\\text{WT}} \\cdot B_{\\text{WT}})$ | $\\Delta\\text{iPTM}$ | $\\text{DockQ}(A' \\cdot B')$ | $\\text{DockQ}(A \\cdot B)$ |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Pair 01** | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | 0.481 | 1.000 |
 | **Pair 02** | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | 0.547 | 1.000 |
@@ -68,6 +68,8 @@ with open(INDEX_HTML, 'r', encoding='utf-8') as f:
 match_html = re.search(pattern_md, content_html, re.DOTALL)
 if match_html:
     new_html = content_html[:match_html.start()] + table_md + "\n" + content_html[match_html.end():]
+    # Also add cache busting to fetch('model.md') in index.html to guarantee no stale cache
+    new_html = new_html.replace("fetch('model.md')", "fetch('model.md?v=' + Date.now(), { cache: 'no-store' })")
     with open(INDEX_HTML, 'w', encoding='utf-8') as f:
         f.write(new_html)
     print("Updated wiki/index.html successfully!")
@@ -115,8 +117,7 @@ tsx_table = f"""        <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champ
           4.1 Evaluation Table of the 19 Orthogonal Champions: 4-Way iPTM Matrix &amp; CAPRI DockQ
         </h3>
         <p className="small text-secondary mb-3">
-          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our theoretical indices from Section 2.1:
-          the target cognate rescue $\\text{{iPTM}}(A' \\cdot B')$, the host rupture state $\\text{{iPTM}}(A' \\cdot B_{{\\text{{WT}}}})$, the host cross-reactivity state $\\text{{iPTM}}(A_{{\\text{{WT}}}} \\cdot B')$, the calibrated wild-type ceiling $\\text{{iPTM}}(A_{{\\text{{WT}}}} \\cdot B_{{\\text{{WT}}}}) = 0.545$, the resulting selectivity margin $\\Delta\\text{{iPTM}}$, and the CAPRI binding pose fidelity $\\text{{DockQ}}(A' \\cdot B')$ compared to the native crystallographic ground truth $\\text{{DockQ}}(A_{{\\text{{WT}}}} \\cdot B_{{\\text{{WT}}}}) = 1.000$.
+          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\\Delta\\text{{iPTM}}$, and the CAPRI binding pose fidelity $\\text{{DockQ}}(A' \\cdot B')$ compared to native reference $\\text{{DockQ}}(A \\cdot B) = 1.000$:
         </p>
 
         <div className="table-responsive my-3">
@@ -124,13 +125,13 @@ tsx_table = f"""        <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champ
             <thead className="table-success text-dark text-nowrap">
               <tr>
                 <th className="text-center">Pair</th>
-                <th className="text-center bg-primary text-light">iPTM(A'&middot;B')<br/><span className="fw-normal small">Rescue (s₁)</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A'&middot;B_WT)<br/><span className="fw-normal small">Rupture (s₂)</span></th>
-                <th className="text-center bg-danger text-light">iPTM(A_WT&middot;B')<br/><span className="fw-normal small">Cross (s₃)</span></th>
-                <th className="text-center bg-secondary text-light">iPTM(A_WT&middot;B_WT)<br/><span className="fw-normal small">Ceiling (s₄)</span></th>
-                <th className="text-center bg-success text-light">&Delta;iPTM<br/><span className="fw-normal small">Margin</span></th>
-                <th className="text-center">DockQ(A'&middot;B')<br/><span className="fw-normal small">Design Pose</span></th>
-                <th className="text-center text-info">DockQ(A_WT&middot;B_WT)<br/><span className="fw-normal small">WT Reference</span></th>
+                <th className="text-center bg-primary text-light">iPTM(s₁)<br/><span className="fw-normal small">A' &middot; B'</span></th>
+                <th className="text-center bg-danger text-light">iPTM(s₂)<br/><span className="fw-normal small">A' &middot; B_WT</span></th>
+                <th className="text-center bg-danger text-light">iPTM(s₃)<br/><span className="fw-normal small">A_WT &middot; B'</span></th>
+                <th className="text-center bg-secondary text-light">iPTM(s₄)<br/><span className="fw-normal small">A_WT &middot; B_WT</span></th>
+                <th className="text-center bg-success text-light">&Delta;iPTM</th>
+                <th className="text-center">DockQ(A'&middot;B')</th>
+                <th className="text-center text-info">DockQ(AB)</th>
               </tr>
             </thead>
             <tbody>

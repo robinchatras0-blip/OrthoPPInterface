@@ -230,9 +230,9 @@ A production campaign of **600 all-atom complexes** across **12 $A'$ motif famil
 
 ### 4.1 Evaluation Table of the 19 Champions: 4-Way iPTM Matrix & CAPRI DockQ
 
-The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our formal theoretical indices from Section 2.1: the target cognate rescue $\text{iPTM}(A' \cdot B')$, the host rupture state $\text{iPTM}(A' \cdot B_{\text{WT}})$, the host cross-reactivity state $\text{iPTM}(A_{\text{WT}} \cdot B')$, the calibrated wild-type ceiling $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}}) = 0.545$, the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to the native crystallographic ground truth $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}}) = 1.000$.
+The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
 
-| Pair | $\text{iPTM}(A' \cdot B')$ | $\text{iPTM}(A' \cdot B_{\text{WT}})$ | $\text{iPTM}(A_{\text{WT}} \cdot B')$ | $\text{iPTM}(A_{\text{WT}} \cdot B_{\text{WT}})$ | $\Delta\text{iPTM}$ | $\text{DockQ}(A' \cdot B')$ | $\text{DockQ}(A_{\text{WT}} \cdot B_{\text{WT}})$ |
+| Pair | $\text{iPTM}(s_1)$<br>$(A' \cdot B')$ | $\text{iPTM}(s_2)$<br>$(A' \cdot B_{\text{WT}})$ | $\text{iPTM}(s_3)$<br>$(A_{\text{WT}} \cdot B')$ | $\text{iPTM}(s_4)$<br>$(A_{\text{WT}} \cdot B_{\text{WT}})$ | $\Delta\text{iPTM}$ | $\text{DockQ}(A' \cdot B')$ | $\text{DockQ}(A \cdot B)$ |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Pair 01** | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | 0.481 | 1.000 |
 | **Pair 02** | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | 0.547 | 1.000 |
