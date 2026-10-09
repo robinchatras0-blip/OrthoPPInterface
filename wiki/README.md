@@ -6,7 +6,7 @@ Ce répertoire contient l'ensemble des fichiers nettoyés, structurés et rigour
 
 ```
 wiki/
-├── figures/                                    # Figures PNG haute résolution générées à partir des données réelles
+├── figures/                                    # Figures PNG/GIF/MP4 haute résolution générées à partir des données réelles
 │   ├── figure1_triad_2d_vs_3d.png             # Architecture 2D (ARN) vs 3D (PPI + ARNr 16S)
 │   ├── figure2_universal_pathways.png         # Applications universelles aux voies synthétiques
 │   ├── figure3_cross_reactivity_matrix.png    # Matrice de spécificité 4-états & définition F_ortho
@@ -15,8 +15,12 @@ wiki/
 │   ├── fig2_correlations_rf3_af2_pyrosetta.png # Matrice de corrélation statistique RF3 vs AF2 vs PyRosetta
 │   ├── fig3_mutation_frequency_and_conservation.png # Fréquence mutationnelle & conservation
 │   ├── fig4_plddt_profiles_per_residue.png    # Profils pLDDT résidu par résidu
-│   └── fig5_champion_radar_profiles.png       # Profils radar multicritères des super-champions
+│   ├── fig5_champion_radar_profiles.png       # Profils radar multicritères des super-champions
+│   ├── pipeline_diaporama_animation.gif       # Animation GIF en boucle du diaporama all-atom
+│   └── pipeline_diaporama_video.mp4           # Vidéo MP4 HD (24s) avec transitions fondues et fiches techniques
 │
+├── slides/                                     # Rendus PyMOL 3D all-atom HD (1600x900) par étape (slide_1 à slide_6)
+├── diaporama_pipeline.html                    # Application Web standalone interactive du diaporama (timeline, vidéo, HUD)
 ├── src_gitlab/                                 # Fichiers sources prêts à copier vers le dépôt GitLab iGEM
 │   ├── model.tsx                              # Composant React 19 / Bootstrap 5 (pour src/contents/model.tsx)
 │   └── model.bib                              # Références BibTeX complètes (pour src/references/model.bib)

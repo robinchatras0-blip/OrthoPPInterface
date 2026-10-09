@@ -1,0 +1,1 @@
+PyMOL Open-Source. Users should check https://www.pymol.org/ for licensing details. Recorded at 2026-10-09T15:30:28.4516080+02:00

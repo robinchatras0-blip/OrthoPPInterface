@@ -150,6 +150,16 @@ flowchart TD
     M4 --> M5["<b>Module 5: Final Evaluation</b><br/>4 folds RF3 under unified masked MSA<br/>PyRosetta FastRelax binding energy<br/>DockQ CAPRI evaluation & F_ortho"]
 ```
 
+<div style="text-align: center; margin: 2.5rem 0;">
+  <a href="diaporama_pipeline.html" target="_blank" style="text-decoration: none;">
+    <img src="figures/pipeline_diaporama_animation.gif" alt="Diaporama Évolutionnaire All-Atom du Pipeline" style="width: 100%; max-width: 950px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);" />
+  </a>
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.75rem;">
+    <strong>Diaporama Évolutionnaire All-Atom | Suivi du Champion <code>cand_01_B_cand_40</code>.</strong> Évolution structurale 3D étape par étape montrant l'apparition des 29 mutations sur la chaîne A' et des 37 mutations sur la chaîne B', avec cartographie des logiciels et paramètres exécutés.  
+    <a href="diaporama_pipeline.html" target="_blank" style="color: #06b6d4; font-weight: 600; margin-left: 0.5rem;">▶ Ouvrir le Diaporama Interactif Plein Écran &amp; Vidéo MP4</a>
+  </p>
+</div>
+
 ### Module 1: Interface & Hotspots Analysis (`01_analyze_interface.py`)
 - **Contact Detection:** Heavy-atom distance $\le 6.0\text{ \AA}$ defines interface residues; redesignable shell set to $\le 6.0\text{ \AA}$ (87 of 224 residues on Chain A). Chain B is cropped to $15.0\text{ \AA}$ from the interface to fit within GPU VRAM during diffusion.
 - **Loop Consolidation (`rescue_min_fixed_segment: 3`):** Distance-based selection creates isolated 1–2 residue fixed anchors between short flexible spans. Short fixed segments are absorbed into contiguous loops (3 anchors of 8/26/7 residues; 3 loops of 20/19/8 residues), providing RFD3 with physically continuous spans to diffuse.

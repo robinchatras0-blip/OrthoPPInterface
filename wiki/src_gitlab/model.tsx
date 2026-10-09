@@ -318,6 +318,23 @@ export function Model(): React.ReactElement {
           algorithmic choice is justified by biophysical and computational principles:
         </p>
 
+        <div className="text-center my-4">
+          <a href="diaporama_pipeline.html" target="_blank" rel="noopener noreferrer">
+            <img
+              src="figures/pipeline_diaporama_animation.gif"
+              alt="Diaporama Évolutionnaire All-Atom du Pipeline"
+              className="img-fluid rounded border border-info shadow-lg"
+              style={{ maxWidth: '950px' }}
+            />
+          </a>
+          <p className="text-muted small mt-2">
+            <strong>Diaporama Évolutionnaire All-Atom | Suivi du Champion <code>cand_01_B_cand_40</code>.</strong> Évolution structurale 3D étape par étape montrant l'apparition des 29 mutations sur la chaîne A' et des 37 mutations sur la chaîne B', avec cartographie des logiciels et paramètres exécutés.{' '}
+            <a href="diaporama_pipeline.html" target="_blank" rel="noopener noreferrer" className="text-info fw-bold text-decoration-none ms-1">
+              ▶ Ouvrir le Diaporama Interactif Plein Écran &amp; Vidéo MP4
+            </a>
+          </p>
+        </div>
+
         <div className="row g-4 my-3">
           <div className="col-12">
             <div className="card bg-dark border-secondary p-3">
