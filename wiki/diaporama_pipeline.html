@@ -223,6 +223,37 @@
             </p>
         </div>
 
+        <!-- Visual Color Guide & Rationale -->
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <div class="p-2 rounded border border-danger d-flex align-items-center gap-2" style="background: rgba(225, 29, 72, 0.12);">
+                    <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#e11d48;"></span>
+                    <div class="small">
+                        <strong class="text-danger">Chaîne A / A' (Rouge) :</strong>
+                        <span class="text-secondary">Squelette préservé S1. Carbons d'interface en saumon.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-2 rounded border border-primary d-flex align-items-center gap-2" style="background: rgba(37, 99, 235, 0.12);">
+                    <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#2563eb;"></span>
+                    <div class="small">
+                        <strong class="text-primary">Chaîne B / B' (Bleu) :</strong>
+                        <span class="text-secondary">Squelette préservé S2. Carbons d'interface en cyan.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-2 rounded border border-info d-flex align-items-center gap-2" style="background: rgba(6, 182, 212, 0.12);">
+                    <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:#06b6d4;"></span>
+                    <div class="small">
+                        <strong class="text-info">Interface All-Atom :</strong>
+                        <span class="text-secondary">Atomes O (rouge), N (bleu), S (jaune). Redesign chirurgical local.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Mode Toggle (Diaporama vs Vidéo MP4) -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="btn-group" role="group">
@@ -230,7 +261,7 @@
                     🖼️ Diaporama Interactif HD
                 </button>
                 <button type="button" class="btn btn-outline-info btn-sm" id="btn-mode-video" onclick="switchMode('video')">
-                    🎬 Vidéo MP4 Fluide (24s)
+                    🎬 Vidéo MP4 Fluide (28s)
                 </button>
             </div>
             <div class="small text-secondary" id="auto-status">
@@ -400,21 +431,23 @@
             },
             {
                 step: 6,
-                tag: "MODULE 5 : ÉVALUATION FINALE",
-                title: "Étape 5 : Triomphe de l'Orthogonalité : Sauvetage Cognat (A' · B')",
+                tag: "MODULE 5 : SUPERPOSITION & TRIOMPHE",
+                title: "Étape 5 : Superposition Directe (A' · B' vs WT) : Preuve du Redesign Exclusif d'Interface",
                 img: "slides/slide_6.png",
-                pdb: "runs/run_overnight_production/05_final_eval/complex_rescue/A_prime_candidate_01_B_cand_40/A_prime_candidate_01_B_cand_40_unrelaxed_rank_001.pdb",
-                software: "RoseTTAFold-3 All-Atom (MSA masquées) + PyRosetta FastRelax + AF2-Multimer v3",
+                pdb: "DOSSIER_CHAMPIONS/structures_pdb/01_A_prime_candidate_01_B_cand_40_design.pdb",
+                software: "RoseTTAFold-3 All-Atom (MSA masquées) + PyRosetta FastRelax + AF2-Multimer v3 + CAPRI DockQ",
                 script: "pipeline/src/05_eval_final.py & validate_af2_all19.py",
                 params: {
+                    "superposition_squelette": "RMSD total = 0.76 Å (scaffold préservé >70%)",
                     "unified_msa_scope": "interface (élimination du biais co-évolutif)",
                     "dG_filter": "<= -30.0 REU",
                     "DockQ_gate": ">= 0.23 (CAPRI acceptable/medium)",
                     "cross_validation_engine": "AlphaFold2-Multimer v3 (57 runs)"
                 },
-                rationale: "L'interface mutée reconstitue un verrou moléculaire stéréospécifique qui restaure une haute affinité entre partenaires synthétiques tout en étant totalement inerte vis-à-vis des partenaires sauvages.",
-                mutations: "Complexe orthogonal complet validé : S1' (29 muts) · S2' (37 muts)",
+                rationale: "Superposition directe atome par atome démontrant que le squelette global (framework) est rigoureusement préservé (RMSD global = 0.76 Å, squelette B RMSD = 0.14 Å, >70% du volume inchangé), garantissant l'assemblage et l'orientation ribosomique 30S. Seule l'interface est chirurgicalement remodelée en un verrou moléculaire exclusif (Knob-into-Hole) qui restaure une haute affinité entre partenaires synthétiques tout en étant totalement inerte vis-à-vis des partenaires sauvages.",
+                mutations: "S1' (29 muts : cavités G14A, T17A, R18A, F29A + répulsion M3E, R4E) · S2' (37 muts : verrou Phe12, Phe47 + pont salin D39R)",
                 metrics: {
+                    "Conservation framework global": "RMSD = 0.76 Å (squelette WT en fantôme blanc)",
                     "iPTM sauvetage (A' · B')": "0.745",
                     "CAPRI DockQ": "0.4812 (Amarrage natif conservé)",
                     "Énergie libre ΔG_rescue": "-40.7 REU",

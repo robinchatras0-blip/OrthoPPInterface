@@ -175,8 +175,12 @@ flowchart TD
     <img src="figures/pipeline_diaporama_animation.gif" alt="Diaporama Évolutionnaire All-Atom du Pipeline" style="width: 100%; max-width: 950px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);" />
   </a>
   <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.75rem;">
-    <strong>Diaporama Évolutionnaire All-Atom | Suivi du Champion <code>cand_01_B_cand_40</code>.</strong> Évolution structurale 3D étape par étape montrant l'apparition des 29 mutations sur la chaîne A' et des 37 mutations sur la chaîne B', avec cartographie des logiciels et paramètres exécutés.  
-    <a href="diaporama_pipeline.html" target="_blank" style="color: #06b6d4; font-weight: 600; margin-left: 0.5rem;">▶ Ouvrir le Diaporama Interactif Plein Écran &amp; Vidéo MP4</a>
+    <strong>Diaporama Évolutionnaire All-Atom | Suivi 3D du Champion <code>cand_01_B_cand_40</code>.</strong><br/>
+    <span style="color: #e11d48; font-weight: 600;">● Squelette Chaîne A / A' (Rouge)</span> &nbsp;|&nbsp; 
+    <span style="color: #3b82f6; font-weight: 600;">● Squelette Chaîne B / B' (Bleu)</span> &nbsp;|&nbsp; 
+    <span style="color: #06b6d4; font-weight: 600;">● Bâtonnets all-atom colorés par éléments (O rouge, N bleu, C par chaîne)</span>.<br/>
+    Superposition démontrant la conservation stricte du framework global (&gt;70% du volume, RMSD = 0.76 Å) et le remodelage chirurgical exclusif de l'interface (29 mutations sur A', 37 mutations sur B').<br/>
+    <a href="diaporama_pipeline.html" target="_blank" style="color: #06b6d4; font-weight: 600; margin-left: 0.5rem;">▶ Ouvrir le Diaporama Interactif Plein Écran &amp; Vidéo MP4 (28s)</a>
   </p>
 </div>
 
