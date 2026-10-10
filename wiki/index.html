@@ -1178,14 +1178,14 @@ The complete computational pipeline is open-source under the MIT License:
             
             // Extract Display Math $$...$$
             markdownText = markdownText.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
-                const id = `MATH_DISPLAY_${mathTokens.length}`;
+                const id = `%%MATH_DISPLAY_${mathTokens.length}%%`;
                 mathTokens.push({ id, math, display: true });
                 return id;
             });
 
             // Extract Inline Math $...$
             markdownText = markdownText.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
-                const id = `MATH_INLINE_${mathTokens.length}`;
+                const id = `%%MATH_INLINE_${mathTokens.length}%%`;
                 mathTokens.push({ id, math, display: false });
                 return id;
             });
@@ -1206,16 +1206,16 @@ The complete computational pipeline is open-source under the MIT License:
             html = html.replace(/<table>/g, '<div class="table-wrapper"><table>');
             html = html.replace(/<\/table>/g, '</table></div>');
 
-            // 7. Re-insert KaTeX Rendered Math
+            // 7. Re-insert KaTeX Rendered Math using exact, collision-safe string replacement
             mathTokens.forEach(({ id, math, display }) => {
                 try {
                     const rendered = katex.renderToString(math.trim(), {
                         displayMode: display,
                         throwOnError: false
                     });
-                    html = html.replace(new RegExp(id, 'g'), rendered);
+                    html = html.replaceAll(id, () => rendered);
                 } catch (e) {
-                    html = html.replace(new RegExp(id, 'g'), `<span style="color:var(--accent-rose)">[Math Error]</span>`);
+                    html = html.replaceAll(id, () => `<span style="color:var(--accent-rose)">[Math Error]</span>`);
                 }
             });
 
