@@ -482,15 +482,15 @@ export function Model(): React.ReactElement {
         </div>
 
                         <h3 className="h4 fw-bold mt-5 mb-3 text-info" id="champions-table">
-          4.1 Evaluation Table of the 19 Orthogonal Champions: 4-Way iPTM Matrix &amp; CAPRI DockQ
+          4.1 Evaluation Table of the 19 Orthogonal Champions: 4-Way iPTM Matrix, Rosetta Energies &amp; CAPRI DockQ
         </h3>
         <p className="small text-secondary mb-3">
-          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
+          Core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, the PyRosetta interface binding energy $\Delta G_{\text{rescue}}$ (in REU), the composite orthogonality score $F_{\text{ortho}}$ (combining neural and physical margins as formulated in Section 2.2), and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
         </p>
 
         <div className="table-responsive my-3">
           <table className="table table-dark table-hover table-bordered small align-middle">
-            <thead className="table-success text-dark text-nowrap">
+                        <thead className="table-success text-dark text-nowrap">
               <tr>
                 <th className="text-center">Pair</th>
                 <th className="text-center bg-primary text-light">iPTM(s₁)<br/><span className="fw-normal small">A' &middot; B'</span></th>
@@ -498,6 +498,8 @@ export function Model(): React.ReactElement {
                 <th className="text-center bg-danger text-light">iPTM(s₃)<br/><span className="fw-normal small">A_WT &middot; B'</span></th>
                 <th className="text-center bg-secondary text-light">iPTM(s₄)<br/><span className="fw-normal small">A_WT &middot; B_WT</span></th>
                 <th className="text-center bg-success text-light">&Delta;iPTM</th>
+                <th className="text-center bg-warning text-dark">&Delta;G_rescue<br/><span className="fw-normal small">(REU)</span></th>
+                <th className="text-center bg-info text-dark">F_ortho</th>
                 <th className="text-center">DockQ(A'&middot;B')</th>
                 <th className="text-center text-info">DockQ(AB)</th>
               </tr>
@@ -510,6 +512,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.251</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.494</td>
+                <td className="text-center text-warning font-monospace">-40.7</td>
+                <td className="text-center text-light font-monospace">0.211</td>
                 <td className="text-center fw-bold">0.481</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -520,6 +524,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.299</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.483</td>
+                <td className="text-center text-warning font-monospace">-65.8</td>
+                <td className="text-center fw-bold text-info font-monospace">0.384</td>
                 <td className="text-center fw-bold">0.547</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -530,6 +536,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.259</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.442</td>
+                <td className="text-center text-warning font-monospace">-48.1</td>
+                <td className="text-center fw-bold text-info font-monospace">0.253</td>
                 <td className="text-center fw-bold">0.582</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -540,6 +548,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.221</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.381</td>
+                <td className="text-center text-warning font-monospace">-74.7</td>
+                <td className="text-center fw-bold text-info font-monospace">0.400</td>
                 <td className="text-center fw-bold">0.497</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -550,6 +560,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.247</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.379</td>
+                <td className="text-center text-warning font-monospace">-48.8</td>
+                <td className="text-center text-light font-monospace">0.191</td>
                 <td className="text-center fw-bold">0.507</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -560,6 +572,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.384</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.357</td>
+                <td className="text-center text-warning font-monospace">-46.1</td>
+                <td className="text-center text-light font-monospace">0.222</td>
                 <td className="text-center fw-bold">0.540</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -570,6 +584,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.243</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.357</td>
+                <td className="text-center text-warning font-monospace">-50.7</td>
+                <td className="text-center text-light font-monospace">0.224</td>
                 <td className="text-center fw-bold">0.473</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -580,6 +596,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.270</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.355</td>
+                <td className="text-center text-warning font-monospace">-51.4</td>
+                <td className="text-center text-light font-monospace">0.147</td>
                 <td className="text-center fw-bold">0.537</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -590,6 +608,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.282</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.351</td>
+                <td className="text-center text-warning font-monospace">-48.5</td>
+                <td className="text-center text-light font-monospace">0.221</td>
                 <td className="text-center fw-bold">0.603</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -600,6 +620,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.279</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.350</td>
+                <td className="text-center text-warning font-monospace">-64.2</td>
+                <td className="text-center fw-bold text-info font-monospace">0.277</td>
                 <td className="text-center fw-bold">0.584</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -610,6 +632,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.402</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.340</td>
+                <td className="text-center text-warning font-monospace">-50.8</td>
+                <td className="text-center text-light font-monospace">0.181</td>
                 <td className="text-center fw-bold">0.478</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -620,7 +644,9 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.313</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.326</td>
-                <td className="text-center fw-bold">0.509</td>
+                <td className="text-center text-warning font-monospace">-67.9</td>
+                <td className="text-center fw-bold text-info font-monospace">0.293</td>
+                <td className="text-center fw-bold">0.508</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
               <tr>
@@ -630,6 +656,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.296</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.312</td>
+                <td className="text-center text-warning font-monospace">-62.8</td>
+                <td className="text-center text-light font-monospace">0.241</td>
                 <td className="text-center fw-bold">0.561</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -640,6 +668,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.331</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.289</td>
+                <td className="text-center text-warning font-monospace">-47.6</td>
+                <td className="text-center text-light font-monospace">0.177</td>
                 <td className="text-center fw-bold">0.534</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -650,6 +680,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.356</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.281</td>
+                <td className="text-center text-warning font-monospace">-50.0</td>
+                <td className="text-center text-light font-monospace">0.087</td>
                 <td className="text-center fw-bold">0.464</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -660,6 +692,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.412</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.275</td>
+                <td className="text-center text-warning font-monospace">-44.9</td>
+                <td className="text-center text-light font-monospace">0.122</td>
                 <td className="text-center fw-bold">0.571</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -670,6 +704,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.356</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.273</td>
+                <td className="text-center text-warning font-monospace">-56.3</td>
+                <td className="text-center text-light font-monospace">0.175</td>
                 <td className="text-center fw-bold">0.564</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -680,6 +716,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.400</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.225</td>
+                <td className="text-center text-warning font-monospace">-53.6</td>
+                <td className="text-center text-light font-monospace">0.187</td>
                 <td className="text-center fw-bold">0.486</td>
                 <td className="text-center text-info">1.000</td>
               </tr>
@@ -690,6 +728,8 @@ export function Model(): React.ReactElement {
                 <td className="text-center text-secondary">0.419</td>
                 <td className="text-center text-muted">0.545</td>
                 <td className="text-center fw-bold text-success fs-6">+0.194</td>
+                <td className="text-center text-warning font-monospace">-63.5</td>
+                <td className="text-center text-light font-monospace">0.122</td>
                 <td className="text-center fw-bold">0.460</td>
                 <td className="text-center text-info">1.000</td>
               </tr>

@@ -228,31 +228,31 @@ A production campaign of **600 all-atom complexes** across **12 $A'$ motif famil
 
 ---
 
-### 4.1 Evaluation Table of the 19 Champions: 4-Way iPTM Matrix & CAPRI DockQ
+### 4.1 Evaluation Table of the 19 Champions: 4-Way iPTM Matrix, Rosetta Energies & CAPRI DockQ
 
-The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
+The table below summarizes the core biophysical evaluation of the 19 strict orthogonal champions. Each column strictly corresponds to our state indices from Section 2.1 ($s_1$ to $s_4$), the resulting selectivity margin $\Delta\text{iPTM}$, the PyRosetta interface binding energy $\Delta G_{\text{rescue}}$ (in REU), the composite orthogonality score $F_{\text{ortho}}$ (combining neural and physical margins as formulated in Section 2.2: $F_{\text{ortho}} = 0.5 \cdot F_{\text{iptm}} + 0.5 \cdot F_{\text{energy}}$), and the CAPRI binding pose fidelity $\text{DockQ}(A' \cdot B')$ compared to native reference $\text{DockQ}(A \cdot B) = 1.000$:
 
-| Pair | $\text{iPTM}(s_1)$<br>$(A' \cdot B')$ | $\text{iPTM}(s_2)$<br>$(A' \cdot B_{\text{WT}})$ | $\text{iPTM}(s_3)$<br>$(A_{\text{WT}} \cdot B')$ | $\text{iPTM}(s_4)$<br>$(A_{\text{WT}} \cdot B_{\text{WT}})$ | $\Delta\text{iPTM}$ | $\text{DockQ}(A' \cdot B')$ | $\text{DockQ}(A \cdot B)$ |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Pair 01** | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | 0.481 | 1.000 |
-| **Pair 02** | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | 0.547 | 1.000 |
-| **Pair 03** | **0.701** | 0.295 | 0.259 | 0.545 | <strong style="color: #2ed578;">+0.442</strong> | 0.582 | 1.000 |
-| **Pair 04** | 0.602 | 0.246 | 0.221 | 0.545 | <strong style="color: #2ed578;">+0.381</strong> | 0.497 | 1.000 |
-| **Pair 05** | 0.626 | 0.259 | 0.247 | 0.545 | <strong style="color: #2ed578;">+0.379</strong> | 0.507 | 1.000 |
-| **Pair 06** | **0.741** | 0.295 | 0.384 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | 0.540 | 1.000 |
-| **Pair 07** | 0.600 | 0.259 | 0.243 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | 0.473 | 1.000 |
-| **Pair 08** | 0.625 | 0.259 | 0.270 | 0.545 | <strong style="color: #2ed578;">+0.355</strong> | 0.537 | 1.000 |
-| **Pair 09** | 0.632 | 0.295 | 0.282 | 0.545 | <strong style="color: #2ed578;">+0.351</strong> | 0.603 | 1.000 |
-| **Pair 10** | 0.629 | 0.255 | 0.279 | 0.545 | <strong style="color: #2ed578;">+0.350</strong> | 0.584 | 1.000 |
-| **Pair 11** | **0.741** | 0.240 | 0.402 | 0.545 | <strong style="color: #2ed578;">+0.340</strong> | 0.478 | 1.000 |
-| **Pair 12** | 0.639 | 0.246 | 0.313 | 0.545 | <strong style="color: #2ed578;">+0.326</strong> | 0.509 | 1.000 |
-| **Pair 13** | 0.608 | 0.227 | 0.296 | 0.545 | <strong style="color: #2ed578;">+0.312</strong> | 0.561 | 1.000 |
-| **Pair 14** | 0.620 | 0.240 | 0.331 | 0.545 | <strong style="color: #2ed578;">+0.289</strong> | 0.534 | 1.000 |
-| **Pair 15** | 0.636 | 0.227 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.281</strong> | 0.464 | 1.000 |
-| **Pair 16** | 0.687 | 0.207 | 0.412 | 0.545 | <strong style="color: #2ed578;">+0.275</strong> | 0.571 | 1.000 |
-| **Pair 17** | 0.629 | 0.255 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.273</strong> | 0.564 | 1.000 |
-| **Pair 18** | 0.625 | 0.259 | 0.400 | 0.545 | <strong style="color: #2ed578;">+0.225</strong> | 0.486 | 1.000 |
-| **Pair 19** | 0.612 | 0.208 | 0.419 | 0.545 | <strong style="color: #2ed578;">+0.194</strong> | 0.460 | 1.000 |
+| Pair | $\text{iPTM}(s_1)$<br>$(A' \cdot B')$ | $\text{iPTM}(s_2)$<br>$(A' \cdot B_{\text{WT}})$ | $\text{iPTM}(s_3)$<br>$(A_{\text{WT}} \cdot B')$ | $\text{iPTM}(s_4)$<br>$(A_{\text{WT}} \cdot B_{\text{WT}})$ | $\Delta\text{iPTM}$ | $\Delta G_{\text{rescue}}$<br>(REU) | $F_{\text{ortho}}$ | $\text{DockQ}(A' \cdot B')$ | $\text{DockQ}(A \cdot B)$ |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Pair 01** | **0.745** | 0.295 | 0.251 | 0.545 | <strong style="color: #2ed578;">+0.494</strong> | -40.7 | 0.211 | 0.481 | 1.000 |
+| **Pair 02** | **0.781** | 0.237 | 0.299 | 0.545 | <strong style="color: #2ed578;">+0.483</strong> | -65.8 | <strong style="color: #38bdf8;">0.384</strong> | 0.547 | 1.000 |
+| **Pair 03** | **0.701** | 0.295 | 0.259 | 0.545 | <strong style="color: #2ed578;">+0.442</strong> | -48.1 | <strong style="color: #38bdf8;">0.253</strong> | 0.582 | 1.000 |
+| **Pair 04** | 0.602 | 0.246 | 0.221 | 0.545 | <strong style="color: #2ed578;">+0.381</strong> | -74.7 | <strong style="color: #38bdf8;">0.400</strong> | 0.497 | 1.000 |
+| **Pair 05** | 0.626 | 0.259 | 0.247 | 0.545 | <strong style="color: #2ed578;">+0.379</strong> | -48.8 | 0.191 | 0.507 | 1.000 |
+| **Pair 06** | **0.741** | 0.295 | 0.384 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | -46.1 | 0.222 | 0.540 | 1.000 |
+| **Pair 07** | 0.600 | 0.259 | 0.243 | 0.545 | <strong style="color: #2ed578;">+0.357</strong> | -50.7 | 0.224 | 0.473 | 1.000 |
+| **Pair 08** | 0.625 | 0.259 | 0.270 | 0.545 | <strong style="color: #2ed578;">+0.355</strong> | -51.4 | 0.147 | 0.537 | 1.000 |
+| **Pair 09** | 0.632 | 0.295 | 0.282 | 0.545 | <strong style="color: #2ed578;">+0.351</strong> | -48.5 | 0.221 | 0.603 | 1.000 |
+| **Pair 10** | 0.629 | 0.255 | 0.279 | 0.545 | <strong style="color: #2ed578;">+0.350</strong> | -64.2 | <strong style="color: #38bdf8;">0.277</strong> | 0.584 | 1.000 |
+| **Pair 11** | **0.741** | 0.240 | 0.402 | 0.545 | <strong style="color: #2ed578;">+0.340</strong> | -50.8 | 0.181 | 0.478 | 1.000 |
+| **Pair 12** | 0.639 | 0.246 | 0.313 | 0.545 | <strong style="color: #2ed578;">+0.326</strong> | -67.9 | <strong style="color: #38bdf8;">0.293</strong> | 0.508 | 1.000 |
+| **Pair 13** | 0.608 | 0.227 | 0.296 | 0.545 | <strong style="color: #2ed578;">+0.312</strong> | -62.8 | 0.241 | 0.561 | 1.000 |
+| **Pair 14** | 0.620 | 0.240 | 0.331 | 0.545 | <strong style="color: #2ed578;">+0.289</strong> | -47.6 | 0.177 | 0.534 | 1.000 |
+| **Pair 15** | 0.636 | 0.227 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.281</strong> | -50.0 | 0.087 | 0.464 | 1.000 |
+| **Pair 16** | 0.687 | 0.207 | 0.412 | 0.545 | <strong style="color: #2ed578;">+0.275</strong> | -44.9 | 0.122 | 0.571 | 1.000 |
+| **Pair 17** | 0.629 | 0.255 | 0.356 | 0.545 | <strong style="color: #2ed578;">+0.273</strong> | -56.3 | 0.175 | 0.564 | 1.000 |
+| **Pair 18** | 0.625 | 0.259 | 0.400 | 0.545 | <strong style="color: #2ed578;">+0.225</strong> | -53.6 | 0.187 | 0.486 | 1.000 |
+| **Pair 19** | 0.612 | 0.208 | 0.419 | 0.545 | <strong style="color: #2ed578;">+0.194</strong> | -63.5 | 0.122 | 0.460 | 1.000 |
 
 <div style="text-align: center; margin: 2rem 0;">
   <img src="figures/fig5_champion_radar_profiles.png" alt="Figure 5: Multi-Objective Pareto Performance of Elite Champions" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
