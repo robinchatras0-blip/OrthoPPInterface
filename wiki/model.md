@@ -14,7 +14,7 @@
     <li><strong>Automated End-to-End Pipeline:</strong> Developed <code>OrthoPPInterface</code>, a 5-module framework integrating RFdiffusion3, LigandMPNN, RoseTTAFold-3 All-Atom (RF3), and PyRosetta FastRelax to engineer mutually orthogonal protein pairs ($A' \cdot B'$) from a native complex ($A_{\text{WT}} \cdot B_{\text{WT}}$).</li>
     <li><strong>3D Specificity vs. 2D Hybridization:</strong> Applied to the <em>E. coli</em> ribosomal S1–S2–16S rRNA translation initiation triad, demonstrating that 2D mRNA:rRNA base-pairing is insufficient without stereospecific 3D anchoring of recruiter S1 onto ribosomal protein S2 under steric crowding from the 16S rRNA.</li>
     <li><strong>High-Throughput Campaign (600 All-Atom Complexes):</strong> Evaluated 600 designed complexes across 12 distinct $A'$ motif families; 70.3% (422/600) retained native interface geometry ($\text{DockQ} \ge 0.23$), with 20 High-Quality CAPRI designs ($\text{DockQ} \ge 0.80$, peak at 0.9052).</li>
-    <li><strong>19 Strict Elite Champions:</strong> Identified 19 orthogonal pairs exhibiting complete wild-type partner disruption ($\text{iPTM}_{\text{rupture}} \le 0.35$), high cognate rescue ($\text{iPTM}_{\text{rescue}} \ge 0.60 - 0.78$), selectivity differential $\Delta\text{iPTM}$ up to <strong>+0.4936</strong> (top candidate <code>A_prime_candidate_01_B_cand_40</code>), and PyRosetta binding energies down to <strong>-74.69 REU</strong>.</li>
+    <li><strong>19 Strict Elite Champions:</strong> Identified 19 orthogonal pairs exhibiting complete wild-type partner disruption ($\text{iPTM}_{\text{rupture}} \le 0.35$), high cognate rescue ($\text{iPTM}_{\text{rescue}} \ge 0.60 - 0.78$), selectivity differential $\Delta\text{iPTM}$ up to <strong>+0.4936</strong> (top candidate <strong>Pair 01</strong> [<code>cand_01_B_cand_40</code>]), and PyRosetta binding energies down to <strong>-74.69 REU</strong>.</li>
     <li><strong>Dual-Engine Cross-Validation:</strong> Evaluated all 19 champions across 57 independent AlphaFold2-Multimer v3 predictions, confirming significant rank correlation ($\rho = 0.754$, $p = 0.00019$) on rescue affinity.</li>
   </ul>
 </div>
@@ -88,7 +88,7 @@ Because cellular cross-talk is dictated by the *worst-case* parasite interaction
 $$\Delta\text{iPTM}(A', B') = \text{iPTM}(A' \cdot B') - \max\Big(\text{iPTM}(A' \cdot B_{\text{WT}}),\; \text{iPTM}(A_{\text{WT}} \cdot B')\Big)$$
 
 - A positive differential ($\Delta\text{iPTM} > 0$) guarantees that the cognate pair binds more tightly than either off-target hybrid.
-- Elite candidates achieve $\Delta\text{iPTM} \ge +0.30$, with top champion `A_prime_candidate_01_B_cand_40` reaching **+0.4936**.
+- Elite candidates achieve $\Delta\text{iPTM} \ge +0.30$, with top champion **Pair 01** (`cand_01_B_cand_40`) reaching **+0.4936**.
 
 #### 2. Normalized Neural Orthogonality Score ($F_{\text{iptm}}$)
 To normalize the structural selectivity margin relative to the maximum achievable score of the native biological system under the exact same information regime:
@@ -175,7 +175,7 @@ flowchart TD
     <img src="figures/pipeline_diaporama_animation.gif" alt="All-Atom 3D Pipeline Evolutionary Walkthrough" style="width: 100%; max-width: 950px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);" />
   </a>
   <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.75rem;">
-    <strong>All-Atom 3D Evolutionary Walkthrough | Structural Trajectory of Champion <code>cand_01_B_cand_40</code>.</strong><br/>
+    <strong>All-Atom 3D Evolutionary Walkthrough | Structural Trajectory of Champion Pair 01 (<code>cand_01_B_cand_40</code>).</strong><br/>
     <span style="color: #e11d48; font-weight: 600;">● Chain A / A' Backbone (Ruby Red)</span> &nbsp;|&nbsp; 
     <span style="color: #3b82f6; font-weight: 600;">● Chain B / B' Backbone (Marine Blue)</span> &nbsp;|&nbsp; 
     <span style="color: #06b6d4; font-weight: 600;">● All-atom sticks colored by element (O red, N blue, C matched to chain)</span>.<br/>
@@ -222,8 +222,8 @@ A production campaign of **600 all-atom complexes** across **12 $A'$ motif famil
 - **19 Strict Champions:** Simultaneously satisfied DockQ $\ge 0.46$, $\Delta\text{iPTM} > +0.19$, and favorable $\Delta G_{\text{rescue}}$.
 
 <div style="text-align: center; margin: 2rem 0;">
-  <img src="figures/fig1_iptm_distributions_and_orthogonality.png" alt="Figure 4: High-Throughput Production Landscape" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
-  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 4 | Production Specificity Landscape (600 Complexes).</strong> Distribution of 600 designs showing the emergence of the 19 strict champions in the upper-right quadrant ($F_{\text{ortho}} &gt; 0.30$, $\text{DockQ} &gt; 0.49$).</p>
+  <img src="figures/fig1_iptm_distributions_and_orthogonality.png" alt="Figure 4: Interface Modeling Metrics and Orthogonal Selectivity Space" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 4 | Biophysical State Separation &amp; Dual-Predictor Selectivity Consensus across the 19 Champions.</strong> (A) Radical state separation boxplots and individual swarms comparing cognate rescue ($A' \cdot B'$) against both off-target states ($A_{\text{WT}} \cdot B'$ and $A' \cdot B_{\text{WT}}$) in RoseTTAFold-3 All-Atom and AlphaFold2-Multimer v3, confirming complete uncoupling below the non-binding threshold ($\text{iPTM} \le 0.35$). (B) Waterfall spectrum of AlphaFold2 selectivity differentials ($\Delta\text{iPTM}$) across all 19 pairs, highlighting 9 designs exceeding the stringent consensus threshold (+0.10). (C) Dual-predictor selectivity space ($\Delta\text{iPTM}_{\text{AF2}}$ vs. $\Delta\text{iPTM}_{\text{RF3}}$) colored by AF2 per-residue confidence (pLDDT), identifying the shaded Elite Consensus Zone populated by multi-model champions (Pair 09, Pair 12, Pair 03, Pair 01, Pair 11, Pair 02, Pair 18, Pair 17, Pair 15).</p>
 </div>
 
 ---
@@ -255,8 +255,8 @@ The table below summarizes the core biophysical evaluation of the 19 strict orth
 | **Pair 19** | 0.612 | 0.208 | 0.419 | 0.545 | <strong style="color: #2ed578;">+0.194</strong> | 0.460 | 1.000 |
 
 <div style="text-align: center; margin: 2rem 0;">
-  <img src="figures/fig5_champion_radar_profiles.png" alt="Figure 5: Radar Profiles of Top Champions" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
-  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 5 | Radar Profiles of Top Champions.</strong> Multi-criteria comparisons across DockQ, rescue affinity, selectivity differential, and binding free energy.</p>
+  <img src="figures/fig5_champion_radar_profiles.png" alt="Figure 5: Multi-Objective Pareto Performance of Elite Champions" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 5 | Multi-Objective Pareto Profiles of Top Champions.</strong> Radar overlay evaluating five representative champions across six normalized biophysical dimensions: RoseTTAFold-3 affinity ($\text{iPTM}$), AlphaFold2 affinity ($\text{iPTM}$), AlphaFold2 selectivity margin ($\Delta\text{iPTM}$), Rosetta interface binding energy ($-\Delta G_{\text{bind}}$), native docking pose fidelity (CAPRI $\text{DockQ}$), and 3D precision ($1 / \text{RMSD}$ in AF2). Profiles highlight distinct biophysical strengths: Pair 09 (universal consensus #1), Pair 03 (universal consensus #2), Pair 01 (elite selectivity margin of +0.494), Pair 02 (peak RF3 affinity of 0.781), and Pair 17 (high AF2 consensus).</p>
 </div>
 
 ---
@@ -267,23 +267,31 @@ All 19 champions were independently cross-validated using **AlphaFold2-Multimer 
 
 <div style="text-align: center; margin: 2rem 0;">
   <img src="figures/fig2_correlations_rf3_af2_pyrosetta.png" alt="Figure 6: Multi-Model Biophysical Equivalence" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
-  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 6 | Multi-Model Biophysical Equivalence & Statistical Correlation (RoseTTAFold-3 vs. AlphaFold2-Multimer v3).</strong> Strict head-to-head evaluation across equivalent physical dimensions: (A) Cognate rescue affinity ($A' \cdot B'$, $r = +0.559$, $\rho = +0.754$); (B) Off-target cross-docking barrier ($A_{\text{WT}} \cdot B'$, $r = +0.478$, $\rho = +0.625$); (C) Native partner rupture consensus ($A' \cdot B_{\text{WT}}$, 100% of designs $< 0.35$ in both predictors); (D) Atomic binding pose deviation (lRMSD RF3 vs. RMSD AF2 in Å, demonstrating shared sub-2.0 Å consensus).</p>
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 6 | Multi-Model Biophysical Equivalence &amp; Statistical Correlation (RoseTTAFold-3 vs. AlphaFold2-Multimer v3).</strong> Strict head-to-head evaluation across equivalent physical dimensions: (A) Cognate rescue affinity ($A' \cdot B'$, Pearson $r = +0.559$, Spearman $\rho = +0.754$); (B) Off-target cross-docking barrier ($A_{\text{WT}} \cdot B'$, Pearson $r = +0.478$, Spearman $\rho = +0.625$); (C) Native partner rupture consensus ($A' \cdot B_{\text{WT}}$, 100% of designs $< 0.35$ in both predictors); (D) Atomic binding pose deviation (lRMSD RF3 vs. RMSD AF2 in Å, demonstrating shared sub-2.0 Å consensus).</p>
 </div>
 
 - **Panel A — Cognate Rescue Affinity Agreement ($A' \cdot B'$):** Evaluates the identical metric ($\text{iPTM}$) for target cognate binding across both engines. We observe a strong, statistically significant rank correlation (Spearman $\rho = +0.754$, $p = 0.00019$; Pearson $r = +0.559$, $p = 0.0128$), demonstrating genuine inter-model consensus on interface complementarity.
 - **Panel B — Off-Target Cross-Docking Barrier ($A_{\text{WT}} \cdot B'$):** Evaluates host cross-interaction on the exact same scale ($\text{iPTM}$). Both predictors agree on the suppression of host interference with native recruiter $A_{\text{WT}}$ (Spearman $\rho = +0.625$, $p = 0.00425$; Pearson $r = +0.478$, $p = 0.0385$).
 - **Panel C — Native Partner Rupture Consensus ($A' \cdot B_{\text{WT}}$):** Direct comparison of the disruption of wild-type partner $B_{\text{WT}}$ ($\text{iPTM}$ vs $\text{iPTM}$). Both predictors unanimously confirm that native binding is abolished: **100% of the 19 champions fall below the non-binding threshold ($\text{iPTM} < 0.35$)** in both RF3 (mean = 0.253) and AF2 (mean = 0.184).
-- **Panel D — Atomic Binding Pose Deviation (Å vs Å):** Direct comparison of geometric interface displacement using identical physical units ($\text{\AA}$). Both engines confirm that top-tier candidates (`cand_01_B_cand_36`, `cand_01_B_cand_14`, `cand_01_B_cand_40`, `cand_07_B_cand_09`) populate an elite sub-2.0 Å native-docking cluster, preserving the stereospecific binding cleft required to fit within the 16S rRNA pocket.
-- **Identification of False Positives:** Candidate `cand_13_B_cand_22` showed high PyRosetta energy ($\Delta G = -74.7\text{ REU}$) and acceptable RF3 score ($\text{iPTM} = 0.602$), but completely failed in AF2 ($\text{iPTM} = 0.122$, $\text{RMSD} = 6.64\text{ \AA}$), illustrating how dual-engine evaluation rigorously filters out model-specific artifacts before costly wet-lab gene synthesis.
+- **Panel D — Atomic Binding Pose Deviation (Å vs Å):** Direct comparison of geometric interface displacement using identical physical units ($\text{\AA}$). Both engines confirm that top-tier candidates (Pair 01 [<code>cand_01_B_cand_40</code>], Pair 02 [<code>cand_01_B_cand_36</code>], Pair 03 [<code>cand_01_B_cand_14</code>], and Pair 09 [<code>cand_07_B_cand_09</code>]) populate an elite sub-2.0 Å native-docking cluster, preserving the stereospecific binding cleft required to fit within the 16S rRNA pocket.
+- **Identification of False Positives:** Candidate Pair 19 (<code>cand_13_B_cand_22</code>) showed high PyRosetta energy ($\Delta G = -74.7\text{ REU}$) and acceptable RF3 score ($\text{iPTM} = 0.602$), but completely failed in AF2 ($\text{iPTM} = 0.122$, $\text{RMSD} = 6.64\text{ \AA}$), illustrating how dual-engine evaluation rigorously filters out model-specific artifacts before costly wet-lab gene synthesis.
 
 <div style="text-align: center; margin: 2rem 0;">
   <img src="figures/fig3_mutation_frequency_and_conservation.png" alt="Figure 7: Mutation Frequency Heatmap" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
-  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 7 | Mutation Frequency and Conservation Heatmap.</strong> Sequence alignment across all 19 champions reveals consistent alanine remodeling on Chain A' and aromatic substitutions on Chain B'.</p>
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 7 | Mutational Architecture and Interface Remodeling of the 19 Champions.</strong> (A) Sequence variability across Subunit A' (224 residues), showing strict preservation of the structural scaffold framework (&gt;70% untouched) alongside targeted interface clusters. (B) Sequence variability across Subunit B' (88 residues) localized into three discrete contact islands (N-terminal helix, central loop/strand, and C-terminal docking island). (C) Complete 20&times;20 amino acid substitution matrix across 1,169 mutations. (D) Top 15 recurrent mutational hotspots, revealing systematic alanine truncations on A' (F29A, R71A, H15A, D201A) dismantling native contacts with $B_{\text{WT}}$, paired with reciprocal electrostatic reorganization (D39R, A30E, K43G, E45D) and hydrophobic repacking (F13L, F9L, V29T) on B' driving selective cognate rescue.</p>
 </div>
+
+### 5.1 Molecular Mechanism of Interface Remodeling
+
+Analysis of the 1,169 substitutions across the 19 champions reveals the convergent biophysical strategy discovered by LigandMPNN and PyRosetta:
+
+1. **Surgical Rupture on Subunit $A'$:** Rather than altering the global fold, the pipeline systematically introduces alanine truncations at key bulky, aromatic, and charged positions on $A'$—most notably **F29A (84% frequency)**, **R71A (63%)**, **H15A (58%)**, and **D201A (58%)**—together with polar mutations such as **N39D (95%)** and **Q16S (74%)**. These truncations shave off essential native salt bridges and hydrophobic contacts required for binding endogenous $B_{\text{WT}}$, dropping wild-type interaction confidence to $\text{iPTM} \le 0.35$ without destabilizing the monomer framework ($C_\alpha\text{ RMSD} \le 0.76\text{ \AA}$, $\text{pLDDT} \ge 85$).
+2. **Cognate Rescue on Subunit $B'$:** To rescue binding specifically with the redesigned $A'$, Subunit $B'$ undergoes coordinated charge reorganization and polar remodeling—predominantly **D39R (63%)**, **A30E (63%)**, **K43G (84%)**, and **E45D (58%)**—complemented by hydrophobic repacking (**F13L in 95%**, **F9L in 89%**, **V29T in 58%**). The newly introduced basic and acidic side chains on $B'$ establish reciprocal salt bridges and hydrogen bonds with the altered $A'$ surface, while sterically clashing or electrostatically repelling the wild-type partner $A_{\text{WT}}$ ($\text{iPTM}_{\text{cross}} \le 0.40$).
+3. **Framework Conservation:** Over 70% of the core volume remains strictly conserved in both subunits, preserving native domain folds and respecting the polyanionic steric boundaries imposed by the adjacent 16S rRNA helices 35, 36, and 40.
 
 <div style="text-align: center; margin: 2rem 0;">
   <img src="figures/fig4_plddt_profiles_per_residue.png" alt="Figure 8: Per-Residue pLDDT Profiles" style="width: 100%; max-width: 900px; border-radius: 8px; border: 1px solid rgba(55, 65, 81, 0.7);" />
-  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 8 | Per-Residue Structural Confidence (pLDDT) Across Champions.</strong> High per-residue confidence (mean pLDDT &gt; 80) across core secondary structure elements, confirming folding stability and structural integrity of the designed interfaces.</p>
+  <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;"><strong>Figure 8 | Per-Residue Structural Confidence (pLDDT) Across Top Champions.</strong> Per-residue atomic confidence profiles for representative consensus champions (Pair 09, Pair 03, Pair 01, Pair 02) along Subunit A' (A, 224 residues) and Subunit B' (B, 88 residues). Traces demonstrate sustained high confidence ($\text{pLDDT} &gt; 80$, well above the $\text{pLDDT} &gt; 70$ conformational gate) throughout secondary structural elements and redesigned interfaces, confirming that de novo sequence remodeling preserves autonomous folding stability without loop disorder.</p>
 </div>
 
 ---
