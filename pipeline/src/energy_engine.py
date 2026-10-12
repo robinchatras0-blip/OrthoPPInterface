@@ -24,6 +24,8 @@ def _run(mode, jobs, result_json, config, path_keys):
     with open(jobs_path, 'w') as f:
         json.dump([{**j, **{k: pth(j[k]) for k in path_keys if k in j}} for j in jobs], f, indent=2)
     python = ecfg.get('python', 'python' if wsl else sys.executable)
+    if not wsl and python.startswith('~'):
+        python = os.path.expanduser(python)
     cmd = [python, pth(SCRIPT), "--mode", mode, "--jobs", pth(jobs_path), "--out", pth(result_json),
            "--procs", str(ecfg.get('n_procs', 8)), "--relax_repeats", str(ecfg.get('relax_repeats', 1)),
            "--seed", str(ecfg.get('seed', 1))]
