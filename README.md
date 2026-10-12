@@ -20,13 +20,19 @@ flowchart TD
 
 ```text
 OrthoPPInterface/
-├── pipeline/             # Core computational pipeline (src/, tests/, bin/, config.yaml, runner)
-├── wiki/                 # Official iGEM 2026 Model Wiki package (model.md, index.html, model.tsx, figures)
-├── DOSSIER_CHAMPIONS/    # 19 Strict Elite Champions (structures PDB, FASTAs, score matrices, report)
-├── data/                 # Native inputs (PDB complex_S1_S2, MSAs)
-├── runs/                 # Unified experiment outputs across all campaigns (git-ignored)
+├── pipeline/             # Core computational pipeline
+│   ├── src/              # Algorithmic modules (01 to 05, scoring, engines)
+│   ├── bin/              # Tool execution wrappers (RFD3, LigandMPNN)
+│   ├── tests/            # Comprehensive unit test suite (pytest)
+│   ├── config.yaml       # Default pipeline configuration
+│   ├── environment.yml   # Conda environment definition
+│   └── run_pipeline.py   # Pipeline runner
+├── data/                 # Native reference inputs (PDB complex, MSAs)
+├── runs/                 # Experiment execution outputs (git-ignored)
+├── environment.yml       # Root conda environment definition
+├── run_pipeline.py       # Master root CLI launcher forwarding to pipeline/run_pipeline.py
 ├── CLAUDE.md             # Project invariants, conventions and commands
-└── run_pipeline.py       # Master root CLI launcher forwarding to pipeline/run_pipeline.py
+└── README.md             # This documentation
 ```
 
 ---

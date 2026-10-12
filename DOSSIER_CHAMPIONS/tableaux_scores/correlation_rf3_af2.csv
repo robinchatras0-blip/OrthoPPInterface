@@ -1,7 +1,0 @@
-comparison,metric_rf3,metric_af2,pearson_r,pearson_pvalue,spearman_rho,spearman_pvalue
-iPTM Rescue (RF3 vs AF2),iptm_rescue_rf3,rescue_iptm_af2,0.559,0.012845,0.7544,0.00019
-iPTM Rupture (RF3 vs AF2),iptm_rupture_rf3,rupture_iptm_af2,-0.2353,0.332279,-0.1853,0.447519
-iPTM Croise (RF3 vs AF2),iptm_negative_rf3,cross_iptm_af2,0.4778,0.038547,0.6246,0.004255
-Delta iPTM (RF3 vs AF2),delta_iptm_rf3,delta_iptm_af2,0.3192,0.182772,0.1684,0.490672
-DockQ RF3 vs RMSD AF2,dockq_rf3,rescue_rmsd_af2,-0.309,0.197996,-0.3596,0.130437
-PyRosetta dG vs iPTM Rescue AF2,dG_rescue_pyrosetta,rescue_iptm_af2,0.24,0.322376,0.2544,0.293268

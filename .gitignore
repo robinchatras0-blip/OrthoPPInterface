@@ -15,3 +15,11 @@ pipeline/data
 pipeline/runs
 .pytest_cache/
 pipeline/.pytest_cache/
+
+# Wiki iGEM et résultats d'expériences / champions (hors code logiciel)
+wiki/
+DOSSIER_CHAMPIONS/
+dossier_champions/
+scripts/
+RAPPORT_TECHNIQUE_RF3.md
+instructions_projet_cowork.md

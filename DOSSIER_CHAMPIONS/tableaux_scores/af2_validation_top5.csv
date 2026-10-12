@@ -1,6 +1,0 @@
-rank,design_id,rescue_iptm,rescue_plddt,rescue_ptm,rescue_rmsd,rupture_iptm,rupture_plddt,rupture_ptm,rupture_rmsd,cross_iptm,cross_plddt,cross_ptm,cross_rmsd,delta_iptm_af2
-1,A_prime_candidate_01_B_cand_40,0.3904,0.8302,0.7569,1.79,0.198,0.7437,0.6952,13.26,0.149,0.764,0.6873,3.3,0.1924
-2,A_prime_candidate_17_B_cand_29,0.4899,0.829,0.7496,3.52,0.2251,0.7481,0.6991,13.59,0.3652,0.8319,0.7538,1.54,0.1247
-3,A_prime_candidate_01_B_cand_36,0.4275,0.8161,0.7569,1.46,0.198,0.7437,0.6952,13.26,0.2026,0.7733,0.7063,2.82,0.2249
-4,A_prime_candidate_13_B_cand_22,0.1222,0.7417,0.6624,6.64,0.2104,0.7386,0.6919,13.1,0.1,0.7673,0.6752,6.63,-0.0882
-5,A_prime_candidate_11_B_cand_33,0.1364,0.7406,0.6722,5.1,0.1383,0.7393,0.6772,13.02,0.1258,0.7508,0.682,6.39,-0.0019
