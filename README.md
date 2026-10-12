@@ -87,7 +87,7 @@ RF3 predictions are cached with a **signature** of sequences + MSA contents + in
 
 Choose the regime empirically before a long campaign, on in-silico controls (conservative vs disruptive interface variants of WT chain A folded against $B_{\text{WT}}$):
 ```bash
-python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
+python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
 ```
 If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter for this system and structural metrics must carry the decision.
 
@@ -95,7 +95,7 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 
 ## 🏗️ Pipeline Architecture (Modules 1–5)
 
-### [Module 1: Interface & Hotspot Analysis](src/01_analyze_interface.py)
+### [Module 1: Interface & Hotspot Analysis](pipeline/src/01_analyze_interface.py)
 - Interface residues of chain A: heavy-atom distance to chain B $\le$ `interface_distance_threshold_angstroms` (6.0 Å); redesignable neighbourhood within `neighborhood_radius_angstroms` (6.0 Å) of the interface residues (on the reference system: 36 interface + 51 neighbouring residues = 87 of 224; 10 Å would make half of the protein redesignable, including residues that can never touch B).
 - Defines mutable vs frozen positions for LigandMPNN.
 - Crops chain B to the residues within `crop_chain_B_distance_angstroms` (15.0 Å) of the interface to keep RFD3 within GPU memory.
@@ -103,18 +103,18 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 - **Loop consolidation of B** (`rescue_min_fixed_segment`, default 3): selecting the redesignable residues of B purely by distance to the interface leaves isolated 1-2 residue *fixed* anchors between short flexible stretches. On the reference system the rescue contig had 5 such anchors out of 8 fixed segments, with two single-residue diffused segments — RFD3 was being asked to thread a backbone between arbitrary pinned points while avoiding A'. Short fixed islands are absorbed into the surrounding loop, turning that contig into 3 anchors (8/26/7 residues) and 3 real loops (20/19/8) for 6 extra redesignable residues (41 → 47 of 88).
 - **PPI hotspots for the rescue diffusion** (`rescue_ppi_hotspots`, default 8): the A' interface residues that B' must engage, ranked by how many B residues they contact in the native complex. They are written to `inputs_rescue.json` as `select_hotspots` together with `infer_ori_strategy: hotspots`, and **not** to `inputs.json` — a hotspot is a positive-design signal, the opposite of the rupture objective. See the note on the diffusion origin in Module 4.
 
-### [Module 2: $A'$ Rupture Design](src/02_generate_A_prime.py)
+### [Module 2: $A'$ Rupture Design](pipeline/src/02_generate_A_prime.py)
 - RFD3 (Foundry) diffusion across `foundry_n_batches` batches, with the interface segments of A regenerated de novo.
 - LigandMPNN (one call per backbone) with rupture bias at `temperature_rupture`; the framework of A is frozen. **A' is designed alone** (`ligandmpnn.rupture_apo_design`, default `true`): when B_WT is present in the structure LigandMPNN packs A' against it, a positive design for the wild-type partner (measured `iptm(A'·B_WT)`: 0.38 on average with B present, 0.23 without). LigandMPNN writes **CIF** files, which are converted to PDB and cleaned of NaN atoms; the module stops with an error if LigandMPNN writes nothing (it never falls back to the raw RFD3 backbone). LigandMPNN also writes **no side chain for the residues it redesigns**, so the A' designs are then packed with PyRosetta (`energy.pack_designs`); without it, geometric measures and visualisations only see backbones at the interface.
 - **Crash recovery**: if `A_prime_candidate_*.pdb` from a previous run of the *same* command already number `foundry_n_batches` and are all packed (`pack_status.json`), the module skips RFD3/LigandMPNN/packing entirely instead of redoing ~15-20 minutes of GPU work. Any partial/incomplete state falls through to a full regeneration.
 
-### [Module 3: Fail-Fast Screening](src/03_filter_A_prime.py)
+### [Module 3: Fail-Fast Screening](pipeline/src/03_filter_A_prime.py)
 - **Sanity checks** (`wt_control.json`): the native complex with full MSAs must be recognised (iPTM ≥ 0.6), and the WT/WT iPTM in the configured MSA regime is recorded as the ceiling for designs (warning if < 0.4).
 - **Gate 1 (monomer)**: folds $A'$ alone (MSA masked according to `msa_mask_scope`) → pLDDT and $C_\alpha$ RMSD vs WT.
 - **Gate 2 (rupture)**: folds $A' \cdot B_{\text{WT}}$ (interface of B_WT masked in the default regime) → iPTM $\le$ `iptm_rupture_max`.
 - Writes `metrics_<candidate>.json` and `passed_candidates.txt` (stops after `max_passing_candidates`).
 
-### [Module 4: $B'$ Rescue Design](src/04_generate_B_prime.py)
+### [Module 4: $B'$ Rescue Design](pipeline/src/04_generate_B_prime.py)
 1. **A' motif selection**: farthest-point selection on the interface sequence (Hamming distance) keeps `max_a_prime_motifs` distinct A' designs.
 2. **Frame alignment**: A' is fitted onto the WT frame using the unchanged framework of A.
 3. **Backbone co-adaptation**: RFD3 redesigns the interface loops of B around the frozen A'. RFD3 **re-centres its output** (≈70 Å shift observed), so every diffused scaffold is re-fitted onto A' (chain A is identical in all outputs) before any scoring.
@@ -127,7 +127,7 @@ If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter 
 8. **Sampling and selection**: `samples_per_scaffold` sequences per scaffold; designs with more than `max_clashes_with_a_prime` clashes are dropped; the rest are ranked by a rigid proxy (contacts kept with A', contacts lost with $A_{\text{WT}}$) plus the LigandMPNN confidence when it can be read, then `top_k_per_motif` designs are chosen by farthest-point selection **with at least one design per scaffold**.
 - Outputs `<A'>_B_cand_NN.pdb` complexes and `diversity_pairs_metadata.json` (parent A', scaffold index, scaffold loop movement, proxy metrics). Cached per motif; use `--force` to recompute.
 
-### [Module 5: Final Evaluation & Database Export](src/05_eval_final.py)
+### [Module 5: Final Evaluation & Database Export](pipeline/src/05_eval_final.py)
 For every designed pair, all four folds are run under the same MSA regime:
 - **Rescue** $A' \cdot B'$ and **cross-rupture** $A_{\text{WT}} \cdot B'$ are folded for every design. **Rupture** $A' \cdot B_{\text{WT}}$ and the **WT ceiling** $A_{\text{WT}} \cdot B_{\text{WT}}$ do not depend on B': they are reused from module 3 (same MSA regime), or computed once, instead of once per design.
 - **Interface energy (PyRosetta)**, one parallel batch after the RF3 loop: the designed complex $A'B'$ and the two rigid recombinations $A_{\text{WT}}B'$ and $A'B_{\text{WT}}$ (same frame), plus the native complex once, all with the *same* protocol (FastRelax constrained to the start coordinates, then InterfaceAnalyzer). Reported: `dG_*`, binding fractions `b_*`, energy gaps, `dsasa_rescue`, `unsat_hb_rescue`, `f_energy`.
@@ -161,7 +161,7 @@ runs/
 
 ### Prerequisites
 - **GPU**: NVIDIA GPU with CUDA 12+ (developed and tested on an RTX 5070 Ti, 16 GB).
-- **OS**: Linux, or Windows 11 with WSL2 (Ubuntu). Only local execution is supported. On Windows the pipeline runs from a Windows Python environment and calls RF3 through `wsl -d <distro>` (`folding.use_wsl`, default `true` on Windows). RFD3/LigandMPNN wrappers (`OrthoIntRob/bin/rfd3`, `mpnn`) are bash scripts that run inside WSL.
+- **OS**: Linux, or Windows 11 with WSL2 (Ubuntu). Only local execution is supported. On Windows the pipeline runs from a Windows Python environment and calls RF3 through `wsl -d <distro>` (`folding.use_wsl`, default `true` on Windows). RFD3/LigandMPNN wrappers (`pipeline/bin/rfd3`, `pipeline/bin/mpnn`) are bash scripts that run inside WSL.
 
 ### 1. Python environment
 ```bash
@@ -178,7 +178,7 @@ conda activate orthoppinterface
   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
   pip install "rc-foundry[all]"
   ```
-  Checkpoints (RF3, RFD3, LigandMPNN) resolve from `~/.foundry/checkpoints` by default. `bin/rfd3` and `bin/mpnn` are thin wrappers that activate this environment before running the tool; `folding.rf3_bin` and `energy.python` point into it directly.
+  Checkpoints (RF3, RFD3, LigandMPNN) resolve from `~/.foundry/checkpoints` by default. `pipeline/bin/rfd3` and `pipeline/bin/mpnn` are thin wrappers that activate this environment before running the tool; `folding.rf3_bin` and `energy.python` point into it directly.
 
 ---
 
@@ -191,17 +191,17 @@ conda activate orthoppinterface
 python run_pipeline.py --run_name run_01_baseline
 
 # Custom configuration file
-python run_pipeline.py --run_name run_02 --config config_alt.yaml
+python run_pipeline.py --run_name run_02 --config pipeline/config.yaml
 
 # Specific steps only (e.g. Steps 4 and 5)
 python run_pipeline.py --run_name run_01_baseline --steps 4-5
 ```
 
-Modules can also be launched individually (e.g. `python src/04_generate_B_prime.py --config ... --force`).
+Modules can also be launched individually (e.g. `python pipeline/src/04_generate_B_prime.py --config pipeline/config.yaml --force`).
 
 ### 2. Before a long campaign
 ```bash
-python src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
+python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
 ```
 
 ---
@@ -223,8 +223,8 @@ pipeline:
   rescue_min_fixed_segment: 3          # absorb shorter fixed islands of B into the loops (1 = no consolidation)
   rescue_partial_t: null               # Å of noise for partial diffusion of the B loops (≤ 15); null = de novo loops
   max_rescue_scaffolds: 4              # scaffolds kept per motif
-  local_rfdiffusion: bash OrthoIntRob/bin/rfd3
-  local_ligandmpnn: bash OrthoIntRob/bin/mpnn
+  local_rfdiffusion: bash pipeline/bin/rfd3
+  local_ligandmpnn: bash pipeline/bin/mpnn
   include_native_scaffold: false       # also design on the rigid WT backbone (control)
   scaffold_max_clashes: 5              # RFD3 backbone vs A' heavy-atom clashes tolerated
   scaffold_max_framework_rmsd: 1.5     # max distortion of the fixed framework of B (Å)
@@ -233,7 +233,7 @@ diversity_selection:
   enabled: true
   max_a_prime_motifs: 8
 ligandmpnn:
-  checkpoint_path: OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt
+  checkpoint_path: /home/<user>/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt
   model_type: ligand_mpnn
   temperature_rupture: 0.2
   temperature_rescue: 0.15
@@ -334,7 +334,7 @@ ORDER BY f_ortho DESC;
 
 ```bash
 pip install pytest
-pytest tests
+pytest pipeline/tests
 ```
 The suite covers the sequence/structure helpers, MSA construction, RF3 output parsing and caching, DockQ numbering, and wiring tests of Modules 1 to 5 with RFD3, LigandMPNN and RF3 replaced by fakes (including RFD3's re-centred output frame and LigandMPNN's CIF-only output). It checks plumbing, not scientific quality.
 
