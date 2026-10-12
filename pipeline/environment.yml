@@ -1,0 +1,14 @@
+name: orthoppinterface
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - biopython
+  - pandas
+  - pyyaml
+  - tabulate
+  - numpy
+  - openpyxl
+  - pytest
