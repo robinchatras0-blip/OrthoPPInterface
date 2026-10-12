@@ -16,10 +16,14 @@ pipeline/runs
 .pytest_cache/
 pipeline/.pytest_cache/
 
-# Wiki iGEM et résultats d'expériences / champions (hors code logiciel)
+# Configurations locales / serveurs
+config_server*.yaml
+*.local.yaml
+
+# Scripts d'analyse ponctuels, wiki et données hors code logiciel
+scripts/
 wiki/
 DOSSIER_CHAMPIONS/
 dossier_champions/
-scripts/
 RAPPORT_TECHNIQUE_RF3.md
 instructions_projet_cowork.md

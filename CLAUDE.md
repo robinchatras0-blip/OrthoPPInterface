@@ -9,16 +9,19 @@ l'affinité de A'·B' sans creuser l'écart avec les paires croisées rate la ci
 
 ```bash
 conda activate orthoppinterface          # toujours activer, ne jamais appeler le python de l'env directement
-python run_pipeline.py --run_name <nom>              # lance le pipeline via pipeline/run_pipeline.py
-python pipeline/run_pipeline.py --run_name <nom> --steps 4-5  # sous-ensemble de modules direct
-python pipeline/src/04_generate_B_prime.py --config pipeline/config.yaml --force   # module isolé
-python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
+python run_pipeline.py --run_name <nom>              # lance le pipeline complet (modules 1-5)
+python run_pipeline.py --run_name <nom> --steps 4-5  # sous-ensemble de modules direct
+python pipeline/src/04_generate_B_prime.py --config config.yaml --force   # module isolé
+python pipeline/src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 pytest pipeline/tests                     # rapide, pas de GPU : les moteurs sont remplacés par des fakes (71 tests)
 ```
 
 ## Architecture du Dépôt
 
-- `pipeline/` : Cœur algorithmique de bio-ingénierie (`pipeline/src/`, `pipeline/tests/`, `pipeline/bin/`, `pipeline/config.yaml`).
+- `pipeline/` : Cœur algorithmique de bio-ingénierie (`pipeline/src/`, `pipeline/tests/`, `pipeline/bin/`).
+- `config.yaml` : Configuration unique du pipeline à la racine.
+- `run_pipeline.py` : Lanceur principal à la racine.
+- `runs/` : Dossier unifié de stockage de tous les résultats d'expériences (git-ignoré).
 - `wiki/` : Package complet du wiki iGEM 2026 (`model.md`, `index.html`, `src_gitlab/model.tsx`, figures).
 - `dossier_champions/` : Fiches et structures des 19 champions d'élite all-atom.
 - `runs/` : Dossier unifié de stockage de tous les résultats d'expériences (git-ignoré).
