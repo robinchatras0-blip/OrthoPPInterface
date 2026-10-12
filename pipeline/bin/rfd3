@@ -1,5 +1,34 @@
 #!/bin/bash
-# Thin wrapper: runs RFD3 (Foundry) from the consolidated 'orthoppinterface' environment.
-# Checkpoints are resolved from the default ~/.foundry/checkpoints (no FOUNDRY_CHECKPOINT_DIRS needed).
-source "$HOME/miniforge3/bin/activate" orthoppinterface
-exec rfd3 design "$@"
+# Robust, portable wrapper: runs RFD3 (Foundry)
+# Checkpoints are resolved from the default ~/.foundry/checkpoints (or FOUNDRY_CHECKPOINT_DIRS).
+
+set -e
+
+# 1. Use rfd3 directly if already available in PATH
+if command -v rfd3 >/dev/null 2>&1; then
+    exec rfd3 design "$@"
+fi
+
+# 2. Check active CONDA_PREFIX
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/rfd3" ]; then
+    exec "$CONDA_PREFIX/bin/rfd3" design "$@"
+fi
+
+# 3. Fallback: search common conda/miniforge activation scripts
+for act in \
+    "$HOME/miniforge3/bin/activate" \
+    "$HOME/miniconda3/bin/activate" \
+    "$HOME/anaconda3/bin/activate" \
+    "/opt/conda/bin/activate"; do
+    if [ -f "$act" ]; then
+        source "$act" orthoppinterface 2>/dev/null || true
+        if command -v rfd3 >/dev/null 2>&1; then
+            exec rfd3 design "$@"
+        fi
+    fi
+done
+
+echo "Error: 'rfd3' command not found." >&2
+echo "Please activate your environment first (e.g. 'conda activate orthoppinterface')." >&2
+exit 1
+
