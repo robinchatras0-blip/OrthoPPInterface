@@ -197,17 +197,17 @@ conda activate orthoppinterface
 python run_pipeline.py --run_name run_01_baseline
 
 # Custom configuration file
-python run_pipeline.py --run_name run_02 --config pipeline/config.yaml
+python run_pipeline.py --run_name run_02 --config my_custom_config.yaml
 
 # Specific steps only (e.g. Steps 4 and 5)
 python run_pipeline.py --run_name run_01_baseline --steps 4-5
 ```
 
-Modules can also be launched individually (e.g. `python pipeline/src/04_generate_B_prime.py --config pipeline/config.yaml --force`).
+Modules can also be launched individually (e.g. `python pipeline/src/04_generate_B_prime.py --config config.yaml --force`).
 
 ### 2. Before a long campaign
 ```bash
-python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
+python pipeline/src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 ```
 
 ---
