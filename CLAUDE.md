@@ -76,7 +76,7 @@ Sorties clés : `runs/<run>/05_final_eval/orthogonality_scores.csv`, `results.db
 
 ## Conventions de code
 
-- Python 3.10 côté pipeline (3.12 dans l'env des moteurs). Biopython, pandas, numpy, pyyaml.
+- Python 3.12 unifié pour le pipeline et les moteurs (Foundry RF3/RFD3/LigandMPNN + PyRosetta). Biopython, pandas, numpy, pyyaml.
 - Les modules de `src/` commencent par un chiffre : ils s'importent par `tests/conftest.py::load_module`,
   pas par `import`.
 - Config lue en UTF-8 (BOM toléré) ; sections `pipeline`/`thresholds` manquantes → erreur explicite,
