@@ -1,4 +1,33 @@
 #!/bin/bash
-# Thin wrapper: runs LigandMPNN (Foundry) from the consolidated 'orthoppinterface' environment.
-source "$HOME/miniforge3/bin/activate" orthoppinterface
-exec mpnn "$@"
+# Robust, portable wrapper: runs LigandMPNN (Foundry)
+
+set -e
+
+# 1. Use mpnn directly if already available in PATH
+if command -v mpnn >/dev/null 2>&1; then
+    exec mpnn "$@"
+fi
+
+# 2. Check active CONDA_PREFIX
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/mpnn" ]; then
+    exec "$CONDA_PREFIX/bin/mpnn" "$@"
+fi
+
+# 3. Fallback: search common conda/miniforge activation scripts
+for act in \
+    "$HOME/miniforge3/bin/activate" \
+    "$HOME/miniconda3/bin/activate" \
+    "$HOME/anaconda3/bin/activate" \
+    "/opt/conda/bin/activate"; do
+    if [ -f "$act" ]; then
+        source "$act" orthoppinterface 2>/dev/null || true
+        if command -v mpnn >/dev/null 2>&1; then
+            exec mpnn "$@"
+        fi
+    fi
+done
+
+echo "Error: 'mpnn' command not found." >&2
+echo "Please activate your environment first (e.g. 'conda activate orthoppinterface')." >&2
+exit 1
+
