@@ -223,7 +223,9 @@ def main():
     temp_rescue = str(lmpnn_cfg.get('temperature_rescue', 0.20))
     model_type = lmpnn_cfg.get('model_type', "ligand_mpnn")
     is_legacy = str(lmpnn_cfg.get('is_legacy_weights', "True"))
-    checkpoint_path = lmpnn_cfg.get('checkpoint_path', "OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt")
+    checkpoint_path = lmpnn_cfg.get('checkpoint_path', '~/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt')
+    if os.name != 'nt' and checkpoint_path.startswith('~'):
+        checkpoint_path = os.path.expanduser(checkpoint_path)
 
     metadata_pairs, all_saved_b_pdbs = {}, []
     print(f"\nModule 4: Co-adapting and designing rescue B' for {len(selected_candidates)} diverse A' motifs...")
@@ -295,7 +297,7 @@ def main():
                 inputs_json = os.path.join(rfd_dir, "inputs.json").replace('\\', '/')
                 with open(inputs_json, 'w') as f:
                     json.dump(rescue_json, f, indent=2)
-                rfd_bin = pcfg.get('local_rfdiffusion', 'OrthoIntRob/bin/rfd3')
+                rfd_bin = pcfg.get('local_rfdiffusion', 'bash pipeline/bin/rfd3')
                 rfd_cmd = rfd_bin.split() + [
                     f"inputs={inputs_json}", f"out_dir={rfd_dir.replace(chr(92), '/')}",
                     f"n_batches={pcfg.get('rescue_diffusion_n_batches', 10)}", "diffusion_batch_size=1"]
@@ -334,7 +336,7 @@ def main():
 
             mpnn_out_dir = os.path.join(motif_work_dir, f"mpnn_out_scaffold_{sc_idx}")
             os.makedirs(mpnn_out_dir, exist_ok=True)
-            mpnn_bin = pcfg.get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn')
+            mpnn_bin = pcfg.get('local_ligandmpnn', 'bash pipeline/bin/mpnn')
             mpnn_bs = min(16, max(1, per_scaffold))
             mpnn_nb = max(1, (per_scaffold + mpnn_bs - 1) // mpnn_bs)
             mpnn_cmd = mpnn_bin.split() + [

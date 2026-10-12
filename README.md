@@ -22,15 +22,13 @@ flowchart TD
 OrthoPPInterface/
 ├── pipeline/             # Core computational pipeline
 │   ├── src/              # Algorithmic modules (01 to 05, scoring, engines)
-│   ├── bin/              # Tool execution wrappers (RFD3, LigandMPNN)
-│   ├── tests/            # Comprehensive unit test suite (pytest)
-│   ├── config.yaml       # Default pipeline configuration
-│   ├── environment.yml   # Conda environment definition
-│   └── run_pipeline.py   # Pipeline runner
+│   ├── bin/              # Portable tool execution wrappers (RFD3, LigandMPNN)
+│   └── tests/            # Comprehensive unit test suite (pytest)
 ├── data/                 # Native reference inputs (PDB complex, MSAs)
 ├── runs/                 # Experiment execution outputs (git-ignored)
-├── environment.yml       # Root conda environment definition
-├── run_pipeline.py       # Master root CLI launcher forwarding to pipeline/run_pipeline.py
+├── config.yaml           # Unified pipeline configuration
+├── environment.yml       # Unified conda environment definition (Python 3.12)
+├── run_pipeline.py       # Master pipeline runner
 ├── CLAUDE.md             # Project invariants, conventions and commands
 └── README.md             # This documentation
 ```
@@ -93,7 +91,7 @@ RF3 predictions are cached with a **signature** of sequences + MSA contents + in
 
 Choose the regime empirically before a long campaign, on in-silico controls (conservative vs disruptive interface variants of WT chain A folded against $B_{\text{WT}}$):
 ```bash
-python pipeline/src/calibrate_predictor.py --config pipeline/config.yaml --analysis_dir runs/<run>/01_analysis
+python pipeline/src/calibrate_predictor.py --config config.yaml --analysis_dir runs/<run>/01_analysis
 ```
 If no regime separates the two groups (gap < 0.15), iPTM is not a usable filter for this system and structural metrics must carry the decision.
 
@@ -250,7 +248,7 @@ ligandmpnn:
   max_clashes_with_a_prime: 3          # hard filter on LigandMPNN outputs
 folding:                               # see "Local MSAs and the information regime"
   engine: rf3
-  rf3_bin: /home/<user>/miniforge3/envs/foundry_env/bin/rf3
+  rf3_bin: /home/<user>/miniforge3/envs/orthoppinterface/bin/rf3
   rf3_ckpt: /home/<user>/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt
   use_msa: true
   msa_mask_scope: interface

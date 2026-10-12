@@ -53,7 +53,7 @@ def main():
     if os.path.exists(rfd_output_dir):
         shutil.rmtree(rfd_output_dir)
     os.makedirs(rfd_output_dir)
-    rfd_cmd = pcfg.get('local_rfdiffusion', 'OrthoIntRob/bin/rfd3').split() + [
+    rfd_cmd = pcfg.get('local_rfdiffusion', 'bash pipeline/bin/rfd3').split() + [
         f"inputs={os.path.join(args.analysis_dir, 'inputs.json').replace(chr(92), '/')}",
         f"out_dir={rfd_output_dir}",
         f"n_batches={pcfg.get('foundry_n_batches', 1)}",
@@ -72,8 +72,10 @@ def main():
     with open(os.path.join(args.analysis_dir, 'mpnn_bias.json')) as f:
         bias = {f"{chain}{res}": bias_dict for chain, res_dict in json.load(f).items() for res, bias_dict in res_dict.items()}
 
-    mpnn_bin = pcfg.get('local_ligandmpnn', 'OrthoIntRob/bin/mpnn')
-    checkpoint = lcfg.get('checkpoint_path', 'OrthoIntRob/ligandmpnn/model_params/ligandmpnn_v_32_010_25.pt')
+    mpnn_bin = pcfg.get('local_ligandmpnn', 'bash pipeline/bin/mpnn')
+    checkpoint = lcfg.get('checkpoint_path', '~/.foundry/checkpoints/ligandmpnn_v_32_010_25.pt')
+    if os.name != 'nt' and checkpoint.startswith('~'):
+        checkpoint = os.path.expanduser(checkpoint)
 
     for idx, rfd_pdb in enumerate(rfd_pdbs):
         print(f"\n--- Processing candidate {idx + 1}/{len(rfd_pdbs)}: {os.path.basename(rfd_pdb)} ---")

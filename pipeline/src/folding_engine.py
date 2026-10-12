@@ -350,8 +350,12 @@ def _run_rf3(pending, config):
         manifest, out = os.path.join(batch_dir, "batch_rf3_input.json"), batch_dir
         with open(manifest, 'w') as f:
             json.dump(entries, f, indent=2)
-    rf3_bin = fcfg.get('rf3_bin', '/home/ommearo/miniforge3/envs/foundry_env/bin/rf3')
-    rf3_ckpt = fcfg.get('rf3_ckpt', '/home/ommearo/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
+    rf3_bin = fcfg.get('rf3_bin') or shutil.which('rf3') or 'rf3'
+    if not wsl and rf3_bin.startswith('~'):
+        rf3_bin = os.path.expanduser(rf3_bin)
+    rf3_ckpt = fcfg.get('rf3_ckpt', '~/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
+    if not wsl and rf3_ckpt.startswith('~'):
+        rf3_ckpt = os.path.expanduser(rf3_ckpt)
     cmd = [rf3_bin, "fold", f"inputs={pth(manifest)}", f"out_dir={pth(out)}", f"ckpt_path={rf3_ckpt}"]
     cmd += [f"{k}={v}" for k, v in params.items()]
     if wsl:
