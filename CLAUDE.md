@@ -24,23 +24,22 @@ pytest pipeline/tests                     # rapide, pas de GPU : les moteurs son
 - `runs/` : Dossier unifié de stockage de tous les résultats d'expériences (git-ignoré).
 - `wiki/` : Package complet du wiki iGEM 2026 (`model.md`, `index.html`, `src_gitlab/model.tsx`, figures).
 - `dossier_champions/` : Fiches et structures des 19 champions d'élite all-atom.
-- `runs/` : Dossier unifié de stockage de tous les résultats d'expériences (git-ignoré).
 
 | Module | Fichier | Rôle |
 | --- | --- | --- |
-| 1 | `pipeline/src/01_analyze_interface.py` | Résidus d'interface, hotspots, positions mutables, contigs RFD3, consolidation boucles |
-| 2 | `pipeline/src/02_generate_A_prime.py` | Diffusion RFD3 apo + LigandMPNN → candidats A' (rupture) |
-| 3 | `pipeline/src/03_filter_A_prime.py` | Fail-fast RF3 : stabilité monomère, rupture A'·B_WT, plafond WT |
-| 4 | `pipeline/src/04_generate_B_prime.py` | Co-adaptation RFD3 multi-scaffolds (recalage SVD) + LigandMPNN biaisé spécificité → B' |
-| 5 | `pipeline/src/05_eval_final.py` | 4 folds RF3 + énergie PyRosetta Ref2015 + DockQ CAPRI + F_ortho + export CSV/SQLite |
+| 1 | `pipeline/src/01_analyze_interface.py` | Résidus d'interface, hotspots rescue, consolidation boucles A (`rupture_min_fixed_segment`) & B (`rescue_min_fixed_segment`), limitation dérive loops (`scaffold_max_flex_rmsd`), omissions AA LigandMPNN (`ban_cysteines`, `omit_AAs`) |
+| 2 | `pipeline/src/02_generate_A_prime.py` | Diffusion RFD3 apo + LigandMPNN (sans cystéines) → candidats A' (rupture) |
+| 3 | `pipeline/src/03_filter_A_prime.py` | Fail-fast RF3 : stabilité monomère avec double seuil RMSD (global $\le 3.0$ Å et cœur structural `rmsd_framework_max` $\le 1.5$ Å), rupture A'·B_WT, plafond WT |
+| 4 | `pipeline/src/04_generate_B_prime.py` | Co-adaptation RFD3 multi-scaffolds (recalage SVD) + LigandMPNN biaisé spécificité + ranking composite multi-objectif ($Z_{\text{spec}} + Z_{\text{conf}} + Z_{\text{energy}}$ avec `dG_pack` PyRosetta) + filtrage clashs avec fallback `hard_max_clashes_with_a_prime` → B' |
+| 5 | `pipeline/src/05_eval_final.py` | Stage 1 (rescue A'·B' + early exit géométrique CAPRI `dockq_min: 0.23`, `lrms_max: 15.0 Å` avec log temps réel `rescue_stage1_progress.csv`) + Stage 2 (cross-rupture + énergie PyRosetta Ref2015 + DockQ CAPRI `pass_dockq` + $F_{\text{ortho}}$) + export CSV/SQLite + rapports `export_styled_reports.py` (`SUMMARY.html`, `SUMMARY.xlsx`, dossier `figures/` avec 6 figures vectorielles SVG/PNG 300 DPI) |
 
-Modules transverses : `design_utils.py` (séquences/structures), `folding_engine.py` (RF3, MSA, cache),
+Modules transverses : `design_utils.py` (séquences/structures, `get_mpnn_omit_args`), `folding_engine.py` (RF3, MSA, cache),
 `energy_engine.py` + `interface_energy.py` (PyRosetta), `scoring.py` (F_ortho, ipSAE), `dockq.py`,
 `export_styled_reports.py`.
 
 Chaque expérience vit dans `runs/<run_name>/` (git-ignoré) avec `config_used.yaml` archivé.
 Sorties clés : `runs/<run>/05_final_eval/orthogonality_scores.csv`, `results.db`, `coherence.json`,
-`runs/<run>/03_fail_fast/wt_control.json`.
+`runs/<run>/03_fail_fast/wt_control.json`, `rescue_stage1_progress.csv`, `SUMMARY.html`, `SUMMARY.xlsx`, `figures/`.
 
 ## Invariants à ne jamais casser
 
@@ -58,6 +57,8 @@ Sorties clés : `runs/<run>/05_final_eval/orthogonality_scores.csv`, `results.db
   avant la moindre mesure.
 - **LigandMPNN n'écrit pas les chaînes latérales** des positions redesignées, et sort du CIF. Packing
   PyRosetta obligatoire (`energy.pack_designs`) avant toute mesure géométrique ou énergétique.
+- **Omission stricte des cystéines** (`ban_cysteines: true`, `omit_AAs: "C"`) pour éviter les cystéines libres réactives à l'interface synthétique.
+- **Early exit géométrique CAPRI** : tout complexe rescue qui s'associe hors-cible (`DockQ < dockq_min` ou `L-RMSD > lrms_max`) est immédiatement disqualifié (`early_exit_off_target`), épargnant 75 % de GPU sur les calculs croisés et énergétiques.
 - Pas de fallback silencieux : si LigandMPNN ne produit rien, le module s'arrête ; on ne retombe pas
   sur le backbone RFD3 brut.
 
