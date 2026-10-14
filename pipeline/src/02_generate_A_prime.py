@@ -53,12 +53,15 @@ def main():
     if os.path.exists(rfd_output_dir):
         shutil.rmtree(rfd_output_dir)
     os.makedirs(rfd_output_dir)
+    seed = int(pcfg.get('seed', 42))
     rfd_cmd = pcfg.get('local_rfdiffusion', 'bash pipeline/bin/rfd3').split() + [
         f"inputs={os.path.join(args.analysis_dir, 'inputs.json').replace(chr(92), '/')}",
         f"out_dir={rfd_output_dir}",
         f"n_batches={pcfg.get('foundry_n_batches', 1)}",
         f"diffusion_batch_size={pcfg.get('foundry_diffusion_batch_size', 1)}",
     ]
+    if 'seed' in pcfg:
+        rfd_cmd.append(f"seed={seed}")
     print(f"Module 2: Running RFD3 -> {' '.join(rfd_cmd)}")
     subprocess.run(rfd_cmd, check=True)
     rfd_pdbs = collect_pdbs(rfd_output_dir)
@@ -77,22 +80,25 @@ def main():
     if os.name != 'nt' and checkpoint.startswith('~'):
         checkpoint = os.path.expanduser(checkpoint)
 
+    prepared_inputs = []
     for idx, rfd_pdb in enumerate(rfd_pdbs):
-        print(f"\n--- Processing candidate {idx + 1}/{len(rfd_pdbs)}: {os.path.basename(rfd_pdb)} ---")
-        mpnn_out = os.path.join(args.out_dir, f"mpnn_out_cand_{idx}").replace('\\', '/')
-        os.makedirs(mpnn_out, exist_ok=True)
-
         structure = PDBParser(QUIET=True).get_structure("rfd", rfd_pdb)
         mpnn_input = rfd_pdb
         if lcfg.get('rupture_apo_design', True):
-            # Design A' alone. With B_WT in the structure LigandMPNN packs A' against B_WT (a positive design for the
-            # wild-type partner), which defeats the rupture (measured: iPTM(A'.B_WT) 0.38 vs 0.23 without B).
             for ch in [c for c in structure[0] if c.id != chain_A_id]:
                 structure[0].detach_child(ch.id)
             mpnn_input = os.path.join(args.out_dir, 'mpnn_in', f"cand_{idx}.pdb")
             os.makedirs(os.path.dirname(mpnn_input), exist_ok=True)
             save_structure(structure, mpnn_input)
         existing = {f"{ch.id}{r.id[1]}" for ch in structure[0] for r in std_residues(ch)}
+        fixed_for_cand = ",".join(f for f in fixed_list if f in existing)
+        prepared_inputs.append((idx, rfd_pdb, mpnn_input, fixed_for_cand))
+
+    for idx, rfd_pdb, mpnn_input, fixed_res in prepared_inputs:
+        print(f"\n--- Processing candidate {idx + 1}/{len(rfd_pdbs)}: {os.path.basename(rfd_pdb)} ---")
+        mpnn_out = os.path.join(args.out_dir, f"mpnn_out_cand_{idx}").replace('\\', '/')
+        os.makedirs(mpnn_out, exist_ok=True)
+
         mpnn_cmd = mpnn_bin.split() + [
             "--structure_path", mpnn_input.replace('\\', '/'),
             "--out_directory", mpnn_out,
@@ -102,7 +108,8 @@ def main():
             "--batch_size", "1",
             "--number_of_batches", "1",
             "--temperature", str(lcfg.get('temperature_rupture', 0.20)),
-            "--fixed_residues", ",".join(f for f in fixed_list if f in existing),
+            "--seed", str(seed),
+            "--fixed_residues", fixed_res,
             "--bias_per_residue", json.dumps(bias),
             "--write_structures", "True",
         ] + get_mpnn_omit_args(lcfg)

@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import tempfile
 from multiprocessing import Pool
 
 
@@ -28,16 +29,33 @@ def job_key(pdb_path, relax_repeats, seed, partners):
     return h.hexdigest()
 
 
-def pending_jobs(jobs, cache, relax_repeats, seed):
+def pending_jobs(jobs, cache, relax_repeats, seed, mode='score'):
     """Jobs whose cached result is missing, failed or computed with different inputs/settings."""
     todo = []
     for j in jobs:
-        key = job_key(j["pdb"], relax_repeats, seed, j.get("partners", "A_B"))
+        partners_or_chains = j.get("partners", "A_B") if mode == 'score' else "_".join(sorted(j.get("fixed_chains", [])))
+        repeats = relax_repeats if mode == 'score' else 0
+        key = job_key(j["pdb"], repeats, seed, partners_or_chains)
         old = cache.get(j["name"])
         if old and old.get("key") == key and "error" not in old:
-            continue
-        todo.append({**j, "key": key})
+            if mode == 'score':
+                continue
+            elif mode == 'pack':
+                out_path = j.get("out") or j["pdb"]
+                if os.path.exists(out_path) and old.get("ok") is True:
+                    continue
+        todo.append({**j, "key": key, "seed": seed})
     return todo
+
+
+def save_atomic_json(data, target_path):
+    """Atomically saves data as JSON using a temporary file and os.replace."""
+    dir_name = os.path.dirname(os.path.abspath(target_path)) or "."
+    os.makedirs(dir_name, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False) as tmp:
+        json.dump(data, tmp, indent=2)
+        tmp_name = tmp.name
+    os.replace(tmp_name, target_path)
 
 
 def strip_hydrogens(pdb_path):
@@ -63,6 +81,14 @@ def pack_one(job):
         from pyrosetta.rosetta.core.select.residue_selector import ChainSelector
         from pyrosetta.rosetta.core.kinematics import MoveMap
         from pyrosetta.rosetta.protocols.minimization_packing import MinMover, PackRotamersMover
+
+        base_seed = int(job.get("seed", 1))
+        key = job.get("key")
+        if not key:
+            key = job_key(job["pdb"], 0, base_seed, "_".join(sorted(job.get("fixed_chains", []))))
+        det_seed = (int(key[:8], 16) ^ base_seed) & 0x7FFFFFFF
+        pyrosetta.rosetta.numeric.random.rg().set_seed("mt19937", det_seed or 1)
+
         sfxn = pyrosetta.create_score_function("ref2015")
         pose = pyrosetta.pose_from_pdb(job["pdb"])
         tf = TaskFactory()
@@ -81,9 +107,21 @@ def pack_one(job):
         out = job.get("out") or job["pdb"]
         pose.dump_pdb(out)
         strip_hydrogens(out)
-        return job["name"], {"ok": True, "total": sfxn(pose)}
+
+        res_data = {"ok": True, "total": float(sfxn(pose)), "key": key}
+        if pose.num_chains() == 2:
+            try:
+                from pyrosetta.rosetta.core.pose import DockingPartners
+                from pyrosetta.rosetta.protocols.analysis import InterfaceAnalyzerMover
+                partners = DockingPartners.docking_partners_from_string(job.get("partners", "A_B"))
+                iam = InterfaceAnalyzerMover(partners, False, sfxn, False, False, True, False)
+                iam.apply(pose)
+                res_data["dG_pack"] = float(iam.get_separated_interface_energy())
+            except Exception:
+                pass
+        return job["name"], res_data
     except Exception as e:
-        return job["name"], {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
+        return job["name"], {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "key": job.get("key")}
 
 
 def score_one(args):
@@ -92,6 +130,14 @@ def score_one(args):
         import pyrosetta
         from pyrosetta.rosetta.core.pose import DockingPartners
         from pyrosetta.rosetta.protocols.analysis import InterfaceAnalyzerMover
+
+        base_seed = int(job.get("seed", 1))
+        key = job.get("key")
+        if not key:
+            key = job_key(job["pdb"], relax_repeats, base_seed, job.get("partners", "A_B"))
+        det_seed = (int(key[:8], 16) ^ base_seed) & 0x7FFFFFFF
+        pyrosetta.rosetta.numeric.random.rg().set_seed("mt19937", det_seed or 1)
+
         sfxn = pyrosetta.create_score_function("ref2015")
         pose = pyrosetta.pose_from_pdb(job["pdb"])
         relax = pyrosetta.rosetta.protocols.relax.FastRelax(sfxn, int(relax_repeats))
@@ -100,7 +146,7 @@ def score_one(args):
         partners = DockingPartners.docking_partners_from_string(job.get("partners", "A_B"))
         iam = InterfaceAnalyzerMover(partners, False, sfxn, False, False, True, False)   # repack the separated chains
         iam.apply(pose)
-        return job["name"], {"key": job["key"], "dG": iam.get_separated_interface_energy(),
+        return job["name"], {"key": key, "dG": iam.get_separated_interface_energy(),
                              "dSASA": iam.get_interface_delta_sasa(), "unsat_hb": iam.get_interface_delta_hbond_unsat(),
                              "n_interface_res": iam.get_num_interface_residues(), "total": sfxn(pose)}
     except Exception as e:                                      # one bad complex must not kill the batch
@@ -118,22 +164,31 @@ def main():
     args = ap.parse_args()
 
     jobs = json.load(open(args.jobs))
-    results = json.load(open(args.out)) if os.path.exists(args.out) and args.mode == 'score' else {}
+    results = json.load(open(args.out)) if os.path.exists(args.out) else {}
     if args.mode == 'score':
-        todo = pending_jobs(jobs, results, args.relax_repeats, args.seed)
+        todo = pending_jobs(jobs, results, args.relax_repeats, args.seed, mode='score')
         work, fn = [(j, args.relax_repeats) for j in todo], score_one
     else:
-        todo, work, fn = jobs, jobs, pack_one
+        todo = pending_jobs(jobs, results, 0, args.seed, mode='pack')
+        work, fn = todo, pack_one
     print(f"[interface_energy:{args.mode}] {len(jobs)} complexes, {len(jobs) - len(todo)} cached, {len(todo)} to process "
           f"on {min(args.procs, max(1, len(todo)))} processes", flush=True)
     if todo:
         with Pool(min(args.procs, len(todo)), initializer=_init_worker, initargs=(args.seed,)) as pool:
             for name, res in pool.imap_unordered(fn, work):
                 results[name] = res
+                save_atomic_json(results, args.out)
                 bad = res.get('error')
-                print(f"[interface_energy:{args.mode}] {name}: " + (bad if bad else (f"dG={res['dG']:.1f} REU" if 'dG' in res else "ok")), flush=True)
-    with open(args.out, 'w') as f:
-        json.dump(results, f, indent=2)
+                if bad:
+                    msg = bad
+                elif 'dG' in res:
+                    msg = f"dG={res['dG']:.1f} REU"
+                elif 'dG_pack' in res:
+                    msg = f"dG_pack={res['dG_pack']:.1f} REU"
+                else:
+                    msg = "ok"
+                print(f"[interface_energy:{args.mode}] {name}: {msg}", flush=True)
+    save_atomic_json(results, args.out)
 
 
 if __name__ == "__main__":

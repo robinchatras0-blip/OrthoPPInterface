@@ -126,8 +126,19 @@ def fake_predict(fasta_sequences, out_dir, config):
             assert all(len(r) == len(item[1]) for r in rows), f"corrupt MSA {item[2]}"
     iptm = {("A_prime", "B_prime"): 0.8, ("A_wt", "B_prime"): 0.2, ("A_prime", "B_wt"): 0.25,
             ("A_wt", "B_wt"): 0.85}.get(labels, 0.9)
+    tag = os.path.basename(out_dir.rstrip('/\\'))
+    os.makedirs(out_dir, exist_ok=True)
+    out_pdb = os.path.join(out_dir, f"{tag}_unrelaxed_rank_001.pdb")
+    if not os.path.exists(out_pdb):
+        one_to_three = {v: k for k, v in THREE_TO_ONE.items()}
+        chains = []
+        for idx, item in enumerate(fasta_sequences):
+            ch_id = chr(ord('A') + idx)
+            resnames = [one_to_three.get(c, 'ALA') for c in item[1]]
+            chains.append(make_chain(ch_id, resnames, origin=(idx * 9.0, 0, 0)))
+        write_pdb(out_pdb, chains)
     return {"iptm": iptm, "ptm": 0.8, "plddt": 88.0, "ranking_score": iptm, "iptm_mean": iptm,
-            "iptm_std": 0.0, "n_samples": 1, "has_clash": False, "chain_pair_pae_min": None, "model_pdb": None}
+            "iptm_std": 0.0, "n_samples": 1, "has_clash": False, "chain_pair_pae_min": None, "model_pdb": out_pdb}
 
 
 def many(single):

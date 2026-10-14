@@ -134,6 +134,10 @@ def main():
 
     # ---- Stage 0: per-design preparation (CPU only)
     ctxs = []
+    shared_msa_dir = os.path.join(args.out_dir, "shared_msa")
+    os.makedirs(shared_msa_dir, exist_ok=True)
+    shared_a_msa = {}
+
     for b_prime_pdb in b_prime_pdbs:
         design_id = os.path.splitext(os.path.basename(b_prime_pdb))[0]
         meta = meta_pairs.get(design_id, {})
@@ -155,10 +159,19 @@ def main():
         out["rup"] = os.path.join(args.out_dir, "complex_rupture", design_id if neg_regime == 'matched' else (parent_a or design_id))
         for d in out.values():
             os.makedirs(d, exist_ok=True)
-        # MSAs: each designed chain is masked where IT differs from WT (+ the interface in the default regime)
-        msa_A = os.path.join(out["pos"], f"{design_id}_A.a3m")
+        # MSAs: deduplicate A' MSA generation when parent_a is shared
+        if parent_a:
+            msa_A = os.path.join(shared_msa_dir, f"{parent_a}_A.a3m")
+            if parent_a not in shared_a_msa:
+                st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A, config, modified_indices=cols_A, interface_columns=iface_A)
+                shared_a_msa[parent_a] = st_a
+            else:
+                st_a = shared_a_msa[parent_a]
+        else:
+            msa_A = os.path.join(out["pos"], f"{design_id}_A.a3m")
+            st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A, config, modified_indices=cols_A, interface_columns=iface_A)
+
         msa_B = os.path.join(out["pos"], f"{design_id}_B.a3m")
-        st_a = prepare_msa(wt_a3m_A, seq_A_prime, msa_A, config, modified_indices=cols_A, interface_columns=iface_A)
         st_b = prepare_msa(wt_a3m_B, seq_B_prime, msa_B, config, modified_indices=cols_B, interface_columns=iface_B)
         n_mut_A = len(diff_positions(seq_A_wt, seq_A_prime)) if len(seq_A_wt) == len(seq_A_prime) else -1
         n_mut_B = len(diff_positions(seq_B_wt, seq_B_prime)) if len(seq_B_wt) == len(seq_B_prime) else -1
@@ -229,12 +242,22 @@ def main():
 
     # ---- Stage 2: cross-rupture (+ rupture / per-design ceiling when they cannot be reused) for the survivors, ONE process
     reqs, slots = [], []
+    shared_awt_matched = {}
+    check_b_prime_monomer = bool(config.get('folding', {}).get('check_b_prime_monomer', False))
+    use_predicted_structures = bool(config.get('energy', {}).get('use_predicted_structures', False))
+
     for c in ctxs:
         if c["status"] != "ok":
             continue
         if neg_regime == 'matched':                          # A_WT masked like the designed A' -> same information regime
-            msa_A_wt = os.path.join(c["out"]["neg"], f"{c['design_id']}_Awt_matched.a3m")
-            prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
+            if c["parent_a"]:
+                msa_A_wt = os.path.join(shared_msa_dir, f"{c['parent_a']}_Awt_matched.a3m")
+                if c["parent_a"] not in shared_awt_matched:
+                    prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
+                    shared_awt_matched[c["parent_a"]] = msa_A_wt
+            else:
+                msa_A_wt = os.path.join(c["out"]["neg"], f"{c['design_id']}_Awt_matched.a3m")
+                prepare_msa(wt_a3m_A, seq_A_wt, msa_A_wt, config, reference_sequence=c["seq_A"], interface_columns=iface_A)
         else:
             msa_A_wt = wt_a3m_A
         reqs.append(([('A_wt', seq_A_wt, msa_A_wt), ('B_prime', c["seq_B"], c["msa_B"])], c["out"]["neg"]))
@@ -259,11 +282,23 @@ def main():
             prepare_msa(wt_a3m_B, seq_B_wt, msa_B_c, config, reference_sequence=c["seq_B"], interface_columns=iface_B)
             reqs.append(([('A_wt', seq_A_wt, msa_A_c), ('B_wt', seq_B_wt, msa_B_c)], c["out"]["ctl"]))
             slots.append((c, "ceiling"))
+        if check_b_prime_monomer:
+            monomer_b_out = os.path.join(args.out_dir, "monomer_b", c["design_id"])
+            os.makedirs(monomer_b_out, exist_ok=True)
+            c["out"]["monomer_b"] = monomer_b_out
+            reqs.append(([('B_prime', c["seq_B"], c["msa_B"])], monomer_b_out))
+            slots.append((c, "b_monomer"))
+
     if reqs:
         print(f"\nModule 5: {len(reqs)} cross / rupture / ceiling folds for the {sum(c['status'] == 'ok' for c in ctxs)} surviving designs...")
         for (c, kind), m in zip(slots, predict_structures(reqs, config)):
-            c[f"iptm_{kind}"] = m.get("iptm", NAN)
-            c[f"ipsae_{kind}"] = m.get("ipsae", NAN)
+            if kind == "b_monomer":
+                c["plddt_b_prime_monomer"] = m.get("plddt", NAN)
+                c["rmsd_b_prime_monomer"] = calculate_ca_rmsd(wt_pdb, c["out"]["monomer_b"], chain_ref=chain_B_id)
+            else:
+                c[f"m_{kind}"] = m
+                c[f"iptm_{kind}"] = m.get("iptm", NAN)
+                c[f"ipsae_{kind}"] = m.get("ipsae", NAN)
     if ceiling_mode == 'global':
         for c in ctxs:
             c["iptm_ceiling"] = global_ceiling
@@ -295,7 +330,17 @@ def main():
             p_awt_bp, p_ap_bwt = os.path.join(edir, "AWT.Bp.pdb"), os.path.join(edir, "Ap.BWT.pdb")
             write_complex(wt_pdb, b_prime_pdb, p_awt_bp, chain_A_id, chain_B_id)
             write_complex(b_prime_pdb, wt_pdb, p_ap_bwt, chain_A_id, chain_B_id)
-            energy_jobs += [{"name": f"{design_id}__Ap.Bp", "pdb": b_prime_pdb},
+            
+            p_ap_bp = b_prime_pdb
+            if use_predicted_structures:
+                def _resolve_model(m_dict):
+                    p = m_dict.get("model_pdb") if isinstance(m_dict, dict) else None
+                    return p if (p and os.path.isfile(p)) else None
+                p_ap_bp = _resolve_model(m_pos) or b_prime_pdb
+                p_awt_bp = _resolve_model(c.get("m_negative")) or p_awt_bp
+                p_ap_bwt = _resolve_model(c.get("m_rupture")) or p_ap_bwt
+
+            energy_jobs += [{"name": f"{design_id}__Ap.Bp", "pdb": p_ap_bp},
                             {"name": f"{design_id}__AWT.Bp", "pdb": p_awt_bp},
                             {"name": f"{design_id}__Ap.BWT", "pdb": p_ap_bwt}]
 
@@ -331,6 +376,8 @@ def main():
             "selfcons_lrms": sc_lrms, "pred_interface_contacts": pred_contacts,
             "plddt_rescue": m_pos.get("plddt", NAN), "plddt_a_prime": plddt_a_prime,
             "rmsd_a_prime": rmsd_a_prime, "rmsd_b_prime": rmsd_b_prime, "rmsd_a_prime_monomer": rmsd_a_prime_m3,
+            "plddt_b_prime_monomer": c.get("plddt_b_prime_monomer", NAN),
+            "rmsd_b_prime_monomer": c.get("rmsd_b_prime_monomer", NAN),
             "n_mut_A": c["n_mut_A"], "n_mut_B": c["n_mut_B"],
             "scaffold_idx": meta.get("scaffold_idx", NAN), "scaffold_flex_rmsd": meta.get("scaffold_flex_rmsd", NAN),
             # True = the RFD3 co-adaptation produced nothing usable for this motif and Module 4 fell back to the

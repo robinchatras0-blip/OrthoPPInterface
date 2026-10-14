@@ -13,6 +13,10 @@ from design_utils import THREE_TO_ONE, cif_to_pdb, diff_positions  # noqa: E402
 from scoring import ipsae_score  # noqa: E402
 
 
+import functools
+import tempfile
+
+
 def _use_wsl(config):
     fcfg = (config or {}).get('folding', {})
     return bool(fcfg.get('use_wsl', os.name == 'nt'))
@@ -32,26 +36,30 @@ def get_chain_sequence(pdb_path, chain_id='A'):
     if not os.path.exists(pdb_path):
         return ""
     parser = PDBParser(QUIET=True)
-    structure = parser.get_structure("struct", pdb_path)
-    model = structure[0]
-    if chain_id not in model:
+    try:
+        structure = parser.get_structure("struct", pdb_path)
+        model = structure[0]
+    except Exception:
+        return ""
+    if chain_id is None:
         chains = list(model.get_chains())
         if not chains:
             return ""
         chain = chains[0]
-    else:
+    elif chain_id in model:
         chain = model[chain_id]
+    else:
+        return ""
     return "".join(THREE_TO_ONE.get(res.get_resname(), 'X') for res in chain if res.id[0] == ' ')
 
 
 # --------------------------------------------------------------------------- #
 # MSA handling
 # --------------------------------------------------------------------------- #
-def read_a3m(path):
-    """Returns [(header, sequence)] (headers without '>'); tolerant to wrapped sequences,
-    blank lines and ColabFold '#' comment lines."""
+@functools.lru_cache(maxsize=256)
+def _cached_read_a3m(abs_path, mtime_ns, size):
     records, header, chunks = [], None, []
-    with open(path, 'r') as f:
+    with open(abs_path, 'r') as f:
         for raw in f:
             line = raw.strip()
             if not line or line.startswith('#'):
@@ -64,7 +72,20 @@ def read_a3m(path):
                 chunks.append(line)
     if header is not None:
         records.append((header, "".join(chunks)))
-    return records
+    return tuple(records)
+
+
+def read_a3m(path):
+    """Returns [(header, sequence)] (headers without '>'); tolerant to wrapped sequences,
+    blank lines and ColabFold '#' comment lines."""
+    if not path or not os.path.exists(path):
+        return []
+    abs_path = os.path.abspath(path)
+    try:
+        st = os.stat(abs_path)
+        return list(_cached_read_a3m(abs_path, st.st_mtime_ns, st.st_size))
+    except OSError:
+        return []
 
 
 def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_path,
@@ -191,11 +212,23 @@ def _a3m_query(path):
 # --------------------------------------------------------------------------- #
 # RF3 wrapper
 # --------------------------------------------------------------------------- #
-def _sha1_file(path):
+@functools.lru_cache(maxsize=256)
+def _cached_sha1_file(abs_path, mtime_ns, size):
     h = hashlib.sha1()
-    with open(path, 'rb') as f:
+    with open(abs_path, 'rb') as f:
         h.update(f.read())
     return h.hexdigest()
+
+
+def _sha1_file(path):
+    if not path or not os.path.exists(path):
+        return ""
+    abs_path = os.path.abspath(path)
+    try:
+        st = os.stat(abs_path)
+        return _cached_sha1_file(abs_path, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return ""
 
 
 def _signature(components_raw, rf3_params):
@@ -338,44 +371,48 @@ def _run_rf3(pending, config):
                 if os.path.isfile(f) and not f.endswith(("_rf3_input.json", ".signature", ".a3m")):
                     os.remove(f)
     batch_dir = None
-    if len(pending) == 1:
-        manifest, out = pending[0]["manifest_path"], pending[0]["out_dir"]
-    else:
-        batch_dir = os.path.join(os.path.dirname(os.path.abspath(pending[0]["out_dir"])), f"_rf3_batch_{os.getpid()}")
-        os.makedirs(batch_dir, exist_ok=True)
-        entries = []
-        for k, p in enumerate(pending):
-            p["uname"] = f"{p['tag']}__{k:03d}"                     # tags repeat across folds (rescue / negative of a design)
-            entries.append({**p["entry"], "name": p["uname"]})
-        manifest, out = os.path.join(batch_dir, "batch_rf3_input.json"), batch_dir
-        with open(manifest, 'w') as f:
-            json.dump(entries, f, indent=2)
-    rf3_bin = fcfg.get('rf3_bin') or shutil.which('rf3') or 'rf3'
-    if not wsl and rf3_bin.startswith('~'):
-        rf3_bin = os.path.expanduser(rf3_bin)
-    rf3_ckpt = fcfg.get('rf3_ckpt', '~/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
-    if not wsl and rf3_ckpt.startswith('~'):
-        rf3_ckpt = os.path.expanduser(rf3_ckpt)
-    cmd = [rf3_bin, "fold", f"inputs={pth(manifest)}", f"out_dir={pth(out)}", f"ckpt_path={rf3_ckpt}"]
-    cmd += [f"{k}={v}" for k, v in params.items()]
-    if wsl:
-        cmd = ["wsl", "-d", fcfg.get('wsl_distro', 'Ubuntu'), "--"] + cmd
-    env = os.environ.copy()
-    env["TORCH_CUDA_MATMUL_PRECISION"] = "high"
-    print(f"  [Foundry RF3 GPU Invoc] {len(pending)} prediction(s) in one process: {' '.join(cmd[:6])} ...", flush=True)
-    res = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    if res.returncode != 0:
-        tail = (res.stderr or res.stdout or "")[-600:]
-        raise RuntimeError(f"RF3 execution failed with code {res.returncode}: {tail}")
-    if batch_dir:
-        for p in pending:
-            src, dst = os.path.join(batch_dir, p["uname"]), os.path.join(p["out_dir"], p["uname"])
-            if not os.path.isdir(src):
-                raise RuntimeError(f"RF3 wrote no output for {p['tag']} (batch of {len(pending)}, see {batch_dir})")
-            if os.path.exists(dst):
-                shutil.rmtree(dst)
-            shutil.move(src, dst)
-        shutil.rmtree(batch_dir, ignore_errors=True)
+    try:
+        if len(pending) == 1:
+            manifest, out = pending[0]["manifest_path"], pending[0]["out_dir"]
+        else:
+            parent_dir = os.path.dirname(os.path.abspath(pending[0]["out_dir"]))
+            os.makedirs(parent_dir, exist_ok=True)
+            batch_dir = tempfile.mkdtemp(prefix="_rf3_batch_", dir=parent_dir)
+            entries = []
+            for k, p in enumerate(pending):
+                p["uname"] = f"{p['tag']}__{k:03d}"                     # tags repeat across folds (rescue / negative of a design)
+                entries.append({**p["entry"], "name": p["uname"]})
+            manifest, out = os.path.join(batch_dir, "batch_rf3_input.json"), batch_dir
+            with open(manifest, 'w') as f:
+                json.dump(entries, f, indent=2)
+        rf3_bin = fcfg.get('rf3_bin') or shutil.which('rf3') or 'rf3'
+        if not wsl and rf3_bin.startswith('~'):
+            rf3_bin = os.path.expanduser(rf3_bin)
+        rf3_ckpt = fcfg.get('rf3_ckpt', '~/.foundry/checkpoints/rf3_foundry_01_24_latest.ckpt')
+        if not wsl and rf3_ckpt.startswith('~'):
+            rf3_ckpt = os.path.expanduser(rf3_ckpt)
+        cmd = [rf3_bin, "fold", f"inputs={pth(manifest)}", f"out_dir={pth(out)}", f"ckpt_path={rf3_ckpt}"]
+        cmd += [f"{k}={v}" for k, v in params.items()]
+        if wsl:
+            cmd = ["wsl", "-d", fcfg.get('wsl_distro', 'Ubuntu'), "--"] + cmd
+        env = os.environ.copy()
+        env["TORCH_CUDA_MATMUL_PRECISION"] = "high"
+        print(f"  [Foundry RF3 GPU Invoc] {len(pending)} prediction(s) in one process: {' '.join(cmd[:6])} ...", flush=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if res.returncode != 0:
+            tail = (res.stderr or res.stdout or "")[-600:]
+            raise RuntimeError(f"RF3 execution failed with code {res.returncode}: {tail}")
+        if batch_dir:
+            for p in pending:
+                src, dst = os.path.join(batch_dir, p["uname"]), os.path.join(p["out_dir"], p["uname"])
+                if not os.path.isdir(src):
+                    raise RuntimeError(f"RF3 wrote no output for {p['tag']} (batch of {len(pending)}, see {batch_dir})")
+                if os.path.exists(dst):
+                    shutil.rmtree(dst)
+                shutil.move(src, dst)
+    finally:
+        if batch_dir:
+            shutil.rmtree(batch_dir, ignore_errors=True)
     for p in pending:
         if _collect_metrics(p["out_dir"])[0] is None:
             raise RuntimeError(f"RF3 output *_summary_confidences.json not found in {p['out_dir']}")
@@ -428,7 +465,7 @@ def predict_structure(fasta_sequences, out_dir, config):
 
 
 def calculate_ca_rmsd(ref_pdb, pred_pdb_or_dir, chain_ref='A', chain_pred=None, subset_res_ids=None):
-    """Computes C-alpha RMSD between a reference and a predicted structure (0.0 if not computable).
+    """Computes C-alpha RMSD between a reference and a predicted structure (NaN if not computable).
 
     Residues are paired by residue id when the numbering overlaps, otherwise by order. Optionally
     restricted to `subset_res_ids` (reference numbering).
@@ -441,18 +478,26 @@ def calculate_ca_rmsd(ref_pdb, pred_pdb_or_dir, chain_ref='A', chain_pred=None, 
                   + sorted(glob.glob(os.path.join(pred_pdb_or_dir, "*rank_001*.pdb")))
                   + sorted(glob.glob(os.path.join(pred_pdb_or_dir, "*.pdb"))))
         if not ranked:
-            return 0.0
+            return float('nan')
         pred_pdb = ranked[0]
     if not os.path.exists(ref_pdb) or not os.path.exists(pred_pdb):
-        return 0.0
+        return float('nan')
 
     parser = PDBParser(QUIET=True)
-    model_ref = parser.get_structure("ref", ref_pdb)[0]
-    model_pred = parser.get_structure("pred", pred_pdb)[0]
-    ch_ref = model_ref[chain_ref] if chain_ref in model_ref else list(model_ref.get_chains())[0]
-    ch_pred = model_pred[chain_pred] if chain_pred and chain_pred in model_pred else list(model_pred.get_chains())[0]
+    try:
+        model_ref = parser.get_structure("ref", ref_pdb)[0]
+        model_pred = parser.get_structure("pred", pred_pdb)[0]
+    except Exception:
+        return float('nan')
+
+    ch_ref = model_ref[chain_ref] if chain_ref in model_ref else (list(model_ref.get_chains())[0] if len(list(model_ref.get_chains())) > 0 else None)
+    ch_pred = model_pred[chain_pred] if chain_pred and chain_pred in model_pred else (list(model_pred.get_chains())[0] if len(list(model_pred.get_chains())) > 0 else None)
+    if ch_ref is None or ch_pred is None:
+        return float('nan')
 
     pairs = match_residues(ch_ref, ch_pred)
+    if not pairs:
+        return float('nan')
     subset = set(subset_res_ids) if subset_res_ids is not None else None
     rmsd, _, _ = ca_rmsd_after_fit(pairs, fit_ids=subset)
-    return float(rmsd) if rmsd is not None else 0.0
+    return float(rmsd) if rmsd is not None else float('nan')

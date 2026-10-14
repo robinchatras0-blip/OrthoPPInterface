@@ -111,12 +111,77 @@ def select_diverse(seqs, k, scores=None, groups=None, min_per_group=0):
 # --------------------------------------------------------------------------- #
 # Structure helpers
 # --------------------------------------------------------------------------- #
+import functools
+import tempfile
+
+
+@functools.lru_cache(maxsize=64)
+def _cached_structure(pdb_path, mtime):
+    return PDBParser(QUIET=True).get_structure("s", pdb_path)
+
+
 def std_residues(chain):
     return [r for r in chain if r.id[0] == ' ']
 
 
 def heavy_atoms(entity):
     return [a for a in entity.get_atoms() if a.element != 'H' and not a.get_name().startswith('H')]
+
+
+def chain_heavy_coords(residues):
+    """Extracts heavy-atom coordinates (M, 3) in float32 and residue split indices."""
+    coords = []
+    splits = []
+    offset = 0
+    for r in residues:
+        ats = [a for a in r.get_atoms() if a.element != 'H' and not a.get_name().startswith('H')]
+        splits.append(offset)
+        if ats:
+            coords.extend([a.coord for a in ats])
+            offset += len(ats)
+    coords_arr = np.array(coords, dtype=np.float32).reshape(-1, 3) if coords else np.empty((0, 3), dtype=np.float32)
+    return coords_arr, np.array(splits, dtype=int)
+
+
+def residue_distance_matrix(residues_A, residues_B):
+    """Pairwise minimum heavy-atom distance matrix of shape (len(residues_A), len(residues_B)) in float32."""
+    nA = len(residues_A)
+    nB = len(residues_B)
+    if nA == 0 or nB == 0:
+        return np.full((nA, nB), np.inf, dtype=np.float32)
+
+    coords_A, splits_A = chain_heavy_coords(residues_A)
+    coords_B, splits_B = chain_heavy_coords(residues_B)
+
+    if len(coords_A) == 0 or len(coords_B) == 0:
+        return np.full((nA, nB), np.inf, dtype=np.float32)
+
+    counts_A = np.diff(np.append(splits_A, len(coords_A)))
+    counts_B = np.diff(np.append(splits_B, len(coords_B)))
+
+    all_valid_A = np.all(counts_A > 0)
+    all_valid_B = np.all(counts_B > 0)
+
+    if all_valid_A and all_valid_B:
+        diff = coords_A[:, None, :] - coords_B[None, :, :]
+        sq_dist = np.sum(diff ** 2, axis=-1)
+        r0 = np.minimum.reduceat(sq_dist, splits_A, axis=0)
+        r1 = np.minimum.reduceat(r0, splits_B, axis=1)
+        return np.sqrt(r1).astype(np.float32)
+    else:
+        valid_idx_A = np.where(counts_A > 0)[0]
+        valid_idx_B = np.where(counts_B > 0)[0]
+        out = np.full((nA, nB), np.inf, dtype=np.float32)
+        if len(valid_idx_A) > 0 and len(valid_idx_B) > 0:
+            diff = coords_A[:, None, :] - coords_B[None, :, :]
+            sq_dist = np.sum(diff ** 2, axis=-1)
+            sub_splits_A = splits_A[valid_idx_A]
+            sub_splits_B = splits_B[valid_idx_B]
+            r0 = np.minimum.reduceat(sq_dist, sub_splits_A, axis=0)
+            r1 = np.minimum.reduceat(r0, sub_splits_B, axis=1)
+            sub_dist = np.sqrt(r1).astype(np.float32)
+            out[np.ix_(valid_idx_A, valid_idx_B)] = sub_dist
+        return out
 
 
 def min_residue_distance(res1, res2):
@@ -126,6 +191,40 @@ def min_residue_distance(res1, res2):
     if not len(a) or not len(b):
         return float('inf')
     return float(np.sqrt(((a[:, None, :] - b[None, :, :]) ** 2).sum(-1).min()))
+
+
+def build_contig_string(chain_id, res_ids, flexible_ids):
+    """Builds the RFD3 contig string for a chain with flexible (redesignable) regions.
+
+    Fixed segments are denoted as '{chain_id}{start}-{end}' and flexible segments as '{length}-{length}'.
+    """
+    if not res_ids:
+        return ""
+    flex_set = set(flexible_ids)
+    contig_parts = []
+    current_mode = 'flexible' if res_ids[0] in flex_set else 'fixed'
+    current_start = res_ids[0]
+    current_len = 0
+
+    for i, rid in enumerate(res_ids):
+        mode = 'flexible' if rid in flex_set else 'fixed'
+        if mode != current_mode:
+            if current_mode == 'fixed':
+                contig_parts.append(f"{chain_id}{current_start}-{res_ids[i-1]}")
+            else:
+                contig_parts.append(f"{current_len}-{current_len}")
+            current_mode = mode
+            current_start = rid
+            current_len = 1
+        else:
+            current_len += 1
+
+    if current_mode == 'fixed':
+        contig_parts.append(f"{chain_id}{current_start}-{res_ids[-1]}")
+    else:
+        contig_parts.append(f"{current_len}-{current_len}")
+
+    return ",".join(contig_parts)
 
 
 def save_structure(obj, path):
@@ -138,11 +237,18 @@ def save_structure(obj, path):
 
 
 def strip_nan_lines(path):
-    """Drops atom lines with NaN coordinates (unpacked side chains) from a PDB file."""
+    """Drops atom lines with NaN coordinates from a PDB file atomically."""
     with open(path, 'r') as f:
-        lines = [l for l in f if 'nan' not in l]
-    with open(path, 'w') as f:
-        f.writelines(lines)
+        lines = []
+        for line in f:
+            if line.startswith(("ATOM  ", "HETATM")) and "nan" in line[30:54].lower():
+                continue
+            lines.append(line)
+    dir_name = os.path.dirname(os.path.abspath(path))
+    with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False) as tmp:
+        tmp.writelines(lines)
+        tmp_name = tmp.name
+    os.replace(tmp_name, path)
 
 
 def cif_to_pdb(cif_path, pdb_path=None):
@@ -175,12 +281,16 @@ def collect_pdbs(directory):
     return out
 
 
-def load_chain(pdb_path, chain_id):
-    st = PDBParser(QUIET=True).get_structure("s", pdb_path)
+def load_chain(pdb_path, chain_id=None):
+    abs_path = os.path.abspath(pdb_path)
+    mtime = os.path.getmtime(abs_path) if os.path.exists(abs_path) else 0.0
+    st = _cached_structure(abs_path, mtime)
     model = st[0]
+    if chain_id is None:
+        return list(model.get_chains())[0].copy()
     if chain_id in model:
-        return model[chain_id]
-    return list(model.get_chains())[0]
+        return model[chain_id].copy()
+    raise KeyError(f"Chain '{chain_id}' not found in {pdb_path}")
 
 
 def write_complex(a_source_pdb, b_source_pdb, out_path, chain_A='A', chain_B='B'):
