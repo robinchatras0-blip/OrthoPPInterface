@@ -51,21 +51,21 @@ def ipsae_score(pae, chain_ids, pae_cutoff=IPSAE_PAE_CUTOFF):
 
     def direction(chain1, chain2):
         mask1, mask2 = chains == chain1, chains == chain2
-        rows = np.where(mask1)[0]
-        valid = np.outer(mask1, mask2) & (pae < pae_cutoff)
+        sub_pae = pae[np.ix_(mask1, mask2)]
+        valid = sub_pae < pae_cutoff
 
-        ptm_d0chn = ptm(pae, d0(mask1.sum() + mask2.sum()))
-        byres_d0chn = np.array([ptm_d0chn[i, valid[i]].mean() if valid[i].any() else 0.0 for i in rows])
+        counts = valid.sum(axis=1)
+        d0_chn = d0(mask1.sum() + mask2.sum())
+        byres_d0chn = np.where(valid, ptm(sub_pae, d0_chn), 0.0).sum(axis=1) / np.maximum(counts, 1)
 
-        residues_1 = {i for i in rows if valid[i].any()}
-        residues_2 = {j for i in residues_1 for j in np.where(valid[i])[0]}
-        ptm_d0dom = ptm(pae, d0(len(residues_1) + len(residues_2)))
-        byres_d0dom = np.array([ptm_d0dom[i, valid[i]].mean() if valid[i].any() else 0.0 for i in rows])
+        n_dom = int((counts > 0).sum() + valid.any(axis=0).sum())
+        d0_dom = d0(n_dom)
+        byres_d0dom = np.where(valid, ptm(sub_pae, d0_dom), 0.0).sum(axis=1) / np.maximum(counts, 1)
 
-        d0res_byres = d0_array(valid.sum(axis=1))
-        byres_d0res = np.array([ptm(pae[i, valid[i]], d0res_byres[i]).mean() if valid[i].any() else 0.0 for i in rows])
+        d0_res = d0_array(counts)[:, None]
+        byres_d0res = np.where(valid, ptm(sub_pae, d0_res), 0.0).sum(axis=1) / np.maximum(counts, 1)
 
-        cross_pae = pae[np.outer(mask1, mask2)]
+        cross_pae = sub_pae.ravel()
         cross_pae = cross_pae[cross_pae < 12]
         lis = float(((12 - cross_pae) / 12).mean()) if cross_pae.size else 0.0
 

@@ -4,8 +4,13 @@ import os
 import sys
 from Bio.PDB import PDBParser
 
+import numpy as np
+
 sys.path.append(os.path.dirname(__file__))
-from design_utils import THREE_TO_ONE, heavy_atoms, load_config, min_residue_distance
+from design_utils import (
+    THREE_TO_ONE, build_contig_string, heavy_atoms, load_config,
+    min_residue_distance, residue_distance_matrix,
+)
 
 
 def consolidate_flexible(all_ids, flexible, min_fixed):
@@ -66,11 +71,15 @@ def main():
     residues_A = [res for res in chain_A if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
     residues_B = [res for res in chain_B if res.id[0] == ' ' and len(heavy_atoms(res)) > 0]
 
+    # Pre-compute inter-chain distance matrix
+    dist_AB = residue_distance_matrix(residues_A, residues_B)
+
     # Interface residues of chain A, with the number of B residues each one contacts (the count ranks the
     # PPI hotspots handed to RFD3 for the rescue diffusion below, so it is not just a boolean test).
     interface_A, contacts_A = [], {}
-    for res_A in residues_A:
-        n_contacts = sum(1 for res_B in residues_B if min_residue_distance(res_A, res_B) <= dist_thresh)
+    contacts_per_A = (dist_AB <= dist_thresh).sum(axis=1) if dist_AB.size else []
+    for idx_A, res_A in enumerate(residues_A):
+        n_contacts = int(contacts_per_A[idx_A])
         if n_contacts:
             interface_A.append(res_A)
             contacts_A[res_A.id[1]] = n_contacts
@@ -79,13 +88,13 @@ def main():
         print("Warning: No interface residues found with current distance threshold. Using first 3 residues.")
         interface_A = residues_A[:3]
 
+    # Pre-compute intra-chain distance matrix from all Chain A residues to interface_A
+    dist_AA = residue_distance_matrix(residues_A, interface_A)
+
     # Define mutable residues on Chain A (ALL interface residues + immediate spatial neighbors)
-    mutable_A = set(interface_A)
-    for res_A in residues_A:
-        for if_res in interface_A:
-            if min_residue_distance(res_A, if_res) <= neighborhood_radius:
-                mutable_A.add(res_A)
-                break
+    is_neighbor_A = (dist_AA <= neighborhood_radius).any(axis=1) if dist_AA.size else []
+    mutable_A = {res_A for idx_A, res_A in enumerate(residues_A) if is_neighbor_A[idx_A]}
+    mutable_A.update(interface_A)
 
     neighborhood_ids = sorted(list(set([res.id[1] for res in mutable_A])))
 
@@ -93,12 +102,12 @@ def main():
     fixed_ids_A = [res.id[1] for res in residues_A if res.id[1] not in neighborhood_ids]
 
     # Mutable residues on B (for B' rescue design: all residues of B contacting interface_A)
-    mutable_B = set()
-    for res_B in residues_B:
-        for if_res in interface_A:
-            if min_residue_distance(res_B, if_res) <= dist_thresh + 1.0:
-                mutable_B.add(res_B)
-                break
+    iface_set_A = set(interface_A)
+    iface_idx_A = [i for i, r in enumerate(residues_A) if r in iface_set_A]
+    dist_ifaceA_B = dist_AB[iface_idx_A, :] if iface_idx_A and dist_AB.size else np.empty((0, len(residues_B)), dtype=np.float32)
+
+    is_mutable_B = (dist_ifaceA_B <= dist_thresh + 1.0).any(axis=0) if dist_ifaceA_B.size else np.array([False] * len(residues_B))
+    mutable_B = {res_B for idx_B, res_B in enumerate(residues_B) if is_mutable_B[idx_B]}
     neighborhood_ids_B = sorted(list(set([res.id[1] for res in mutable_B])))
     # Turn that scattered selection into real loops before it becomes an RFD3 contig (see consolidate_flexible).
     # Measured on the reference system: 5 of 8 fixed contig segments were 1-2 residues and two diffused segments
@@ -114,6 +123,7 @@ def main():
     DONORS_B = {'ARG', 'LYS', 'HIS', 'TRP'}
     ACCEPTORS_B = {'ASP', 'GLU'}
     AMPHOTERIC_POLAR_B = {'ASN', 'GLN', 'SER', 'THR', 'TYR'}
+    allow_steric = config['pipeline'].get('rupture_allow_steric_hydrophobic', True)
 
     for res_A in interface_A:
         aid = str(res_A.id[1])
@@ -121,11 +131,9 @@ def main():
         bias_dict = {}
 
         # 1. Find interacting partners on Chain B
-        partners_B = []
-        for res_B in residues_B:
-            dist = min_residue_distance(res_A, res_B)
-            if dist <= dist_thresh:
-                partners_B.append((dist, res_B))
+        idx_A = residues_A.index(res_A)
+        dists_to_B = dist_AB[idx_A, :]
+        partners_B = [(float(dists_to_B[j]), res_B) for j, res_B in enumerate(residues_B) if dists_to_B[j] <= dist_thresh]
 
         partners_B.sort(key=lambda x: x[0])
         if not partners_B:
@@ -154,9 +162,17 @@ def main():
                 })
             # Rule D: B is Hydrophobic -> Insert Soluble Charge into the pocket (forces severe desolvation penalty for B_WT)
             else:
-                bias_dict.update({
-                    "GLU": 2.0, "ARG": 2.0, "ASN": 1.5, "TYR": 1.5
-                })
+                if allow_steric and contacts_A.get(res_A.id[1], 0) >= 4:
+                    if wt_resname in ('ALA', 'VAL', 'SER', 'GLY'):
+                        bias_dict.update({"TRP": 2.0, "PHE": 2.0, "TYR": 2.0})
+                    elif wt_resname in ('TRP', 'PHE', 'LEU', 'ILE', 'MET'):
+                        bias_dict.update({"ALA": 1.5, "VAL": 1.5, "GLU": 1.5, "ARG": 1.5})
+                    else:
+                        bias_dict.update({"GLU": 2.0, "ARG": 2.0, "ASN": 1.5, "TYR": 1.5})
+                else:
+                    bias_dict.update({
+                        "GLU": 2.0, "ARG": 2.0, "ASN": 1.5, "TYR": 1.5
+                    })
 
         # 2. Discourage the wild-type residue and glycine LAST, and never leave them positive. Applying the
         # penalty first let a rule that happens to recommend the wild-type residue overwrite it and actively
@@ -174,60 +190,25 @@ def main():
     res_ids_A = sorted(list(set(res.id[1] for res in residues_A)))
     interface_ids = sorted(list(set(res.id[1] for res in interface_A)))
     
+    if not res_ids_A:
+        print("Error: No residues found on chain A.")
+        sys.exit(1)
+        
+    if not interface_ids:
+        print("Error: No interface residues found, cannot design 0 residues.")
+        sys.exit(1)
+
     # Consolidate flexible interface segments of Chain A (absorbs 1-2 residue fixed anchors within loops).
     # This prevents rigid pinning of interface loops (e.g. A8-8, A11-11, A36-36) while strictly keeping
     # the entire hydrophobic core and non-interface framework locked.
     min_fixed_A = int(config['pipeline'].get('rupture_min_fixed_segment', 3))
     flexible_ids_A = set(consolidate_flexible(res_ids_A, set(interface_ids), min_fixed_A))
 
-    contig_parts = []
-    if not res_ids_A:
-        print("Error: No residues found on chain A.")
-        sys.exit(1)
-        
-    if not flexible_ids_A:
-        print("Error: No interface residues found, cannot design 0 residues.")
-        sys.exit(1)
-
-    current_mode = 'fixed' if res_ids_A[0] not in flexible_ids_A else 'flexible'
-    current_start = res_ids_A[0]
-    current_len = 0
-
-    for i, rid in enumerate(res_ids_A):
-        mode = 'flexible' if rid in flexible_ids_A else 'fixed'
-        
-        if mode != current_mode:
-            if current_mode == 'fixed':
-                # end of fixed block
-                contig_parts.append(f"{chain_A_id}{current_start}-{res_ids_A[i-1]}")
-            else:
-                # end of flexible block
-                contig_parts.append(f"{current_len}-{current_len}")
-            
-            current_mode = mode
-            current_start = rid
-            current_len = 1
-        else:
-            current_len += 1
-
-    # append the last block
-    if current_mode == 'fixed':
-        contig_parts.append(f"{chain_A_id}{current_start}-{res_ids_A[-1]}")
-    else:
-        contig_parts.append(f"{current_len}-{current_len}")
-
-    contig_str = ",".join(contig_parts)
+    contig_str = build_contig_string(chain_A_id, res_ids_A, flexible_ids_A)
     
     # Cropping Chain B
-    cropped_residues_B = []
-    for res_B in residues_B:
-        is_close = False
-        for res_A in interface_A:
-            if min_residue_distance(res_B, res_A) <= crop_dist:
-                is_close = True
-                break
-        if is_close:
-            cropped_residues_B.append(res_B)
+    is_cropped_B = (dist_ifaceA_B <= crop_dist).any(axis=0) if dist_ifaceA_B.size else np.array([False] * len(residues_B))
+    cropped_residues_B = [res_B for idx_B, res_B in enumerate(residues_B) if is_cropped_B[idx_B]]
             
     if cropped_residues_B:
         min_B = cropped_residues_B[0].id[1]
@@ -328,29 +309,8 @@ def main():
     else:
         # Fallback de-novo loop hallucination (infer_ori_strategy: hotspots)
         res_ids_B_cropped = sorted(list(set(res.id[1] for res in cropped_residues_B))) if cropped_residues_B else sorted(list(set(res.id[1] for res in residues_B)))
-        contig_parts_B = []
-        if res_ids_B_cropped:
-            curr_mode_B = 'fixed' if res_ids_B_cropped[0] not in neighborhood_ids_B else 'flexible'
-            curr_start_B = res_ids_B_cropped[0]
-            curr_len_B = 0
-            for i, rid in enumerate(res_ids_B_cropped):
-                m_B = 'flexible' if rid in neighborhood_ids_B else 'fixed'
-                if m_B != curr_mode_B:
-                    if curr_mode_B == 'fixed':
-                        contig_parts_B.append(f"{chain_B_id}{curr_start_B}-{res_ids_B_cropped[i-1]}")
-                    else:
-                        contig_parts_B.append(f"{curr_len_B}-{curr_len_B}")
-                    curr_mode_B = m_B
-                    curr_start_B = rid
-                    curr_len_B = 1
-                else:
-                    curr_len_B += 1
-            if curr_mode_B == 'fixed':
-                contig_parts_B.append(f"{chain_B_id}{curr_start_B}-{res_ids_B_cropped[-1]}")
-            else:
-                contig_parts_B.append(f"{curr_len_B}-{curr_len_B}")
-
-        contig_rescue_str = f"{chain_A_id}{res_ids_A[0]}-{res_ids_A[-1]},/0," + ",".join(contig_parts_B)
+        contig_parts_B_str = build_contig_string(chain_B_id, res_ids_B_cropped, neighborhood_ids_B)
+        contig_rescue_str = f"{chain_A_id}{res_ids_A[0]}-{res_ids_A[-1]},/0,{contig_parts_B_str}"
         rfd3_rescue_inputs = {
             "design": {
                 "input": os.path.relpath(pdb_file, args.out_dir).replace("\\", "/"),

@@ -81,25 +81,25 @@ def generate_styled_excel(csv_path, xlsx_path):
     font_regular = Font(name="Segoe UI", size=10)
     font_code = Font(name="Consolas", size=9, bold=True)
 
-    for row_idx, row in df.iterrows():
+    for row_idx, row in enumerate(df.to_dict('records')):
         r_num = row_idx + 5
         ws1.row_dimensions[r_num].height = 20
         
         f_ortho_val = row.get('f_ortho', 0.0)
-        is_champ = f_ortho_val >= 0.20
-        is_ortho = f_ortho_val > 0.0
-        
-        row_fill = fill_champ if is_champ else (fill_pass if is_ortho else (fill_alt if row_idx % 2 == 1 else fill_white))
-
         dockq_val = row.get('dockq', 0.0)
         dockq_q = row.get('dockq_quality', 'N/A')
         fnat_val = row.get('fnat', 0.0)
         plddt_val = row.get('plddt_rescue', 0.0)
         status = str(row.get('status', 'ok'))
-        pass_dockq = bool(row.get('pass_dockq', (pd.notnull(dockq_val) and dockq_val >= 0.23)))
 
-        is_champ = f_ortho_val >= 0.20 and pass_dockq
-        is_ortho = f_ortho_val > 0.0 and pass_dockq
+        if 'passes' in df.columns:
+            passes = bool(row.get('passes', False))
+        else:
+            pass_dockq = bool(row.get('pass_dockq', (pd.notnull(dockq_val) and dockq_val >= 0.23)))
+            passes = bool(f_ortho_val > 0.0 and pass_dockq)
+
+        is_ortho = passes
+        is_champ = passes and (f_ortho_val >= 0.30)
         is_off_target = "off_target" in status or (pd.notnull(dockq_val) and dockq_val < 0.23)
         
         row_fill = fill_champ if is_champ else (fill_pass if is_ortho else (fill_alt if row_idx % 2 == 1 else fill_white))
@@ -159,7 +159,7 @@ def generate_styled_excel(csv_path, xlsx_path):
         col_letter = get_column_letter(col_idx)
         ws2.column_dimensions[col_letter].width = max(len(col_name) + 4, 14)
 
-    for row_idx, row in df.iterrows():
+    for row_idx, row in enumerate(df.to_dict('records')):
         for col_idx, col_name in enumerate(df.columns, start=1):
             val = row[col_name]
             cell = ws2.cell(row=row_idx + 2, column=col_idx, value=val)
@@ -178,7 +178,7 @@ def generate_interactive_html(csv_path, html_path):
     df = pd.read_csv(csv_path)
 
     rows_html = []
-    for idx, row in df.iterrows():
+    for idx, row in enumerate(df.to_dict('records')):
         iptm_r = float(row.get('iptm_rescue', 0.0))
         iptm_neg = float(row.get('iptm_negative', 0.0))
         iptm_rup = float(row.get('iptm_rupture', 0.0))
@@ -188,10 +188,15 @@ def generate_interactive_html(csv_path, html_path):
         f_nat = float(row.get('fnat', 0.0)) if pd.notnull(row.get('fnat')) else 0.0
         plddt = float(row.get('plddt_rescue', 0.0))
         status = str(row.get('status', 'ok'))
-        pass_dockq = bool(row.get('pass_dockq', (pd.notnull(dockq_val) and dockq_val >= 0.23)))
 
-        is_champ = f_ortho >= 0.20 and pass_dockq
-        is_ortho = f_ortho > 0.0 and pass_dockq
+        if 'passes' in df.columns:
+            passes = bool(row.get('passes', False))
+        else:
+            pass_dockq = bool(row.get('pass_dockq', (pd.notnull(dockq_val) and dockq_val >= 0.23)))
+            passes = bool(f_ortho > 0.0 and pass_dockq)
+
+        is_ortho = passes
+        is_champ = passes and (f_ortho >= 0.30)
         is_off_target = "off_target" in status or (pd.notnull(dockq_val) and dockq_val < 0.23)
         
         if is_off_target:
@@ -219,7 +224,7 @@ def generate_interactive_html(csv_path, html_path):
             <td>
                 <div class="metric-val" style="color: #64748b;">{iptm_rup:.4f}</div>
             </td>
-            <td style="font-weight: 700; font-size: 14px; color: {'#10b981' if f_ortho >= 0.20 else ('#38bdf8' if f_ortho > 0 else '#ef4444')};">{f_ortho:+.4f}</td>
+            <td style="font-weight: 700; font-size: 14px; color: {'#10b981' if f_ortho >= 0.30 else ('#38bdf8' if is_ortho else '#ef4444')};">{f_ortho:+.4f}</td>
             <td><b style="color: {'#10b981' if (pd.notnull(dockq_val) and dockq_val >= 0.49) else ('#f59e0b' if (pd.notnull(dockq_val) and dockq_val >= 0.23) else '#ef4444')};">{dockq_val if pd.notnull(dockq_val) else 0.0:.4f}</b> <small style="color: var(--text-muted);">({dockq_q})</small></td>
             <td>{f_nat:.3f}</td>
             <td><b>{plddt:.1f}%</b></td>
@@ -231,7 +236,7 @@ def generate_interactive_html(csv_path, html_path):
     max_iptm_r = df['iptm_rescue'].max() if not df.empty else 0.0
     max_f_ortho = df['f_ortho'].max() if not df.empty else 0.0
     total_designs = len(df)
-    ortho_count = len(df[df['f_ortho'] > 0])
+    ortho_count = int(df['passes'].fillna(False).astype(bool).sum()) if 'passes' in df.columns else int(((df['f_ortho'] > 0) & df.get('pass_dockq', True)).sum())
 
     html_content = f"""<!DOCTYPE html>
 <html lang="fr">

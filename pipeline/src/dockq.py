@@ -7,7 +7,7 @@ import numpy as np
 from Bio.PDB import PDBParser, Superimposer
 
 sys.path.append(os.path.dirname(__file__))
-from design_utils import match_residues, min_residue_distance, std_residues
+from design_utils import match_residues, min_residue_distance, residue_distance_matrix, std_residues
 
 _FAILED = {'dockq': 0.0, 'fnat': 0.0, 'irms': 99.9, 'lrms': 99.9, 'quality': 'Incorrect'}
 
@@ -36,20 +36,23 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
         return dict(_FAILED)
 
     nat_A, nat_B = std_residues(m_nat[chain_A]), std_residues(m_nat[chain_B])
+    nat_A_by_id = {r.id[1]: r for r in nat_A}
+    nat_B_by_id = {r.id[1]: r for r in nat_B}
+
     # model residues keyed by the NATIVE residue id
     mod_A = {n.id[1]: m for n, m in match_residues(m_nat[chain_A], m_mod[chain_A])}
     mod_B = {n.id[1]: m for n, m in match_residues(m_nat[chain_B], m_mod[chain_B])}
 
     # 1. Native contacts and interface residues
     native_contacts, iface_A, iface_B = set(), set(), set()
-    for rA in nat_A:
-        for rB in nat_B:
-            d = min_residue_distance(rA, rB)
-            if d <= contact_threshold:
-                native_contacts.add((rA.id[1], rB.id[1]))
-            if d <= interface_threshold:
-                iface_A.add(rA.id[1])
-                iface_B.add(rB.id[1])
+    if nat_A and nat_B:
+        dist_mat = residue_distance_matrix(nat_A, nat_B)
+        contact_i, contact_j = np.where(dist_mat <= contact_threshold)
+        native_contacts = {(nat_A[i].id[1], nat_B[j].id[1]) for i, j in zip(contact_i, contact_j)}
+        iface_i, _ = np.where(dist_mat <= interface_threshold)
+        _, iface_j = np.where(dist_mat <= interface_threshold)
+        iface_A = {nat_A[i].id[1] for i in iface_i}
+        iface_B = {nat_B[j].id[1] for j in iface_j}
 
     # 2. Fraction of native contacts recovered in the model
     if native_contacts:
@@ -61,10 +64,10 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
 
     # 3. Interface RMSD (C-alpha of interface residues of both chains)
     nat_ca, mod_ca = [], []
-    for chain_id, ids, mod in ((chain_A, sorted(iface_A), mod_A), (chain_B, sorted(iface_B), mod_B)):
+    for ids, nat_dict, mod in ((sorted(iface_A), nat_A_by_id, mod_A), (sorted(iface_B), nat_B_by_id, mod_B)):
         for i in ids:
-            r_nat, r_mod = m_nat[chain_id][i], mod.get(i)
-            if r_mod is not None and 'CA' in r_nat and 'CA' in r_mod:
+            r_nat, r_mod = nat_dict.get(i), mod.get(i)
+            if r_nat is not None and r_mod is not None and 'CA' in r_nat and 'CA' in r_mod:
                 nat_ca.append(r_nat['CA'])
                 mod_ca.append(r_mod['CA'])
     if len(nat_ca) >= 3:
@@ -75,13 +78,13 @@ def calculate_dockq(native_pdb, model_pdb_or_dir, chain_A='A', chain_B='B', cont
         irms = 99.9
 
     # 4. Ligand RMSD: fit model chain A on native chain A, RMSD of chain B C-alpha
-    ids_A = sorted(i for i, m in mod_A.items() if 'CA' in m and 'CA' in m_nat[chain_A][i])
-    ids_B = sorted(i for i, m in mod_B.items() if 'CA' in m and 'CA' in m_nat[chain_B][i])
+    ids_A = sorted(i for i, m in mod_A.items() if 'CA' in m and i in nat_A_by_id and 'CA' in nat_A_by_id[i])
+    ids_B = sorted(i for i, m in mod_B.items() if 'CA' in m and i in nat_B_by_id and 'CA' in nat_B_by_id[i])
     if len(ids_A) >= 3 and ids_B:
         sup = Superimposer()
-        sup.set_atoms([m_nat[chain_A][i]['CA'] for i in ids_A], [mod_A[i]['CA'] for i in ids_A])
+        sup.set_atoms([nat_A_by_id[i]['CA'] for i in ids_A], [mod_A[i]['CA'] for i in ids_A])
         sup.apply(list(m_mod.get_atoms()))
-        sq = [np.sum((m_nat[chain_B][i]['CA'].coord - mod_B[i]['CA'].coord) ** 2) for i in ids_B]
+        sq = [np.sum((nat_B_by_id[i]['CA'].coord - mod_B[i]['CA'].coord) ** 2) for i in ids_B]
         lrms = float(math.sqrt(np.mean(sq)))
     else:
         lrms = 99.9

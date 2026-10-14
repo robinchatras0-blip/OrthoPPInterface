@@ -298,9 +298,12 @@ def main():
                 with open(inputs_json, 'w') as f:
                     json.dump(rescue_json, f, indent=2)
                 rfd_bin = pcfg.get('local_rfdiffusion', 'bash pipeline/bin/rfd3')
+                seed = int(pcfg.get('seed', 42))
                 rfd_cmd = rfd_bin.split() + [
                     f"inputs={inputs_json}", f"out_dir={rfd_dir.replace(chr(92), '/')}",
                     f"n_batches={pcfg.get('rescue_diffusion_n_batches', 10)}", "diffusion_batch_size=1"]
+                if 'seed' in pcfg:
+                    rfd_cmd.append(f"seed={seed}")
                 env = os.environ.copy()
                 env['PYTHONUNBUFFERED'] = '1'
                 subprocess.run(rfd_cmd, check=True, env=env)
@@ -339,6 +342,7 @@ def main():
             mpnn_bin = pcfg.get('local_ligandmpnn', 'bash pipeline/bin/mpnn')
             mpnn_bs = min(16, max(1, per_scaffold))
             mpnn_nb = max(1, (per_scaffold + mpnn_bs - 1) // mpnn_bs)
+            seed = int(pcfg.get('seed', 42))
             mpnn_cmd = mpnn_bin.split() + [
                 "--structure_path", assembled.replace('\\', '/'),
                 "--out_directory", mpnn_out_dir.replace('\\', '/'),
@@ -348,6 +352,7 @@ def main():
                 "--batch_size", str(mpnn_bs),
                 "--number_of_batches", str(mpnn_nb),
                 "--temperature", temp_rescue,
+                "--seed", str(seed),
                 "--fixed_residues", ",".join(fixed_list),
                 "--bias_per_residue", json.dumps(rescue_bias),
                 "--write_structures", "True",
@@ -393,21 +398,32 @@ def main():
                          "scaffold_flex_rmsd": sc_m.get("flex_rmsd")})
         if not pool:
             continue
+        pack_results = {}
         if energy_enabled(config):
             print(f"  Packing the side chains of {len(pool)} designs (PyRosetta)...")
-            pack_structures(pack_jobs, config, os.path.join(motif_work_dir, "pack_status.json"))
+            res = pack_structures(pack_jobs, config, os.path.join(motif_work_dir, "pack_status.json"))
+            if isinstance(res, dict):
+                pack_results = res
         else:
             print("  WARNING: side-chain packing disabled (energy.enabled): redesigned B' residues have no side chain.")
             for c in pool:
                 strip_nan_lines(c["pair"])
-        for c in pool:
+        for k, c in enumerate(pool):
             ch_b = load_chain(c["pair"], chain_B_id)
             c["spec"] = candidate_specificity_score(a_chain, wt_A_chain, ch_b)
             c["seq"] = "".join(THREE_TO_ONE.get(r.get_resname(), 'X') for r in std_residues(ch_b)
                                if r.id[1] in c["mutable_ids"])
             c["conf"] = parse_mpnn_confidence(c["path"])
+            job_name = pack_jobs[k]["name"]
+            res_info = pack_results.get(job_name, {})
+            if "dG_pack" in res_info:
+                c["dG_pack"] = res_info["dG_pack"]
+            elif "total" in res_info:
+                c["dG_pack"] = -res_info["total"]
+            else:
+                c["dG_pack"] = None
 
-        # ---- Step 3: rank (negative-design proxy + LigandMPNN confidence) then diversify
+        # ---- Step 3: rank (negative-design proxy + LigandMPNN confidence + packing energy) then diversify
         hard_max_clash = int(lmpnn_cfg.get('hard_max_clashes_with_a_prime', max_clash_a + 2))
         ok = [c for c in pool if c["spec"]["clashes_a_prime"] <= max_clash_a]
         if not ok:
@@ -421,8 +437,15 @@ def main():
                 continue
         z_spec = zscore([c["spec"]["spec_score"] for c in ok])
         z_conf = zscore([c["conf"] for c in ok])
-        for c, zs, zc in zip(ok, z_spec, z_conf):
-            c["score"] = zs + zc
+        dG_vals = [c.get("dG_pack") for c in ok]
+        has_energy = any(v is not None for v in dG_vals)
+        if has_energy:
+            z_energy = [-z for z in zscore([v if v is not None else 0.0 for v in dG_vals])]
+        else:
+            z_energy = [0.0] * len(ok)
+
+        for c, zs, zc, ze in zip(ok, z_spec, z_conf, z_energy):
+            c["score"] = zs + zc + ze
         chosen = select_diverse([c["seq"] for c in ok], top_k_per_motif,
                                 scores=[c["score"] for c in ok],
                                 groups=[c["scaffold"] for c in ok], min_per_group=1)
@@ -441,6 +464,8 @@ def main():
                 "parent_a": a_cand_name, "pdb": dest, "scaffold_idx": cand["scaffold"],
                 "scaffold_is_native": cand["native"], "scaffold_flex_rmsd": cand["scaffold_flex_rmsd"],
                 "mpnn_confidence": cand["conf"], **cand["spec"]}
+            if cand.get("dG_pack") is not None:
+                metadata_pairs[pair_id]["dG_pack"] = cand["dG_pack"]
 
         # Persist after every motif, not only at the end: an interrupted run used to leave no metadata file at
         # all, so the motifs replayed from the cache above fell back to a bare {parent_a, pdb} entry and their

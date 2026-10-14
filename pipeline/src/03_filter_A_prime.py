@@ -6,7 +6,8 @@ import sys
 
 sys.path.append(os.path.dirname(__file__))
 from design_utils import interface_columns, load_chain, load_config, std_residues
-from folding_engine import get_chain_sequence, prepare_msa, predict_structures, calculate_ca_rmsd
+from folding_engine import calculate_ca_rmsd, get_chain_sequence, predict_structures, prepare_msa
+from scoring import ok
 
 
 def main():
@@ -110,6 +111,12 @@ def main():
             if plddt < plddt_min:
                 print(f"    FAIL-FAST: monomer stability too low ({plddt:.2f} < {plddt_min}). Candidate rejected.")
                 continue
+            if not ok(rmsd_monomer):
+                print(f"    FAIL-FAST: monomer RMSD is NaN (prediction missing or unalignable). Candidate rejected.")
+                continue
+            if rmsd_framework is not None and not ok(rmsd_framework):
+                print(f"    FAIL-FAST: framework RMSD is NaN. Candidate rejected.")
+                continue
             if rmsd_framework is not None and rmsd_framework > rmsd_framework_max:
                 print(f"    FAIL-FAST: framework RMSD too high ({rmsd_framework:.2f} > {rmsd_framework_max}). Hydrophobic core disturbed. Candidate rejected.")
                 continue
@@ -124,9 +131,7 @@ def main():
         for c in survivors:
             c["rupture_out"] = os.path.join(args.out_dir, "complex_rupture", c["name"])
             os.makedirs(c["rupture_out"], exist_ok=True)
-            msa_B_wt = os.path.join(c["rupture_out"], "Bwt.a3m")
-            prepare_msa(wt_a3m_B, seq_B_wt, msa_B_wt, config, interface_columns=cols_B)
-            reqs.append(([('A_prime', c["seq"], c["a3m"]), ('B_wt', seq_B_wt, msa_B_wt)], c["rupture_out"]))
+            reqs.append(([('A_prime', c["seq"], c["a3m"]), ('B_wt', seq_B_wt, msa_B_reg)], c["rupture_out"]))
         if reqs:
             print(f"Module 3: rupture folds for {len(reqs)} stable candidates...")
         for c, m in zip(survivors, predict_structures(reqs, config) if reqs else []):
