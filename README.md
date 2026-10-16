@@ -425,7 +425,7 @@ The suite covers the sequence/structure helpers, MSA construction, RF3 output pa
 ## 👥 Authors & Acknowledgments
 
 - **Lead Developer & Research**: [Robin Chatras](https://github.com/robinchatras0-blip)
-- **AI Pair Programming & Computational Engineering**: Co-developed in collaborative pair programming with **Antigravity** (Google DeepMind) and **Claude Code** (Anthropic). Both AI assistants were actively leveraged throughout the architectural design, algorithmic optimization, test suites, and publication-grade reporting modules of this project.
+- **AI Pair Programming & Computational Engineering**: Co-developed in collaborative pair programming with **Antigravity** (Google DeepMind) and **Claude Code** (Anthropic). Both AI assistants were actively leveraged throughout the architectural design, algorithmic optimization, or test suites.
 
 ---
 
