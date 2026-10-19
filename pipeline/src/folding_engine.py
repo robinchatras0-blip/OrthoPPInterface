@@ -109,6 +109,7 @@ def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_
     def single_sequence():
         with open(output_a3m_path, 'w') as f:
             f.write(f">query\n{target_sequence}\n")
+        _cached_read_a3m.cache_clear()
         stats["fallback"] = True
         return stats
 
@@ -162,6 +163,7 @@ def build_hybrid_msa(wt_a3m_path, target_sequence, modified_indices, output_a3m_
 
     with open(output_a3m_path, 'w') as f:
         f.writelines(out)
+    _cached_read_a3m.cache_clear()
     stats.update(n_rows=len(out), n_masked=len(modified),
                  frac_masked=len(modified) / max(1, len(target_sequence)))
     return stats

@@ -128,13 +128,13 @@ def test_complete_report_and_figures_generation(sample_full_cohort_csv, tmp_path
     assert html_content.count("<svg") >= 6, "HTML must contain at least 6 inline SVG figures"
 
     # Executive key takeaways and metrics
-    assert "Synthèse Diagnostique &amp; Clés d'Analyse" in html_content or "Synthèse Diagnostique" in html_content
+    assert "Diagnostic Summary &amp; Key Takeaways" in html_content or "Diagnostic Summary" in html_content
     assert "2 / 4 designs (50.0%)" in html_content
     assert "Des_01_Champion" in html_content
 
     # Podium cards
-    assert "Podium des 3 Meilleurs Candidats" in html_content
-    assert "🥇 1er - Champion" in html_content
+    assert "Top 3 Champions Podium" in html_content
+    assert "🥇 1st - Champion" in html_content
 
     # Quick filters & Interactive controls
     assert "setQuickFilter('all'" in html_content
@@ -147,11 +147,11 @@ def test_complete_report_and_figures_generation(sample_full_cohort_csv, tmp_path
     assert "Raw All-Atom Metrics" in wb.sheetnames
 
     ws1 = wb["Executive Summary"]
-    assert ws1["A1"].value == "ORTHOPPINTERFACE - RAPPORT D'ORTHOGONALITÉ PROTÉINE-PROTÉINE"
+    assert ws1["A1"].value == "ORTHOPPINTERFACE - PROTEIN-PROTEIN ORTHOGONALITY REPORT"
     assert ws1["K5"].value == "CHAMPION ORTHOGONAL"
     assert ws1["K6"].value == "ORTHOGONAL"
     assert ws1["K7"].value == "NON ORTHOGONAL"
-    assert "HORS-CIBLE" in str(ws1["K8"].value)
+    assert "OFF-TARGET" in str(ws1["K8"].value)
 
 
 def test_edge_case_empty_dataframe(tmp_path):

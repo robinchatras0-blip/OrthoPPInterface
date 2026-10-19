@@ -16,11 +16,13 @@ pipeline/runs
 .pytest_cache/
 pipeline/.pytest_cache/
 
-# Configurations locales / serveurs
+# Local and server configurations
 config_server*.yaml
 *.local.yaml
 
-# Scripts d'analyse ponctuels, wiki et données hors code logiciel
+# Ad-hoc analysis scripts, wiki, agent configs, and non-software data
+.agents/
+src/
 scripts/
 wiki/
 DOSSIER_CHAMPIONS/

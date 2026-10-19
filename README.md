@@ -167,14 +167,14 @@ For every designed pair, all four folds are run under the same MSA regime:
   - `orthogonality_scores.csv`: comprehensive database table of all scores and metrics.
   - `results.db`: SQLite database for SQL queries and downstream automation.
   - `SUMMARY.html` (and `orthogonality_scores.html`): self-contained, interactive scientific dashboard with embedded inline vector SVGs, executive takeaways, Top 3 podium cards, parent motif summary, per-row rejection badges, and client-side JavaScript table filtering/sorting.
-  - `SUMMARY.xlsx` (and `orthogonality_scores.xlsx`): enriched multi-tab Excel workbook aligning strictly on Module 5 `passes` verdict, with conditional formatting, column auto-sizing, and dedicated sheets (`Résumé Exécutif`, `Rankings Complets`, `Matrice d'Orthogonalité`).
+  - `SUMMARY.xlsx` (and `orthogonality_scores.xlsx`): enriched multi-tab Excel workbook aligning strictly on Module 5 `passes` verdict, with conditional formatting, column auto-sizing, and dedicated sheets (`Executive Summary`, `Complete Rankings`, `Orthogonality Matrix`).
   - `figures/`: dedicated directory containing the 6 publication-grade scientific figures in dual vector SVG and high-resolution 300 DPI PNG:
-    - **Figure 1**: Matrices de Réactivité Croisée 2x2 (`figure1_cross_reactivity.svg/.png`): Heatmaps d'orthogonalité (Panel 1A : iPTM RF3 ; Panel 1B : $\Delta G$ interface PyRosetta en REU ou ipSAE).
-    - **Figure 2**: Paysage de Spécificité & Front de Pareto (`figure2_specificity_landscape.svg/.png`): Score d'orthogonalité $F_{\text{ortho}}$ vs Qualité CAPRI DockQ, quadrants de viabilité et mise en avant des champions du Top 3.
-    - **Figure 3**: Distributions Comparées de la Triade d'Interactions (`figure3_interaction_triad.svg/.png`): Violins/Boxplots comparés (Panel 3A : iPTM Rescue vs Rupture vs Négatif vs Plafond WT ; Panel 3B : $\Delta G$ PyRosetta / Marges).
-    - **Figure 4**: Entonnoir de Qualité Structurale CAPRI & Cohérence Multimodale (`figure4_structural_funnel.svg/.png`): Panel 4A DockQ vs i-RMSD / L-RMSD avec seuils CAPRI Acceptable/Medium/High ; Panel 4B Corrélation bivariée RF3 vs PyRosetta.
-    - **Figure 5**: Dynamique Structurale & Profil Biophysique de Sauvetage (`figure5_induced_fit_biophysics.svg/.png`): Panel 5A Flexibilité du squelette $B'$ induced fit (`scaffold_flex_rmsd`) vs RMSD global ; Panel 5B Surface enfouie $\Delta\text{SASA}$ vs liaisons hydrogène insatisfaites `unsat_hb`.
-    - **Figure 6**: Entonnoir d'Attrition & Diagnostic des Filtres (`figure6_attrition_funnel.svg/.png`): Cascade de rétention des candidats étape par étape (Total évalués $\to$ Rescue iPTM $\to$ DockQ CAPRI $\to$ Rupture $A'\cdot B_{\text{WT}} \to$ Négatif $A_{\text{WT}}\cdot B' \to$ Énergie PyRosetta $\to$ Score $F_{\text{ortho}} \to$ Validés finaux).
+    - **Figure 1**: 2x2 Cross-Reactivity Matrices (`figure1_cross_reactivity.svg/.png`): Orthogonality heatmaps (Panel 1A: RF3 iPTM; Panel 1B: PyRosetta interface $\Delta G$ in REU or ipSAE).
+    - **Figure 2**: Specificity Landscape & Pareto Front (`figure2_specificity_landscape.svg/.png`): Orthogonality score $F_{\text{ortho}}$ vs CAPRI DockQ quality, viability quadrants, and top 3 champion highlights.
+    - **Figure 3**: Comparative Distributions of the Interaction Triad (`figure3_triad_distributions.svg/.png`): Comparative violin/boxplots (Panel 3A: iPTM Rescue vs Rupture vs Negative vs WT ceiling; Panel 3B: PyRosetta $\Delta G$ / margins).
+    - **Figure 4**: CAPRI Structural Quality Funnel & Multimodal Coherence (`figure4_structural_funnel.svg/.png`): Panel 4A DockQ vs i-RMSD / L-RMSD with CAPRI Acceptable/Medium/High cutoffs; Panel 4B Bivariate RF3 vs PyRosetta correlation.
+    - **Figure 5**: Structural Dynamics & Rescue Biophysical Profile (`figure5_induced_fit_biophysics.svg/.png`): Panel 5A $B'$ induced-fit backbone flexibility (`scaffold_flex_rmsd`) vs global RMSD; Panel 5B Buried surface area $\Delta\text{SASA}$ vs unsatisfied hydrogen bonds `unsat_hb`.
+    - **Figure 6**: Attrition Funnel & Filter Diagnostics (`figure6_attrition_funnel.svg/.png`): Step-by-step candidate retention cascade (Total evaluated $\to$ Rescue iPTM $\to$ CAPRI DockQ $\to$ Rupture $A'\cdot B_{\text{WT}} \to$ Negative $A_{\text{WT}}\cdot B' \to$ PyRosetta Energy $\to$ Score $F_{\text{ortho}} \to$ Final validated).
 
 ---
 
@@ -392,7 +392,7 @@ Automatically generated in both `05_final_eval/` and the experiment root `runs/<
   - Embedded inline vector SVG figures (publication grade).
   - Searchable, sortable, and filterable data table with per-row rejection badges (`Fails DockQ`, `High Rupture`, `Cross-reactive`, `Negative Ortho Margin`).
 - **`SUMMARY.xlsx` / `orthogonality_scores.xlsx`**: Multi-tab formatted Excel report strictly aligned on Module 5 `passes` verdict:
-  - Dedicated sheets: *Résumé Exécutif*, *Rankings Complets*, and *Matrice d'Orthogonalité*.
+  - Dedicated sheets: *Executive Summary*, *Complete Rankings*, and *Orthogonality Matrix*.
   - Color-coded conditional formatting (green/amber/red) and auto-adjusted column widths.
 - **`figures/`**: Dedicated subfolder containing the 6 scientific publication figures exported in both vector `.svg` and high-resolution 300 DPI `.png`:
   1. `figure1_cross_reactivity`: 2x2 Orthogonality Heatmaps (RF3 iPTM confidence matrix & PyRosetta interface energy $\Delta G$).

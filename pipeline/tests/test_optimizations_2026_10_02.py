@@ -214,7 +214,7 @@ def test_dockq_gate_disqualifies_off_target_and_ranks_correctly(tmp_path):
     with open(html_file, encoding="utf-8") as f:
         html_text = f.read()
 
-    assert "Hors-cible (DockQ 0.009)" in html_text, "HTML must display Hors-cible badge for DockQ < 0.23"
+    assert ("Off-target (DockQ 0.009)" in html_text or "Hors-cible (DockQ 0.009)" in html_text), "HTML must display Off-target badge for DockQ < 0.23"
     assert "Orthogonal" in html_text, "HTML must display Orthogonal badge for passing candidate"
 
 
