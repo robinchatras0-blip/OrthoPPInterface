@@ -242,4 +242,4 @@ def test_export_styled_reports_adheres_to_passes_verdict(tmp_path):
     assert '<span class="badge badge-champion">Champion Orthogonal</span>' in html_content
     assert '<span class="badge badge-success">Orthogonal</span>' in html_content
     assert '<span class="badge badge-negative">Non Orthogonal</span>' in html_content
-    assert 'Hors-cible' in html_content
+    assert 'Off-target' in html_content or 'Hors-cible' in html_content

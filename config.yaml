@@ -89,10 +89,10 @@ thresholds:
     iptm_negative_max: 0.65           # cross-reactivity with WT A reduced vs ceiling
   orthogonality:
     f_ortho_min: 0.02                 # positive orthogonal margin
-  dockq_min: 0.23                     # Seuil CAPRI Acceptable (0.80 achieved on champion)
-  lrms_max: 15.0                      # Distance max ligand RMSD (A) par rapport au site natif
+  dockq_min: 0.23                     # CAPRI Acceptable threshold (0.80 achieved on champion)
+  lrms_max: 15.0                      # Maximum ligand RMSD (A) relative to native binding site
   early_exit:
     rescue_iptm_floor: 0.25           # rescue iPTM below this: no cross/rupture fold, no energy
-    require_dockq: true               # Stoppe prematurement les faux positifs aberrants (hors-cible)
+    require_dockq: true               # Early exit on aberrant off-target poses
   fail_fast:
     max_passing_candidates: 12

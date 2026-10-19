@@ -5,7 +5,7 @@ Features:
 - Strict alignment on Module 5 'passes' verdict as single source of truth.
 - 6 Scientific figures (Nature / Science / Bioinformatics standards) exported inline (SVG)
   and saved to <out_dir>/figures/ as .svg and .png (300 DPI).
-- French UTF-8 encoding restored, dead code removed.
+- Clean UTF-8 encoding, publication-grade figures, English standard.
 - Interactive dashboard with key takeaways, Top 3 podium cards, parent motif summary,
   fast JS filtering and column sorting, plus detailed per-row rejection diagnostics.
 """
@@ -77,7 +77,7 @@ def _safe_col(df, col, default=0.0):
 
 
 # ===========================================================================
-# FIGURE 1: Matrices de Réactivité Croisée 2x2 du Meilleur Candidat
+# FIGURE 1: 2x2 Cross-Reactivity Matrices of the Champion Candidate
 # ===========================================================================
 def plot_cross_reactivity_matrix(df, fig_dir=None):
     """Figure 1: Orthogonality Cross-Reactivity 2x2 Heatmaps (Boyken et al., Science 2016 style).
@@ -86,8 +86,8 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
     Panel 1B: PyRosetta interface dG in REU (or ipSAE Dunbrack 2025 if PyRosetta is off).
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 1 : Matrices de Réactivité Croisée",
-                            "Aucune donnée de conception disponible", fig_dir, "figure1_cross_reactivity")
+        return _empty_figure("Figure 1: Cross-Reactivity Matrices",
+                            "No design data available", fig_dir, "figure1_cross_reactivity")
 
     # Select champion design
     sort_cols = [c for c in ['passes', 'f_ortho', 'dockq'] if c in df.columns]
@@ -127,11 +127,11 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
     ax_a.set_yticks([0, 1])
     ax_a.set_xticklabels([r'$B_{WT}$', r"$B'$"], fontsize=12, fontweight='bold', color='#1e293b')
     ax_a.set_yticklabels([r'$A_{WT}$', r"$A'$"], fontsize=12, fontweight='bold', color='#1e293b')
-    ax_a.set_title("1A : Confiance RF3 iPTM\n(Boyken et al. 2016)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
+    ax_a.set_title("1A: RF3 iPTM Confidence\n(Boyken et al. 2016)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
     roles_a = [
-        ["Plafond Sauvage\n(WT · WT)", "Hors-Cible Négatif\n(A_WT · B')"],
-        ["Rupture Spécifique\n(A' · B_WT)", "Sauvetage Orthogonal\n(A' · B')"]
+        ["WT Ceiling\n(WT · WT)", "Negative Off-Target\n(A_WT · B')"],
+        ["Specific Rupture\n(A' · B_WT)", "Orthogonal Rescue\n(A' · B')"]
     ]
 
     for i in range(2):
@@ -142,7 +142,7 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
             ax_a.text(j, i + 0.18, roles_a[i][j], ha='center', va='center', fontsize=8.5, color=txt_color, style='italic')
 
     cbar_a = fig.colorbar(im_a, ax=ax_a, fraction=0.046, pad=0.04)
-    cbar_a.set_label('Score iPTM (0-1)', fontsize=10, color='#334155')
+    cbar_a.set_label('iPTM Score (0–1)', fontsize=10, color='#334155')
 
     # --- 1B: PyRosetta dG or ipSAE ---
     ax_b = axes[1]
@@ -158,7 +158,7 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
         ])
         vabs = max(15.0, np.nanmax(np.abs(mat_energy)))
         im_b = ax_b.imshow(mat_energy, cmap='RdBu_r', vmin=-vabs, vmax=vabs, aspect='auto')
-        ax_b.set_title("1B : Énergie Libre d'Interface PyRosetta\n(ΔG en REU - Bleu = Liaison Forte)",
+        ax_b.set_title("1B: PyRosetta Interface Free Energy\n(ΔG in REU - Blue = Strong Binding)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
         for i in range(2):
@@ -170,7 +170,7 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
                 ax_b.text(j, i + 0.18, roles_a[i][j], ha='center', va='center', fontsize=8.5, color=txt_color, style='italic')
 
         cbar_b = fig.colorbar(im_b, ax=ax_b, fraction=0.046, pad=0.04)
-        cbar_b.set_label('ΔG Interface (REU)', fontsize=10, color='#334155')
+        cbar_b.set_label('Interface ΔG (REU)', fontsize=10, color='#334155')
 
     elif has_ipsae:
         ips_ceil = float(champ.get('ipsae_ceiling', 0.8)) if pd.notnull(champ.get('ipsae_ceiling')) else 0.8
@@ -183,7 +183,7 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
             [ips_rup,  ips_resc]
         ])
         im_b = ax_b.imshow(mat_ips, cmap='Purples', vmin=0.0, vmax=1.0, aspect='auto')
-        ax_b.set_title("1B : Métrique ipSAE (Dunbrack 2025)\n(Résolution Locale PAE)",
+        ax_b.set_title("1B: ipSAE Metric (Dunbrack 2025)\n(Local PAE Resolution)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
         for i in range(2):
@@ -194,26 +194,26 @@ def plot_cross_reactivity_matrix(df, fig_dir=None):
                 ax_b.text(j, i + 0.18, roles_a[i][j], ha='center', va='center', fontsize=8.5, color=txt_color, style='italic')
 
         cbar_b = fig.colorbar(im_b, ax=ax_b, fraction=0.046, pad=0.04)
-        cbar_b.set_label('Score ipSAE (0-1)', fontsize=10, color='#334155')
+        cbar_b.set_label('ipSAE Score (0–1)', fontsize=10, color='#334155')
     else:
-        ax_b.text(0.5, 0.5, "PyRosetta & ipSAE désactivés\nSeul RF3 iPTM est disponible",
+        ax_b.text(0.5, 0.5, "PyRosetta & ipSAE disabled\nOnly RF3 iPTM is available",
                   ha='center', va='center', fontsize=11, color='#64748b')
-        ax_b.set_title("1B : Physique Explicite (Non Exécutée)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
+        ax_b.set_title("1B: Explicit Physics (Not Run)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
     ax_b.set_xticks([0, 1])
     ax_b.set_yticks([0, 1])
     ax_b.set_xticklabels([r'$B_{WT}$', r"$B'$"], fontsize=12, fontweight='bold', color='#1e293b')
     ax_b.set_yticklabels([r'$A_{WT}$', r"$A'$"], fontsize=12, fontweight='bold', color='#1e293b')
 
-    fig.suptitle(f"Figure 1 : Matrices d'Orthogonalité & Réactivité Croisée — Candidat Champion : {did}\n"
-                 "Démontre la diagonalisation d'interaction (forte affinité WT:WT & A':B', extinction hors-cible)",
+    fig.suptitle(f"Figure 1: Orthogonality & Cross-Reactivity Matrices — Champion Candidate: {did}\n"
+                 "Demonstrates interaction diagonalization (strong WT:WT & A':B' affinity, off-target extinction)",
                  fontsize=12.5, fontweight='bold', color='#0f172a', y=0.96)
 
     return _save_and_close_fig(fig, fig_dir, "figure1_cross_reactivity")
 
 
 # ===========================================================================
-# FIGURE 2: Paysage de Spécificité & Isolignes de Marge
+# FIGURE 2: Specificity Landscape & Margin Isolines
 # ===========================================================================
 def plot_specificity_landscape(df, fig_dir=None):
     """Figure 2: Specificity Landscape: On-Target vs Worst Off-Target with margin isolines.
@@ -222,8 +222,8 @@ def plot_specificity_landscape(df, fig_dir=None):
     Y-axis: Orthogonal rescue affinity iPTM_rescue.
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 2 : Paysage de Spécificité & Isolignes de Marge",
-                            "Aucune donnée de conception disponible", fig_dir, "figure2_specificity_landscape")
+        return _empty_figure("Figure 2: Specificity Landscape & Margin Isolines",
+                            "No design data available", fig_dir, "figure2_specificity_landscape")
 
     x_vals = np.maximum(_safe_col(df, 'iptm_rupture', 0.0), _safe_col(df, 'iptm_negative', 0.0))
     y_vals = _safe_col(df, 'iptm_rescue', 0.0)
@@ -236,27 +236,27 @@ def plot_specificity_landscape(df, fig_dir=None):
     # Neutrality diagonal y = x
     line_range = np.linspace(0.0, 1.0, 100)
     ax.plot(line_range, line_range, color='#dc2626', linestyle='--', linewidth=1.8,
-            label='Diagonale de Neutralité : y = x (F_ortho,raw = 0)', zorder=2)
+            label='Neutrality Diagonal: y = x (F_ortho,raw = 0)', zorder=2)
     ax.fill_between(line_range, 0, line_range, color='#fee2e2', alpha=0.45,
-                    label='Zone Défavorable : Préférence pour le WT (y < x)', zorder=1)
+                    label='Unfavorable Zone: Preference for WT (y < x)', zorder=1)
 
     # Margin isolines y = x + delta
     for delta, color, ls in [(0.10, '#94a3b8', ':'), (0.20, '#64748b', ':'), (0.30, '#059669', '-.')]:
         y_iso = line_range + delta
         mask = y_iso <= 1.0
         ax.plot(line_range[mask], y_iso[mask], color=color, linestyle=ls, linewidth=1.4,
-                label=f'Isoligne Marge F_ortho = +{delta:.2f}', zorder=2)
+                label=f'Margin Isoline F_ortho = +{delta:.2f}', zorder=2)
 
     # Threshold horizontal / vertical reference lines
-    ax.axhline(0.65, color='#10b981', linestyle=':', linewidth=1.3, alpha=0.75, label='Seuil Sauvetage min (0.65)')
-    ax.axvline(0.35, color='#f59e0b', linestyle=':', linewidth=1.3, alpha=0.75, label='Seuil Rupture max (0.35)')
+    ax.axhline(0.65, color='#10b981', linestyle=':', linewidth=1.3, alpha=0.75, label='Min Rescue Threshold (0.65)')
+    ax.axvline(0.35, color='#f59e0b', linestyle=':', linewidth=1.3, alpha=0.75, label='Max Rupture Threshold (0.35)')
 
     # Ceiling if available
     ceilings = df['iptm_ceiling'].dropna() if 'iptm_ceiling' in df.columns else pd.Series(dtype=float)
     if len(ceilings) > 0 and ceilings.median() > 0:
         med_ceil = ceilings.median()
         ax.axhline(med_ceil, color='#7c3aed', linestyle='--', linewidth=1.3, alpha=0.7,
-                   label=f'Plafond Sauvage Médian ({med_ceil:.2f})')
+                   label=f'Median WT Ceiling ({med_ceil:.2f})')
 
     # Categorize designs
     pass_col = df['passes'].fillna(False).astype(bool) if 'passes' in df.columns else (
@@ -274,17 +274,17 @@ def plot_specificity_landscape(df, fig_dir=None):
     # Scatter points by category
     if is_off_target.any():
         ax.scatter(x_vals[is_off_target], y_vals[is_off_target], marker='x', s=65, color='#ef4444',
-                   linewidths=1.8, label=f'Hors-cible CAPRI (DockQ < 0.23, n={is_off_target.sum()})', zorder=4)
+                   linewidths=1.8, label=f'CAPRI Off-target (DockQ < 0.23, n={is_off_target.sum()})', zorder=4)
 
     if is_rejected_affinity.any():
         ax.scatter(x_vals[is_rejected_affinity], y_vals[is_rejected_affinity], marker='s', s=70,
                    facecolors='#fed7aa', edgecolors='#d97706', linewidths=1.3,
-                   label=f'Rejeté Spécificité / Énergie (n={is_rejected_affinity.sum()})', zorder=5)
+                   label=f'Rejected Specificity / Energy (n={is_rejected_affinity.sum()})', zorder=5)
 
     if is_ortho.any():
         ax.scatter(x_vals[is_ortho], y_vals[is_ortho], marker='o', s=85,
                    facecolors='#bae6fd', edgecolors='#0284c7', linewidths=1.5,
-                   label=f'Orthogonal Validé (n={is_ortho.sum()})', zorder=6)
+                   label=f'Validated Orthogonal (n={is_ortho.sum()})', zorder=6)
 
     if is_champ.any():
         ax.scatter(x_vals[is_champ], y_vals[is_champ], marker='*', s=240,
@@ -323,15 +323,15 @@ def plot_specificity_landscape(df, fig_dir=None):
 
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.05)
-    ax.set_xlabel("Pire Réaction Croisée Sauvage : max(iPTM rupture, iPTM négatif)\n"
-                  "← Meilleure Sélectivité Contre le WT (Extinction Désirée)",
+    ax.set_xlabel("Worst Wild-Type Cross-Reaction: max(iPTM rupture, iPTM negative)\n"
+                  "← Better Selectivity Against WT (Desired Extinction)",
                   fontsize=11, fontweight='bold', color='#1e293b', labelpad=8)
-    ax.set_ylabel("Affinité de Sauvetage : iPTM rescue (A' · B')\n"
-                  "↑ Meilleure Affinité Orthogonale Réelle",
+    ax.set_ylabel("Rescue Affinity: iPTM rescue (A' · B')\n"
+                  "↑ Higher True Orthogonal Affinity",
                   fontsize=11, fontweight='bold', color='#1e293b', labelpad=8)
 
-    ax.set_title("Figure 2 : Paysage de Spécificité & Isolignes de Marge d'Orthogonalité\n"
-                 "Isolement de la fenêtre orthogonale supérieure face aux réactions croisées sauvages",
+    ax.set_title("Figure 2: Specificity Landscape & Orthogonality Margin Isolines\n"
+                 "Isolation of the upper orthogonal window against wild-type cross-reactions",
                  fontsize=12, fontweight='bold', color='#0f172a', pad=14)
 
     ax.legend(loc='lower right', fontsize=8.5, framealpha=0.95, facecolor='#ffffff', edgecolor='#cbd5e1')
@@ -340,7 +340,8 @@ def plot_specificity_landscape(df, fig_dir=None):
 
 
 # ===========================================================================
-# FIGURE 3: Distributions de la Triade d'Interaction (Violin / Box + Jitter)
+# ===========================================================================
+# FIGURE 3: Interaction Triad Distributions (Violin / Box + Jitter)
 # ===========================================================================
 def plot_interaction_triad_distributions(df, fig_dir=None):
     """Figure 3: Interaction triad distributions (Violin / Box + Swarm Strip Plot + Trajectories).
@@ -348,8 +349,8 @@ def plot_interaction_triad_distributions(df, fig_dir=None):
     Panels: 3A (RF3 iPTM distributions) and 3B (ipSAE Dunbrack 2025 distributions).
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 3 : Distributions de la Triade d'Interaction",
-                            "Aucune donnée de conception disponible", fig_dir, "figure3_triad_distributions")
+        return _empty_figure("Figure 3: Interaction Triad Distributions",
+                            "No design data available", fig_dir, "figure3_triad_distributions")
 
     fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.8), facecolor='#ffffff')
     plt.subplots_adjust(wspace=0.28, top=0.75, bottom=0.16)
@@ -359,10 +360,10 @@ def plot_interaction_triad_distributions(df, fig_dir=None):
     ax_a.set_facecolor('#f8fafc')
     ax_a.grid(True, linestyle='--', color='#e2e8f0', alpha=0.7, zorder=1)
 
-    labels_a = [r'$WT \cdot WT$' + '\n(Plafond)',
+    labels_a = [r'$WT \cdot WT$' + '\n(Ceiling)',
                 r"$A' \cdot B_{WT}$" + '\n(Rupture)',
-                r"$A_{WT} \cdot B'$" + '\n(Négatif)',
-                r"$A' \cdot B'$" + '\n(Sauvetage)']
+                r"$A_{WT} \cdot B'$" + '\n(Negative)',
+                r"$A' \cdot B'$" + '\n(Rescue)']
 
     data_a = [
         df['iptm_ceiling'].dropna().values if 'iptm_ceiling' in df.columns else np.array([]),
@@ -398,14 +399,14 @@ def plot_interaction_triad_distributions(df, fig_dir=None):
         if not any(pd.isna(y_pts)):
             ax_a.plot([2, 3, 4], y_pts, color='#10b981', linewidth=1.5, alpha=0.7, zorder=4)
 
-    ax_a.axhline(0.35, color='#ef4444', linestyle=':', linewidth=1.3, label='Seuil Rupture max (0.35)')
-    ax_a.axhline(0.65, color='#10b981', linestyle=':', linewidth=1.3, label='Seuil Sauvetage min (0.65)')
+    ax_a.axhline(0.35, color='#ef4444', linestyle=':', linewidth=1.3, label='Max Rupture Threshold (0.35)')
+    ax_a.axhline(0.65, color='#10b981', linestyle=':', linewidth=1.3, label='Min Rescue Threshold (0.65)')
 
     ax_a.set_xticks([1, 2, 3, 4])
     ax_a.set_xticklabels(labels_a, fontsize=10, fontweight='bold', color='#1e293b')
     ax_a.set_ylim(-0.05, 1.05)
-    ax_a.set_ylabel('Score iPTM (0-1)', fontsize=11, fontweight='bold', color='#1e293b')
-    ax_a.set_title("3A : Triade d'Interaction RF3\n(Lignes vertes = Candidats Validés)",
+    ax_a.set_ylabel('iPTM Score (0–1)', fontsize=11, fontweight='bold', color='#1e293b')
+    ax_a.set_title("3A: RF3 Interaction Triad\n(Green lines = Validated Candidates)",
                    fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
     ax_a.legend(loc='lower left', fontsize=8.0, framealpha=0.9)
 
@@ -452,25 +453,25 @@ def plot_interaction_triad_distributions(df, fig_dir=None):
         ax_b.set_xticks([1, 2, 3, 4])
         ax_b.set_xticklabels(labels_b, fontsize=10, fontweight='bold', color='#1e293b')
         ax_b.set_ylim(-0.05, 1.05)
-        ax_b.set_ylabel('Score ipSAE (Dunbrack 2025)', fontsize=11, fontweight='bold', color='#1e293b')
-        ax_b.set_title("3B : ipSAE Dunbrack 2025\n(Validation Résiduelle Hors-Biais Alignement)",
+        ax_b.set_ylabel('ipSAE Score (Dunbrack 2025)', fontsize=11, fontweight='bold', color='#1e293b')
+        ax_b.set_title("3B: Dunbrack 2025 ipSAE\n(Residual Validation Free of Alignment Bias)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
     else:
-        ax_b.text(0.5, 0.5, "Données ipSAE non calculées sur ce run\n(Option activable via config.yaml)",
+        ax_b.text(0.5, 0.5, "ipSAE data not computed for this run\n(Option configurable via config.yaml)",
                   ha='center', va='center', fontsize=11, color='#64748b', fontweight='medium')
-        ax_b.set_title("3B : ipSAE Dunbrack 2025 (Non Calculé)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
+        ax_b.set_title("3B: Dunbrack 2025 ipSAE (Not Computed)", fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
         ax_b.set_xticks([])
         ax_b.set_yticks([])
 
-    fig.suptitle("Figure 3 : Distributions de la Triade d'Interaction & Séparation des États\n"
-                 "Mise en évidence de la vallée d'extinction cross-reactive chez les candidats validés (lignes vertes)",
+    fig.suptitle("Figure 3: Interaction Triad Distributions & State Separation\n"
+                 "Highlighting the cross-reactive extinction valley among validated candidates (green lines)",
                  fontsize=12, fontweight='bold', color='#0f172a', y=0.96)
 
     return _save_and_close_fig(fig, fig_dir, "figure3_triad_distributions")
 
 
 # ===========================================================================
-# FIGURE 4: Entonnoir Structural CAPRI & Auto-Cohérence (Funnel + Spearman)
+# FIGURE 4: CAPRI Structural Funnel & Self-Consistency (Funnel + Spearman)
 # ===========================================================================
 def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
     """Figure 4: Structural Folding Funnel: iPTM vs L-RMSD & DockQ, and IA vs Physics concordance.
@@ -479,8 +480,8 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
     Panel 4B: Concordance Structural AI (F_iptm_rel) vs Explicit Physics (F_energy) with Spearman rho.
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 4 : Entonnoir Structural CAPRI & Auto-Cohérence",
-                            "Aucune donnée de conception disponible", fig_dir, "figure4_structural_funnel")
+        return _empty_figure("Figure 4: CAPRI Structural Funnel & Self-Consistency",
+                            "No design data available", fig_dir, "figure4_structural_funnel")
 
     fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.8), facecolor='#ffffff')
     plt.subplots_adjust(wspace=0.30, top=0.75, bottom=0.16)
@@ -492,16 +493,16 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
 
     if 'selfcons_lrms' in df.columns and df['selfcons_lrms'].dropna().any():
         x_col = 'selfcons_lrms'
-        x_label = "Auto-Cohérence L-RMSD vs Modèle Cible (Å)"
+        x_label = "Self-Consistency L-RMSD vs Target Model (Å)"
     elif 'lrms' in df.columns and df['lrms'].dropna().any():
         x_col = 'lrms'
-        x_label = "L-RMSD CAPRI vs Complexe Natif (Å)"
+        x_label = "CAPRI L-RMSD vs Native Complex (Å)"
     elif 'rmsd_b_prime' in df.columns and df['rmsd_b_prime'].dropna().any():
         x_col = 'rmsd_b_prime'
-        x_label = "RMSD de Chaîne B' vs WT (Å)"
+        x_label = "B' Chain RMSD vs WT (Å)"
     else:
         x_col = 'dockq'
-        x_label = "Score DockQ"
+        x_label = "DockQ Score"
 
     x_funnel = _safe_col(df, x_col, 5.0)
     y_funnel = _safe_col(df, 'iptm_rescue', 0.0)
@@ -514,9 +515,9 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
     }
 
     max_x = max(12.0, x_funnel.max() + 1.0)
-    ax_a.axvspan(0.0, 5.0, color='#dcfce7', alpha=0.45, label='Puits Natif CAPRI (L-RMSD < 5 Å)', zorder=1)
+    ax_a.axvspan(0.0, 5.0, color='#dcfce7', alpha=0.45, label='CAPRI Native Well (L-RMSD < 5 Å)', zorder=1)
     ax_a.axvline(5.0, color='#10b981', linestyle='--', linewidth=1.4, zorder=2)
-    ax_a.axhline(0.65, color='#64748b', linestyle=':', linewidth=1.3, zorder=2, label='Seuil Sauvetage (0.65)')
+    ax_a.axhline(0.65, color='#64748b', linestyle=':', linewidth=1.3, zorder=2, label='Rescue Threshold (0.65)')
 
     dq_qualities = df.get('dockq_quality', pd.Series(['Acceptable'] * len(df), index=df.index)).fillna('Incorrect')
     for q_label, (col, marker, size, legend_lbl) in quality_map.items():
@@ -532,8 +533,8 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
     ax_a.set_xlim(-0.2, max_x)
     ax_a.set_ylim(-0.02, 1.05)
     ax_a.set_xlabel(x_label, fontsize=10.5, fontweight='bold', color='#1e293b')
-    ax_a.set_ylabel("Affinité Sauvetage iPTM (A' · B')", fontsize=10.5, fontweight='bold', color='#1e293b')
-    ax_a.set_title("4A : Entonnoir Structural CAPRI\n(Convergence géométrique vers le puits natif)",
+    ax_a.set_ylabel("Rescue Affinity iPTM (A' · B')", fontsize=10.5, fontweight='bold', color='#1e293b')
+    ax_a.set_title("4A: CAPRI Structural Funnel\n(Geometric convergence toward the native well)",
                    fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
     ax_a.legend(loc='upper right', fontsize=8.0, framealpha=0.92)
 
@@ -551,15 +552,15 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
         ax_b.axvline(0.0, color='#94a3b8', linestyle='--', linewidth=1.2, zorder=2)
         ax_b.axhline(0.0, color='#94a3b8', linestyle='--', linewidth=1.2, zorder=2)
         ax_b.fill_between([0.0, 1.2], 0.0, 1.2, color='#d1fae5', alpha=0.5,
-                          label='Accord Binaire Favorable (IA > 0 & Physique > 0)', zorder=1)
+                          label='Favorable Binary Agreement (AI > 0 & Physics > 0)', zorder=1)
 
         pass_mask = df['passes'].fillna(False).astype(bool) if 'passes' in df.columns else (
             (_safe_col(df, 'f_ortho', 0.0) > 0) & (_safe_col(df, 'dockq', 0.0) >= 0.23)
         )
         ax_b.scatter(x_ai[pass_mask], y_phys[pass_mask], color='#10b981', s=80, edgecolors='#064e3b',
-                     label=f'Orthogonal Validé (n={pass_mask.sum()})', zorder=4)
+                     label=f'Validated Orthogonal (n={pass_mask.sum()})', zorder=4)
         ax_b.scatter(x_ai[~pass_mask], y_phys[~pass_mask], color='#ef4444', s=60, marker='x', linewidths=1.5,
-                     label=f'Rejeté (n={(~pass_mask).sum()})', zorder=3)
+                     label=f'Rejected (n={(~pass_mask).sum()})', zorder=3)
 
         spearman_rho = None
         if coherence_path and os.path.exists(coherence_path):
@@ -579,13 +580,13 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
             except Exception:
                 pass
 
-        rho_str = f"Spearman ρ = {spearman_rho:+.2f}" if spearman_rho is not None else "Spearman ρ: calculé"
+        rho_str = f"Spearman ρ = {spearman_rho:+.2f}" if spearman_rho is not None else "Spearman ρ: computed"
         ax_b.text(0.05, 0.92, rho_str, transform=ax_b.transAxes, fontsize=10, fontweight='bold',
                   bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#10b981", lw=1.2), zorder=5)
 
-        ax_b.set_xlabel("Score IA Structurale RF3 (F_iptm,rel)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_ylabel("Score Physique Explicite PyRosetta (F_energy)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_title("4B : Concordance IA (RF3) vs Physique (PyRosetta)\n(Validation orthogonale croisée)",
+        ax_b.set_xlabel("Structural AI Score RF3 (F_iptm,rel)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_ylabel("Explicit Physics Score PyRosetta (F_energy)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_title("4B: Concordance AI (RF3) vs Physics (PyRosetta)\n(Cross-orthogonal validation)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
         ax_b.legend(loc='lower right', fontsize=8.0, framealpha=0.92)
 
@@ -597,29 +598,29 @@ def plot_structural_funnel(df, fig_dir=None, coherence_path=None):
             (_safe_col(df, 'f_ortho', 0.0) > 0) & (_safe_col(df, 'dockq', 0.0) >= 0.23)
         )
 
-        ax_b.axhline(0.23, color='#f59e0b', linestyle='--', linewidth=1.3, label='Seuil CAPRI Acceptable (0.23)')
-        ax_b.axhline(0.49, color='#0284c7', linestyle=':', linewidth=1.3, label='Seuil CAPRI Medium (0.49)')
+        ax_b.axhline(0.23, color='#f59e0b', linestyle='--', linewidth=1.3, label='CAPRI Acceptable Threshold (0.23)')
+        ax_b.axhline(0.49, color='#0284c7', linestyle=':', linewidth=1.3, label='CAPRI Medium Threshold (0.49)')
 
         ax_b.scatter(fnat_vals[pass_mask], dockq_vals[pass_mask], color='#10b981', s=80, edgecolors='#064e3b',
-                     label='Orthogonal Validé', zorder=4)
+                     label='Validated Orthogonal', zorder=4)
         ax_b.scatter(fnat_vals[~pass_mask], dockq_vals[~pass_mask], color='#ef4444', marker='x', s=60,
-                     label='Rejeté', zorder=3)
+                     label='Rejected', zorder=3)
 
-        ax_b.set_xlabel("Fraction de Contacts Natifs Conservés (F_nat)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_ylabel("Score DockQ Global", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_title("4B : Préservation des Contacts Natifs vs DockQ\n(PyRosetta désactivé)",
+        ax_b.set_xlabel("Preserved Native Contact Fraction (F_nat)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_ylabel("Global DockQ Score", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_title("4B: Native Contact Preservation vs DockQ\n(PyRosetta disabled)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
         ax_b.legend(loc='lower right', fontsize=8.0, framealpha=0.92)
 
-    fig.suptitle("Figure 4 : Entonnoir Structural CAPRI & Validation Multi-Physique\n"
-                 "Vérification de la convergence géométrique haute résolution et de la cohérence énergétique",
+    fig.suptitle("Figure 4: CAPRI Structural Funnel & Multi-Physics Validation\n"
+                 "Verification of high-resolution geometric convergence and energetic coherence",
                  fontsize=12, fontweight='bold', color='#0f172a', y=0.96)
 
     return _save_and_close_fig(fig, fig_dir, "figure4_structural_funnel")
 
 
 # ===========================================================================
-# FIGURE 5: Impact du Remodelage de Squelette RFD3 & Qualité Biophysique
+# FIGURE 5: Impact of RFD3 Backbone Remodeling & Biophysical Quality
 # ===========================================================================
 def plot_induced_fit_and_biophysics(df, fig_dir=None):
     """Figure 5: RFD3 Induced-Fit Analysis & Interface Biophysical Quality.
@@ -628,8 +629,8 @@ def plot_induced_fit_and_biophysics(df, fig_dir=None):
     Panel 5B: Interface dSASA vs unsat_hb (PyRosetta) or Performance by Parent Motif A'.
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 5 : Analyse Biomécanique RFD3 & Profil Biophysique",
-                            "Aucune donnée de conception disponible", fig_dir, "figure5_induced_fit_biophysics")
+        return _empty_figure("Figure 5: RFD3 Biomechanical Analysis & Biophysical Profile",
+                            "No design data available", fig_dir, "figure5_induced_fit_biophysics")
 
     fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.8), facecolor='#ffffff')
     plt.subplots_adjust(wspace=0.30, top=0.75, bottom=0.16)
@@ -648,18 +649,18 @@ def plot_induced_fit_and_biophysics(df, fig_dir=None):
 
         if is_native.any():
             ax_a.scatter(x_flex[is_native], y_perf[is_native], marker='s', s=80, color='#3b82f6',
-                         edgecolors='#1d4ed8', linewidths=1.2, label=f'Squelette WT Rigide (n={is_native.sum()})', zorder=4)
+                         edgecolors='#1d4ed8', linewidths=1.2, label=f'Rigid WT Backbone (n={is_native.sum()})', zorder=4)
 
         if (~is_native).any():
             ax_a.scatter(x_flex[~is_native], y_perf[~is_native], marker='o', s=85, color='#10b981',
-                         edgecolors='#064e3b', linewidths=1.2, label=f'Squelette Remodelé RFD3 (n={(~is_native).sum()})', zorder=4)
+                         edgecolors='#064e3b', linewidths=1.2, label=f'Remodeled RFD3 Backbone (n={(~is_native).sum()})', zorder=4)
 
         ax_a.axhline(0.0, color='#94a3b8', linestyle='--', linewidth=1.2, zorder=2)
-        ax_a.axhline(0.30, color='#10b981', linestyle=':', linewidth=1.2, label='Marge Champion (0.30)', zorder=2)
+        ax_a.axhline(0.30, color='#10b981', linestyle=':', linewidth=1.2, label='Champion Margin (0.30)', zorder=2)
 
-        ax_a.set_xlabel("Déviation RMSD des Boucles Remodelées RFD3 (Å)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_a.set_ylabel("Score d'Orthogonalité F_ortho", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_a.set_title("5A : Apport de la Co-Adaptation RFD3\n(Induced-Fit vs Squelette Rigide)",
+        ax_a.set_xlabel("RMSD Deviation of Remodeled RFD3 Loops (Å)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_a.set_ylabel("Orthogonality Score F_ortho", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_a.set_title("5A: Benefit of RFD3 Co-Adaptation\n(Induced-Fit vs Rigid Backbone)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
         ax_a.legend(loc='lower right', fontsize=8.0, framealpha=0.92)
 
@@ -668,9 +669,9 @@ def plot_induced_fit_and_biophysics(df, fig_dir=None):
         y_perf = _safe_col(df, 'f_ortho', 0.0)
         ax_a.scatter(x_b, y_perf, color='#0284c7', edgecolors='#0f172a', s=75, alpha=0.85, zorder=3)
         ax_a.axhline(0.0, color='#94a3b8', linestyle='--', linewidth=1.2)
-        ax_a.set_xlabel("RMSD Chaîne B' vs WT (Å)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_a.set_ylabel("Score d'Orthogonalité F_ortho", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_a.set_title("5A : Déviation Structurale B' vs F_ortho\n(Données RFD3 flex_rmsd non fournies)",
+        ax_a.set_xlabel("B' Chain RMSD vs WT (Å)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_a.set_ylabel("Orthogonality Score F_ortho", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_a.set_title("5A: Structural Deviation B' vs F_ortho\n(RFD3 flex_rmsd data not provided)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
     # --- 5B: Interface Biophysical Quality or Parent Motif Breakdown ---
@@ -691,20 +692,20 @@ def plot_induced_fit_and_biophysics(df, fig_dir=None):
         max_sasa = max(2500.0, x_sasa.max() + 200.0)
         max_unsat = max(12.0, y_unsat.max() + 2.0)
         ax_b.fill_between([1200.0, max_sasa], 0, 5.0, color='#d1fae5', alpha=0.45,
-                          label='Fenêtre Optimale (ΔSASA ≥ 1200 Å² & H-bonds insat. ≤ 5)', zorder=1)
+                          label='Optimal Window (ΔSASA ≥ 1200 Å² & Unsat H-bonds ≤ 5)', zorder=1)
         ax_b.axvline(1200.0, color='#10b981', linestyle='--', linewidth=1.3, zorder=2)
         ax_b.axhline(5.0, color='#10b981', linestyle='--', linewidth=1.3, zorder=2)
 
         ax_b.scatter(x_sasa[pass_mask], y_unsat[pass_mask], color='#10b981', s=80, edgecolors='#064e3b',
-                     label='Orthogonal Validé', zorder=4)
+                     label='Validated Orthogonal', zorder=4)
         ax_b.scatter(x_sasa[~pass_mask], y_unsat[~pass_mask], color='#ef4444', marker='x', s=60,
-                     label='Rejeté', zorder=3)
+                     label='Rejected', zorder=3)
 
         ax_b.set_xlim(min(0.0, x_sasa.min() - 100), max_sasa)
         ax_b.set_ylim(-0.5, max_unsat)
-        ax_b.set_xlabel("Surface d'Interface Enfouie ΔSASA (Å²)", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_ylabel("Liaisons Hydrogène Enfouies Non Satisfaites", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_title("5B : Qualité Biophysique d'Interface (PyRosetta)\n(Risque de dénaturation / agrégation)",
+        ax_b.set_xlabel("Buried Interface Surface Area ΔSASA (Å²)", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_ylabel("Unsatisfied Buried Hydrogen Bonds", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_title("5B: Interface Biophysical Quality (PyRosetta)\n(Risk of denaturation / aggregation)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
         # Position legend at upper left to avoid collision with points located in upper right
         ax_b.legend(loc='upper left', fontsize=8.0, framealpha=0.92)
@@ -727,28 +728,28 @@ def plot_induced_fit_and_biophysics(df, fig_dir=None):
 
         ax_b.set_yticks(y_pos)
         ax_b.set_yticklabels(motif_stats['motif'], fontsize=9.5, fontweight='bold', color='#1e293b')
-        ax_b.set_xlabel("Score F_ortho Moyen", fontsize=10.5, fontweight='bold', color='#1e293b')
-        ax_b.set_title("5B : Rendement d'Orthogonalité par Motif A' Parent\n(PyRosetta SASA/H-bond non disponible)",
+        ax_b.set_xlabel("Mean F_ortho Score", fontsize=10.5, fontweight='bold', color='#1e293b')
+        ax_b.set_title("5B: Orthogonality Yield by Parent A' Motif\n(PyRosetta SASA/H-bond not available)",
                        fontsize=11.5, fontweight='bold', color='#0f172a', pad=8)
 
-    fig.suptitle("Figure 5 : Analyse Biomécanique RFD3 & Profil Biophysique d'Interface\n"
-                 "Évaluation de l'accommodation structurale et de la solvabilité expérimentale",
+    fig.suptitle("Figure 5: RFD3 Biomechanical Analysis & Interface Biophysical Profile\n"
+                 "Evaluation of structural accommodation and experimental solvability",
                  fontsize=12, fontweight='bold', color='#0f172a', y=0.96)
 
     return _save_and_close_fig(fig, fig_dir, "figure5_induced_fit_biophysics")
 
 
 # ===========================================================================
-# FIGURE 6: Cascade d'Attrition du Pipeline (Multi-Stage Funnel)
+# FIGURE 6: Multi-Stage Filtering Funnel (Attrition Cascade)
 # ===========================================================================
 def plot_pipeline_attrition_funnel(df, fig_dir=None):
-    """Figure 6: Multi-Stage Filtering Funnel (Cascade d'Attrition du Pipeline).
+    """Figure 6: Multi-Stage Filtering Funnel (Pipeline Attrition Cascade).
 
     Tracks attrition from total candidates through each physical & orthogonal filter.
     """
     if df is None or df.empty:
-        return _empty_figure("Figure 6 : Cascade d'Attrition du Pipeline",
-                            "Aucune donnée de conception disponible", fig_dir, "figure6_attrition_funnel")
+        return _empty_figure("Figure 6: Pipeline Attrition Cascade",
+                            "No design data available", fig_dir, "figure6_attrition_funnel")
 
     total_eval = len(df)
     pass_early = (df['status'].fillna('ok') == 'ok').sum() if 'status' in df.columns else total_eval
@@ -777,18 +778,18 @@ def plot_pipeline_attrition_funnel(df, fig_dir=None):
     ).sum()
 
     stages = [
-        ("1. Total Designs Évalués", total_eval),
-        ("2. Statut Valide (Pass Early-Exit)", pass_early),
-        ("3. Pose CAPRI Valide (DockQ ≥ 0.23)", pass_dockq),
-        ("4. Rupture A'·B_WT Validée (≤ 0.35)", pass_rupture),
-        ("5. Négatif A_WT·B' Validé (≤ 0.40)", pass_negative),
-        ("6. Sauvetage A'·B' Validé (≥ 0.65)", pass_rescue),
+        ("1. Total Evaluated Designs", total_eval),
+        ("2. Valid Status (Passed Early-Exit)", pass_early),
+        ("3. Valid CAPRI Pose (DockQ ≥ 0.23)", pass_dockq),
+        ("4. Validated A'·B_WT Rupture (≤ 0.35)", pass_rupture),
+        ("5. Validated A_WT·B' Negative (≤ 0.40)", pass_negative),
+        ("6. Validated A'·B' Rescue (≥ 0.65)", pass_rescue),
     ]
 
     if has_energy:
-        stages.append(("7. Énergie PyRosetta (pass_energy)", pass_energy))
+        stages.append(("7. PyRosetta Energy (pass_energy)", pass_energy))
 
-    stages.append(("8. Paires Orthogonales Validées (passes)", pass_final))
+    stages.append(("8. Validated Orthogonal Pairs (passes)", pass_final))
 
     labels = [s[0] for s in stages]
     counts = [s[1] for s in stages]
@@ -843,9 +844,9 @@ def plot_pipeline_attrition_funnel(df, fig_dir=None):
 
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels_rev, fontsize=10, fontweight='bold', color='#1e293b')
-    ax.set_xlabel("Nombre de Candidats Conservés", fontsize=11, fontweight='bold', color='#1e293b', labelpad=8)
-    ax.set_title("Figure 6 : Cascade d'Attrition & Entonnoir de Filtrage Multi-Étapes\n"
-                 "Identification quantitative des goulots d'étranglement de la spécificité orthogonale",
+    ax.set_xlabel("Number of Retained Candidates", fontsize=11, fontweight='bold', color='#1e293b', labelpad=8)
+    ax.set_title("Figure 6: Attrition Cascade & Multi-Stage Filtering Funnel\n"
+                 "Quantitative identification of orthogonal specificity bottlenecks",
                  fontsize=12, fontweight='bold', color='#0f172a', pad=14)
 
     return _save_and_close_fig(fig, fig_dir, "figure6_attrition_funnel")
@@ -876,7 +877,7 @@ def generate_styled_excel(csv_path, xlsx_path):
     # Title Banner
     ws1.merge_cells("A1:K1")
     title_cell = ws1["A1"]
-    title_cell.value = "ORTHOPPINTERFACE - RAPPORT D'ORTHOGONALITÉ PROTÉINE-PROTÉINE"
+    title_cell.value = "ORTHOPPINTERFACE - PROTEIN-PROTEIN ORTHOGONALITY REPORT"
     title_cell.font = Font(name="Segoe UI", size=15, bold=True, color="FFFFFF")
     title_cell.fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -885,7 +886,7 @@ def generate_styled_excel(csv_path, xlsx_path):
     # Subtitle Banner
     ws1.merge_cells("A2:K2")
     sub_cell = ws1["A2"]
-    sub_cell.value = "Évaluation Haute Résolution RoseTTAFold-3 All-Atom (RF3) & Conformité DockQ CAPRI"
+    sub_cell.value = "RoseTTAFold-3 All-Atom (RF3) High-Resolution Evaluation & CAPRI DockQ Compliance"
     sub_cell.font = Font(name="Segoe UI", size=10, italic=True, color="E2E8F0")
     sub_cell.fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
     sub_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -893,17 +894,17 @@ def generate_styled_excel(csv_path, xlsx_path):
 
     # Summary table columns
     cols_summary = [
-        ("design_id", "Paire Orthogonale (A'·B')", 40),
-        ("parent_a_motif", "Motif A' Parent", 24),
-        ("iptm_rescue", "iPTM Sauvetage (A'·B')", 20),
-        ("iptm_negative", "iPTM Négatif (A_WT·B')", 20),
-        ("iptm_rupture", "iPTM Rupture (A'·B_WT)", 20),
-        ("f_ortho", "Score F_ortho", 16),
-        ("dockq", "Score DockQ", 14),
-        ("dockq_quality", "Qualité CAPRI", 16),
+        ("design_id", "Orthogonal Pair (A'·B')", 40),
+        ("parent_a_motif", "Parent A' Motif", 24),
+        ("iptm_rescue", "Rescue iPTM (A'·B')", 20),
+        ("iptm_negative", "Negative iPTM (A_WT·B')", 20),
+        ("iptm_rupture", "Rupture iPTM (A'·B_WT)", 20),
+        ("f_ortho", "F_ortho Score", 16),
+        ("dockq", "DockQ Score", 14),
+        ("dockq_quality", "CAPRI Quality", 16),
         ("fnat", "F_nat Contacts", 14),
-        ("plddt_rescue", "pLDDT Complexe (%)", 18),
-        ("verdict", "Verdict Orthogonal", 26),
+        ("plddt_rescue", "Complex pLDDT (%)", 18),
+        ("verdict", "Orthogonal Verdict", 26),
     ]
 
     header_fill = PatternFill(start_color="2B4C7E", end_color="2B4C7E", fill_type="solid")
@@ -959,7 +960,7 @@ def generate_styled_excel(csv_path, xlsx_path):
         row_fill = fill_champ if is_champ else (fill_pass if is_ortho else (fill_alt if row_idx % 2 == 1 else fill_white))
 
         if is_off_target:
-            status_text = f"HORS-CIBLE (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f})"
+            status_text = f"OFF-TARGET (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f})"
         elif is_champ:
             status_text = "CHAMPION ORTHOGONAL"
         elif is_ortho:
@@ -1074,13 +1075,13 @@ def generate_interactive_html(csv_path, html_path):
     ceilings = df['iptm_ceiling'].dropna() if 'iptm_ceiling' in df.columns else pd.Series(dtype=float)
     med_ceiling = ceilings.median() if len(ceilings) > 0 else np.nan
     if pd.notnull(med_ceiling) and med_ceiling < 0.50:
-        ceiling_alert = (f"Alerte Plafond MSA : iPTM médian du sauvage = {med_ceiling:.2f} (< 0.50). "
-                         "Le complexe natif est difficilement reconnu sous ce régime MSA ; "
-                         "privilégiez F_rel ou les critères structuraux CAPRI.")
+        ceiling_alert = (f"MSA Ceiling Alert: wild-type median iPTM = {med_ceiling:.2f} (< 0.50). "
+                         "Native complex is poorly recognized under this MSA regime; "
+                         "prioritize F_rel or CAPRI structural criteria.")
     elif pd.notnull(med_ceiling):
-        ceiling_alert = f"Plafond MSA Sain : iPTM sauvage médian = {med_ceiling:.2f} (reconnaissance robuste)."
+        ceiling_alert = f"Healthy MSA Ceiling: wild-type median iPTM = {med_ceiling:.2f} (robust native recognition)."
     else:
-        ceiling_alert = "Plafond MSA : contrôle sauvage non exécuté ou indisponible."
+        ceiling_alert = "MSA Ceiling: wild-type control not executed or unavailable."
 
     # Primary cause of rejection
     rejection_causes = {}
@@ -1089,19 +1090,19 @@ def generate_interactive_html(csv_path, html_path):
         if not p:
             dq = row.get('dockq', 0.0)
             if pd.notnull(dq) and dq < 0.23:
-                rejection_causes['Pose Hors-cible CAPRI (DockQ < 0.23)'] = rejection_causes.get('Pose Hors-cible CAPRI (DockQ < 0.23)', 0) + 1
+                rejection_causes['CAPRI Off-target Pose (DockQ < 0.23)'] = rejection_causes.get('CAPRI Off-target Pose (DockQ < 0.23)', 0) + 1
             elif row.get('pass_rupture') is False or row.get('iptm_rupture', 0) > 0.35:
-                rejection_causes["Échec Rupture A'·B_WT (affinité WT résiduelle > 0.35)"] = rejection_causes.get("Échec Rupture A'·B_WT (affinité WT résiduelle > 0.35)", 0) + 1
+                rejection_causes["A'·B_WT Rupture Failure (residual WT affinity > 0.35)"] = rejection_causes.get("A'·B_WT Rupture Failure (residual WT affinity > 0.35)", 0) + 1
             elif row.get('pass_negative') is False or row.get('iptm_negative', 0) > 0.40:
-                rejection_causes["Échec Négatif A_WT·B' (croisement hors-cible > 0.40)"] = rejection_causes.get("Échec Négatif A_WT·B' (croisement hors-cible > 0.40)", 0) + 1
+                rejection_causes["A_WT·B' Negative Failure (off-target cross > 0.40)"] = rejection_causes.get("A_WT·B' Negative Failure (off-target cross > 0.40)", 0) + 1
             elif row.get('pass_rescue') is False or row.get('iptm_rescue', 0) < 0.65:
-                rejection_causes["Échec Sauvetage A'·B' (affinité orthogonale < 0.65)"] = rejection_causes.get("Échec Sauvetage A'·B' (affinité orthogonale < 0.65)", 0) + 1
+                rejection_causes["A'·B' Rescue Failure (orthogonal affinity < 0.65)"] = rejection_causes.get("A'·B' Rescue Failure (orthogonal affinity < 0.65)", 0) + 1
             elif row.get('pass_energy') is False:
-                rejection_causes["Échec Énergie PyRosetta (ΔG répulsif)"] = rejection_causes.get("Échec Énergie PyRosetta (ΔG répulsif)", 0) + 1
+                rejection_causes["PyRosetta Energy Failure (repulsive ΔG)"] = rejection_causes.get("PyRosetta Energy Failure (repulsive ΔG)", 0) + 1
             else:
-                rejection_causes["Marge F_ortho insuffisante (≤ 0)"] = rejection_causes.get("Marge F_ortho insuffisante (≤ 0)", 0) + 1
+                rejection_causes["Insufficient F_ortho Margin (≤ 0)"] = rejection_causes.get("Insufficient F_ortho Margin (≤ 0)", 0) + 1
 
-    top_rejection = max(rejection_causes.items(), key=lambda x: x[1])[0] if rejection_causes else "Aucun rejet (100% de succès)"
+    top_rejection = max(rejection_causes.items(), key=lambda x: x[1])[0] if rejection_causes else "No rejection (100% success)"
 
     # Best parent motif
     motifs = df['parent_a_motif'].fillna('Principal').astype(str) if 'parent_a_motif' in df.columns else pd.Series(['Principal']*len(df), index=df.index)
@@ -1145,7 +1146,7 @@ def generate_interactive_html(csv_path, html_path):
         ascending=[False]*len(top_sort_keys)
     ).head(3) if top_sort_keys else df.head(3)
 
-    medals = [("🥇 1er - Champion", "gold"), ("🥈 2e - Dauphin", "silver"), ("🥉 3e - Sélectionné", "bronze")]
+    medals = [("🥇 1st - Champion", "gold"), ("🥈 2nd - Runner-up", "silver"), ("🥉 3rd - Finalist", "bronze")]
     for idx, (_, row) in enumerate(top_3_df.iterrows()):
         medal_title, medal_class = medals[idx] if idx < 3 else (f"#{idx+1}", "neutral")
         p_val = bool(row.get('passes', False)) if 'passes' in df.columns else (row.get('f_ortho', 0) > 0)
@@ -1172,19 +1173,19 @@ def generate_interactive_html(csv_path, html_path):
                         <span class="m-val" style="color: var(--accent); font-size: 16px;">{row.get('dockq', 0.0):.4f} <small>({row.get('dockq_quality', 'N/A')})</small></span>
                     </div>
                     <div class="metric-box">
-                        <span class="m-label">iPTM Sauvetage</span>
+                        <span class="m-label">Rescue iPTM</span>
                         <span class="m-val" style="color: #10b981;">{row.get('iptm_rescue', 0.0):.4f}</span>
                     </div>
                     <div class="metric-box">
-                        <span class="m-label">iPTM Rupture</span>
+                        <span class="m-label">Rupture iPTM</span>
                         <span class="m-val" style="color: #ef4444;">{row.get('iptm_rupture', 0.0):.4f}</span>
                     </div>
                     <div class="metric-box">
-                        <span class="m-label">iPTM Négatif</span>
+                        <span class="m-label">Negative iPTM</span>
                         <span class="m-val" style="color: #f97316;">{row.get('iptm_negative', 0.0):.4f}</span>
                     </div>
                     <div class="metric-box">
-                        <span class="m-label">pLDDT Complexe</span>
+                        <span class="m-label">Complex pLDDT</span>
                         <span class="m-val">{row.get('plddt_rescue', 0.0):.1f}%</span>
                     </div>
                 </div>
@@ -1253,10 +1254,10 @@ def generate_interactive_html(csv_path, html_path):
             offtarget_count += 1
 
         # Diagnostic failure reason
-        diag_reason = "Validé"
+        diag_reason = "Validated"
         if is_off_target:
-            diag_reason = f"Hors-cible CAPRI (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f} < 0.23)"
-            status_badge = f'<span class="badge badge-negative" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">Hors-cible (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f})</span>'
+            diag_reason = f"CAPRI Off-target (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f} < 0.23)"
+            status_badge = f'<span class="badge badge-negative" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">Off-target (DockQ {dockq_val if pd.notnull(dockq_val) else 0.0:.3f})</span>'
         elif is_champ:
             status_badge = '<span class="badge badge-champion">Champion Orthogonal</span>'
         elif is_ortho:
@@ -1264,15 +1265,15 @@ def generate_interactive_html(csv_path, html_path):
         else:
             status_badge = '<span class="badge badge-negative">Non Orthogonal</span>'
             if row.get('pass_rupture') is False or iptm_rup > 0.35:
-                diag_reason = f"Échec Rupture A'·B_WT ({iptm_rup:.3f} > 0.35)"
+                diag_reason = f"A'·B_WT Rupture Failure ({iptm_rup:.3f} > 0.35)"
             elif row.get('pass_negative') is False or iptm_neg > 0.40:
-                diag_reason = f"Échec Négatif A_WT·B' ({iptm_neg:.3f} > 0.40)"
+                diag_reason = f"A_WT·B' Negative Failure ({iptm_neg:.3f} > 0.40)"
             elif row.get('pass_rescue') is False or iptm_r < 0.65:
-                diag_reason = f"Échec Sauvetage ({iptm_r:.3f} < 0.65)"
+                diag_reason = f"Rescue Failure ({iptm_r:.3f} < 0.65)"
             elif row.get('pass_energy') is False:
-                diag_reason = "Échec Énergie PyRosetta (ΔG répulsif)"
+                diag_reason = "PyRosetta Energy Failure (repulsive ΔG)"
             else:
-                diag_reason = f"Marge F_ortho insuffisante ({f_ortho:+.3f})"
+                diag_reason = f"Insufficient F_ortho margin ({f_ortho:+.3f})"
 
         row_filter_class = "row-passed" if passes else ("row-offtarget" if is_off_target else "row-failed")
         if pd.notnull(dockq_val) and dockq_val >= 0.23:
@@ -1307,11 +1308,11 @@ def generate_interactive_html(csv_path, html_path):
         rows_html.append(row_str)
 
     html_content = f"""<!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OrthoPPInterface - Tableau de Bord Scientifique & Visualisations de Publication</title>
+    <title>OrthoPPInterface - Scientific Dashboard &amp; Publication Visualizations</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {{
@@ -1687,28 +1688,28 @@ def generate_interactive_html(csv_path, html_path):
 </head>
 <body>
     <div class="header">
-        <h1>OrthoPPInterface - Rapport d'Orthogonalité Protéine-Protéine</h1>
-        <p>Conception Rationnelle & Évaluation RoseTTAFold-3 All-Atom (RF3) GPU | Conformité CAPRI DockQ | Visualisations Vectorielles</p>
+        <h1>OrthoPPInterface - Protein-Protein Orthogonality Report</h1>
+        <p>Rational Design &amp; RoseTTAFold-3 All-Atom (RF3) GPU Evaluation | CAPRI DockQ Compliance | Vector Visualizations</p>
     </div>
 
     <!-- Executive Synthesis Diagnostic Box -->
     <div class="takeaways-box">
-        <div class="takeaways-title">Synthèse Diagnostique &amp; Clés d'Analyse (Executive Key Takeaways)</div>
+        <div class="takeaways-title">Diagnostic Summary &amp; Key Takeaways</div>
         <div class="takeaways-grid">
             <div class="takeaway-item">
-                <b>Taux de Succès Global :</b> {ortho_count} / {total_designs} designs ({pass_rate:.1f}%) satisfont l'ensemble des critères d'orthogonalité stricte.
+                <b>Overall Success Rate:</b> {ortho_count} / {total_designs} designs ({pass_rate:.1f}%) satisfy all strict orthogonality criteria.
             </div>
             <div class="takeaway-item">
-                <b>Santé Contrôle Sauvage :</b> {ceiling_alert}
+                <b>Wild-Type Control Health:</b> {ceiling_alert}
             </div>
             <div class="takeaway-item">
-                <b>Cause n°1 d'Attrition :</b> {top_rejection}.
+                <b>Primary Cause of Attrition:</b> {top_rejection}.
             </div>
             <div class="takeaway-item">
-                <b>Motif A' Optimal :</b> Motif <code>{best_motif}</code> présente le meilleur rendement de sauvetage.
+                <b>Optimal A' Motif:</b> Motif <code>{best_motif}</code> exhibits the highest rescue yield.
             </div>
             <div class="takeaway-item">
-                <b>Candidat Champion :</b> Paire <code>{champ_id}</code> retenue pour l'analyse structurale haute résolution.
+                <b>Champion Candidate:</b> Pair <code>{champ_id}</code> selected for high-resolution structural analysis.
             </div>
         </div>
     </div>
@@ -1716,140 +1717,140 @@ def generate_interactive_html(csv_path, html_path):
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="label">Paires Évaluées</div>
+            <div class="label">Evaluated Pairs</div>
             <div class="val" style="color: var(--accent);">{total_designs}</div>
         </div>
         <div class="stat-card">
-            <div class="label">Paires Orthogonales Valides</div>
+            <div class="label">Valid Orthogonal Pairs</div>
             <div class="val" style="color: var(--green);">{ortho_count} <small style="font-size: 14px; color: var(--text-muted);">({pass_rate:.1f}%)</small></div>
         </div>
         <div class="stat-card">
-            <div class="label">Affinité Sauvetage Max (iPTM)</div>
+            <div class="label">Max Rescue Affinity (iPTM)</div>
             <div class="val" style="color: var(--green);">{max_iptm_r:.4f}</div>
         </div>
         <div class="stat-card">
-            <div class="label">Score F_ortho Maximal</div>
+            <div class="label">Max F_ortho Score</div>
             <div class="val" style="color: var(--green);">+{max_f_ortho:.4f}</div>
         </div>
         <div class="stat-card">
-            <div class="label">DockQ Maximal (CAPRI)</div>
+            <div class="label">Max DockQ (CAPRI)</div>
             <div class="val" style="color: var(--accent);">{max_dockq:.4f}</div>
         </div>
     </div>
 
     <!-- Podium Section -->
-    <div class="section-title">🏆 Podium des 3 Meilleurs Candidats</div>
+    <div class="section-title">🏆 Top 3 Champions Podium</div>
     <div class="podium-grid">
         {''.join(podium_cards_html)}
     </div>
 
     <!-- Scientific Figures Section -->
-    <div class="section-title">📊 Figures Scientifiques de Publication (Matplotlib Agg Vectorielles)</div>
+    <div class="section-title">📊 Scientific Publication Figures (Vector Matplotlib Agg)</div>
     <div class="figures-grid">
         <!-- Figure 1 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 1 : Matrices de Réactivité Croisée 2×2 (Boyken et al. 2016)</span>
+                <span class="figure-card-title">Figure 1: 2×2 Cross-Reactivity Matrices (Boyken et al. 2016)</span>
             </div>
-            <div class="figure-desc">Démontre visuellement la diagonalisation de la matrice de liaison (sauvetage A'·B' et contrôle WT·WT forts, extinction des hybrides croisés A'·B_WT et A_WT·B').</div>
+            <div class="figure-desc">Visually demonstrates binding matrix diagonalization (strong A'·B' rescue and WT·WT control, extinction of cross-reactive hybrids A'·B_WT and A_WT·B').</div>
             <div class="figure-svg-wrapper">
                 {svg_fig1}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure1_cross_reactivity.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure1_cross_reactivity.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure1_cross_reactivity.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure1_cross_reactivity.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
 
         <!-- Figure 2 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 2 : Paysage de Spécificité &amp; Isolignes de Marge</span>
+                <span class="figure-card-title">Figure 2: Specificity Landscape &amp; Margin Isolines</span>
             </div>
-            <div class="figure-desc">Nuage 2D on-target vs pire off-target sauvage avec diagonale de neutralité y = x, isolignes de marge F_ortho et plafond WT.</div>
+            <div class="figure-desc">2D scatter plot of on-target vs worst wild-type off-target with neutrality diagonal y = x, F_ortho margin isolines, and WT ceiling.</div>
             <div class="figure-svg-wrapper">
                 {svg_fig2}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure2_specificity_landscape.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure2_specificity_landscape.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure2_specificity_landscape.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure2_specificity_landscape.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
 
         <!-- Figure 3 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 3 : Distributions de la Triade d'Interaction</span>
+                <span class="figure-card-title">Figure 3: Interaction Triad Distributions</span>
             </div>
-            <div class="figure-desc">Boxplots et trajectoires individuelles reliant chaque candidat validé le long de la vallée d'extinction cross-réactive (RF3 iPTM et ipSAE Dunbrack).</div>
+            <div class="figure-desc">Boxplots and individual trajectories tracking each validated candidate along the cross-reactive extinction valley (RF3 iPTM and Dunbrack ipSAE).</div>
             <div class="figure-svg-wrapper">
                 {svg_fig3}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure3_triad_distributions.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure3_triad_distributions.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure3_triad_distributions.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure3_triad_distributions.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
 
         <!-- Figure 4 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 4 : Entonnoir Structural CAPRI &amp; Auto-Cohérence</span>
+                <span class="figure-card-title">Figure 4: CAPRI Structural Funnel &amp; Self-Consistency</span>
             </div>
-            <div class="figure-desc">Puits de repliement natif (&lt; 5 Å) face aux poses hors-cible et corrélation de concordance Spearman entre IA Structurale (RF3) et Physique Explicite (PyRosetta).</div>
+            <div class="figure-desc">Native folding well (&lt; 5 Å) versus off-target poses and Spearman concordance correlation between Structural AI (RF3) and Explicit Physics (PyRosetta).</div>
             <div class="figure-svg-wrapper">
                 {svg_fig4}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure4_structural_funnel.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure4_structural_funnel.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure4_structural_funnel.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure4_structural_funnel.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
 
         <!-- Figure 5 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 5 : Induced-Fit RFD3 &amp; Qualité Biophysique d'Interface</span>
+                <span class="figure-card-title">Figure 5: RFD3 Induced-Fit &amp; Interface Biophysical Quality</span>
             </div>
-            <div class="figure-desc">Apport de la plasticité du squelette RFD3 face au squelette natif rigide, et profil atomique de surface enfouie ΔSASA vs liaisons H insatisfaites.</div>
+            <div class="figure-desc">Contribution of RFD3 backbone plasticity over rigid native backbone, and atomic profile of buried surface area ΔSASA vs unsatisfied hydrogen bonds.</div>
             <div class="figure-svg-wrapper">
                 {svg_fig5}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure5_induced_fit_biophysics.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure5_induced_fit_biophysics.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure5_induced_fit_biophysics.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure5_induced_fit_biophysics.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
 
         <!-- Figure 6 -->
         <div class="figure-card">
             <div class="figure-card-header">
-                <span class="figure-card-title">Figure 6 : Cascade d'Attrition du Pipeline</span>
+                <span class="figure-card-title">Figure 6: Pipeline Attrition Funnel</span>
             </div>
-            <div class="figure-desc">Entonnoir quantitatif montrant le taux de rétention des designs étape par étape à travers les filtres géométriques, négatifs et énergétiques.</div>
+            <div class="figure-desc">Quantitative funnel illustrating step-by-step design retention rate across geometric, negative, and energetic filters.</div>
             <div class="figure-svg-wrapper">
                 {svg_fig6}
             </div>
             <div class="figure-actions">
-                <a href="figures/figure6_attrition_funnel.svg" download class="btn-download">Télécharger SVG</a>
-                <a href="figures/figure6_attrition_funnel.png" download class="btn-download">Télécharger PNG (300 DPI)</a>
+                <a href="figures/figure6_attrition_funnel.svg" download class="btn-download">Download SVG</a>
+                <a href="figures/figure6_attrition_funnel.png" download class="btn-download">Download PNG (300 DPI)</a>
             </div>
         </div>
     </div>
 
     <!-- Parent Motif Breakdown Table Section -->
-    <div class="section-title">🧬 Rendement par Motif Parent A'</div>
+    <div class="section-title">🧬 Yield by Parent A' Motif</div>
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th>Motif A' Parent</th>
-                    <th>Designs Évalués</th>
-                    <th>Validés (passes)</th>
-                    <th>Taux de Succès</th>
-                    <th>DockQ Moyen</th>
-                    <th>F_ortho Moyen</th>
-                    <th>iPTM Sauvetage Max</th>
+                    <th>Parent A' Motif</th>
+                    <th>Evaluated Designs</th>
+                    <th>Validated (passes)</th>
+                    <th>Success Rate</th>
+                    <th>Mean DockQ</th>
+                    <th>Mean F_ortho</th>
+                    <th>Max Rescue iPTM</th>
                 </tr>
             </thead>
             <tbody>
@@ -1859,15 +1860,15 @@ def generate_interactive_html(csv_path, html_path):
     </div>
 
     <!-- Complete Cohort Table Section -->
-    <div class="section-title">📋 Cohorte Complète &amp; Diagnostics Détaillés</div>
+    <div class="section-title">📋 Complete Cohort &amp; Detailed Diagnostics</div>
     <div class="controls-bar">
         <div class="filter-btn-group">
-            <button class="filter-btn active" onclick="setQuickFilter('all', this)">Tous ({total_designs})</button>
-            <button class="filter-btn" onclick="setQuickFilter('passed', this)">Validés (passes) ({ortho_count})</button>
+            <button class="filter-btn active" onclick="setQuickFilter('all', this)">All ({total_designs})</button>
+            <button class="filter-btn" onclick="setQuickFilter('passed', this)">Validated (passes) ({ortho_count})</button>
             <button class="filter-btn" onclick="setQuickFilter('dockq', this)">DockQ ≥ 0.23 ({dockq_pass_count})</button>
-            <button class="filter-btn" onclick="setQuickFilter('offtarget', this)">Hors-cible ({offtarget_count})</button>
+            <button class="filter-btn" onclick="setQuickFilter('offtarget', this)">Off-target ({offtarget_count})</button>
         </div>
-        <input type="text" id="searchInput" class="search-input" placeholder="Filtrer par nom ou motif..." onkeyup="applyFilter()">
+        <input type="text" id="searchInput" class="search-input" placeholder="Filter by name or motif..." onkeyup="applyFilter()">
     </div>
 
     <div class="table-container">
@@ -1875,15 +1876,15 @@ def generate_interactive_html(csv_path, html_path):
             <thead>
                 <tr>
                     <th onclick="sortTable(0)">#</th>
-                    <th onclick="sortTable(1)">Paire Orthogonale (A'·B')</th>
-                    <th onclick="sortTable(2)">Motif A' Parent</th>
-                    <th onclick="sortTable(3)">iPTM Sauvetage (A'·B')</th>
-                    <th onclick="sortTable(4)">iPTM Négatif (A_WT·B')</th>
-                    <th onclick="sortTable(5)">iPTM Rupture (A'·B_WT)</th>
-                    <th onclick="sortTable(6)">Score F_ortho</th>
-                    <th onclick="sortTable(7)">Score DockQ</th>
+                    <th onclick="sortTable(1)">Orthogonal Pair (A'·B')</th>
+                    <th onclick="sortTable(2)">Parent A' Motif</th>
+                    <th onclick="sortTable(3)">Rescue iPTM (A'·B')</th>
+                    <th onclick="sortTable(4)">Negative iPTM (A_WT·B')</th>
+                    <th onclick="sortTable(5)">Rupture iPTM (A'·B_WT)</th>
+                    <th onclick="sortTable(6)">F_ortho Score</th>
+                    <th onclick="sortTable(7)">DockQ Score</th>
                     <th onclick="sortTable(8)">F_nat</th>
-                    <th onclick="sortTable(9)">pLDDT Complexe</th>
+                    <th onclick="sortTable(9)">Complex pLDDT</th>
                     <th onclick="sortTable(10)">Verdict &amp; Diagnostic</th>
                 </tr>
             </thead>
